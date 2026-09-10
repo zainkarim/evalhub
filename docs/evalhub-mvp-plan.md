@@ -1,0 +1,191 @@
+# Assessment Helper — 9-Week MVP Plan
+
+**Team size:** 6 · **Constraint:** everything free/open-source, no trials · **Cadence:** weekly faculty check-in + 2-week sprints · **Platform:** Web application (desktop app is a stretch goal, not required)
+
+---
+
+## 1. Tech Stack (all free/OSS)
+
+| Layer | Choice | Why |
+|---|---|---|
+| Frontend | React + Vite, Tailwind CSS | Fast setup, huge OSS ecosystem |
+| Backend | Node.js + Express (or Django if team knows Python better) | REST API, easy auth middleware |
+| Database | PostgreSQL | Relational — fits teacher/course/assessment structure well |
+| Auth | JWT + bcrypt (roll your own) or Auth.js | No paid identity providers needed |
+| Hosting | Render / Railway free tier (backend+DB), Vercel/Netlify (frontend) | $0, good enough for a semester demo |
+| Version control | GitHub (private repo, free for students) | |
+| PM/tracking | GitHub Projects or Trello | Free kanban board |
+| Docs | Markdown in repo + shared Google Doc | |
+
+---
+
+## 2. Team Roles (6 people)
+
+| Role | People | Owns |
+|---|---|---|
+| **Backend/Data** | 2 | DB schema, models, core API (teachers, courses, assessments) |
+| **Frontend** | 2 | React UI, dashboards, forms, state management |
+| **Integration & Auth** | 1 | UTD Course Book API integration, JWT auth, role-based access |
+| **PM / QA / Docs** | 1 | Requirements doc, sprint tracking, test cases, KPI calc logic, demo prep |
+
+Everyone writes their own unit tests for what they build; PM/QA owns integration testing.
+
+---
+
+## 3. System Overview
+
+### End Users
+- **Professors** — sign up for courses, view observations given/received, access evaluation forms
+- **AC (Assessment Committee) members** — review and approve observer lists, monitor dashboards, act as observers for new hires when needed
+
+### Evaluation Frequency Rules
+| Professor Rank | Required Frequency |
+|---|---|
+| Assistant Professor | At least once per year |
+| Associate Professor | Once every 2 years |
+| Full Professor | Once every 2 years |
+
+The system uses these rules to automatically determine which professors are due for evaluation each semester.
+
+### The Matching & Approval Workflow (Human-in-the-Loop)
+
+This is **not** a fully automated assignment system. The correct flow is:
+
+1. System generates a list of professors who are **due** for evaluation based on rank + last evaluation date
+2. For each, system surfaces **~5 potential observer professors** in the same focus area/course who have signed up and are available
+3. Those ~5 professors **decide among themselves** whether they are willing/able — this is a human decision, not an auto-assignment
+4. The generated observer list is sent to the **AC for review and approval first** — it never goes directly to professors
+5. Only after AC approval does an email/notification go out to professors (with reminders as needed)
+6. **The system never auto-sends communications** — the AC is always the approval gate
+
+**Edge case — new hires:** If a new hire professor needs an evaluation and no same-area observer is available, an AC member may step in to conduct the evaluation themselves.
+
+### Sign-Up & Visibility Rules
+- Professors sign up for a course each semester and get access to observations tied to that course
+- A professor can receive observations from another professor (e.g., Prof A observes Prof B) — **both professors** involved need visibility into that record
+- Professors can sign up for multiple evaluations per semester across different topics/subjects
+- Each professor can see:
+  - Evaluations they have **given** (with attribution)
+  - Evaluations they have **received** (with attribution)
+
+### Evaluation Form
+- Professors conducting an observation may either:
+  - Use the **built-in online form**, or
+  - **Upload their own** form/document
+- Both pathways must be supported in the MVP
+
+---
+
+## 4. MVP Scope Cut
+
+**In scope (MVP):**
+- Teacher profiles with rank, focus areas, current level, and evaluation cycle
+- Course metadata (sections, schedule, historical instructors)
+- Assessment workflow: sign-up → AC-approved observer list → confirmation → reporting
+- Evaluation frequency scheduling based on rank rules (see above)
+- Focus-area observer matching (~5 candidates surfaced; human decision follows)
+- AC approval gate before any observer list is communicated
+- Evaluation form (built-in) + document upload option
+- Professor dashboard: evaluations given, evaluations received, attribution visible for both
+- AC dashboard with core KPIs (see §6)
+- POC-level UTD Course Book API integration
+- Dummy/sample professor accounts for testing and demo
+- Basic role-based access (AC / faculty)
+
+**Deferred to stretch (only if ahead of schedule):**
+- Desktop application wrapper
+- Email/notification delivery (AC-approval step exists; actual sending is stretch)
+- Calendar integration
+- Semester-based workload analytics
+- Exportable evaluation and observation reports
+
+---
+
+## 5. Sprint Breakdown
+
+### Week 0 — Setup & Design (not a sprint, but critical)
+- Finalize requirements with Prof. Narayanasami (confirm weekly report day — likely Fridays)
+- Design DB schema (ERD): Professors (with rank), Courses, Assessments, Observations, ObserverCandidates, Users, Roles
+- Set up repo, CI, hosting, project board
+- Assign roles, agree on API contract (routes + payload shapes) so frontend/backend can work in parallel
+- Seed initial dummy professor accounts in schema design
+- **Deliverable:** ERD, API spec doc, repo scaffolded
+
+### Sprint 1 — Weeks 1–2: Core Data Layer
+- Backend: DB models + migrations, CRUD APIs for Professors & Courses, basic auth (login/JWT), role-based middleware (AC vs. faculty)
+- Frontend: Login screen, professor list/detail view, course list/detail view, connect to real API
+- Integration: Auth middleware + role checks; scaffold UTD Course Book API client (mock data if access is slow to obtain)
+- **Deliverable:** Working login, professors and courses viewable/editable end-to-end
+
+### Sprint 2 — Weeks 3–4: Assessment Workflow Core
+- Backend: Evaluation eligibility engine (rank-based frequency rules), sign-up API, observer candidate generation (~5 per subject area), AC approval queue endpoints, observer confirmation endpoints
+- Frontend: Sign-up flow UI, observer candidate list view (surfaced to AC, not professors directly), AC approval UI, confirmation UI
+- Integration: Wire real UTD Course Book data if available; otherwise continue with mocks
+- **Deliverable:** A professor can be matched to observer candidates, the list goes to AC for approval, and an observation can be confirmed — start to finish, with no auto-communication bypassing AC
+
+### Sprint 3 — Weeks 5–6: Dashboards, KPIs & Evaluation Forms
+- Backend: KPI calculation endpoints (eligibility accuracy, overdue count, participation rate, match accuracy, survey/observation completion); evaluation form submission API; document upload endpoint
+- Frontend: AC dashboard, professor dashboard (evaluations given + received with attribution), charts (Recharts or similar free lib), built-in evaluation form UI, file upload UI
+- PM/QA: Write test cases against KPI definitions from the deck; validate numbers by hand on sample data
+- **Deliverable:** Both dashboards live with real (or seeded) data; evaluation form and upload both functional
+
+### Sprint 4 — Weeks 7–8: Role-Based Access, Polish, Hardening
+- Integration: Full role-based access control (AC vs. faculty views fully gated)
+- Backend: Edge cases — unmatched faculty report, new-hire AC-observer fallback, outstanding observations report
+- Frontend: UI polish, error states, loading states, responsive pass
+- PM/QA: Full regression pass, bug triage, seed realistic demo data including dummy professor accounts
+- **Deliverable:** Feature-complete MVP, role-gated, demo data loaded
+
+### Week 9 (–10 buffer) — Testing, Docs, Demo Prep
+- Bug fixes from QA pass
+- Finalize documentation (setup instructions, architecture diagram, known limitations)
+- Confirm weekly report format / submission process with Prof. Narayanasami if not already locked
+- Rehearse demo / prepare slides
+- **Deliverable:** Deployed, demo-ready MVP
+
+---
+
+## 6. KPI Checklist (Dashboard Must-Haves)
+
+Treat these as a feature checklist — every KPI must be surfaced somewhere in the AC or professor dashboard.
+
+**Faculty Evaluation KPIs**
+- Evaluation Eligibility Accuracy
+- Overdue Evaluation Count
+- Faculty due for evaluation — breakdown by hire level
+
+**Assessment Participation KPIs**
+- Assessment Participation Rate
+- Observer Utilization Rate
+- Average observations per observer
+
+**Recommendation Engine KPIs**
+- Focus-area match accuracy
+- List sufficiency rate
+
+**Survey & Observation Completion KPIs**
+- Survey Completion Rate
+- Missing Observation Count
+
+**Executive / AC Reports**
+- Unmatched faculty report
+- Outstanding Observation Report
+
+---
+
+## 7. Weekly Rhythm
+
+- **Weekly faculty report:** due Fridays (confirm exact format/submission method with Prof. Narayanasami in Week 0)
+- **Internal standup (2x/week, async is fine):** what's done, what's next, blockers
+- **In-person meetings:** 1–2 times for the semester per faculty schedule; otherwise virtual via MS Teams
+- **Sprint boundary (every 2 weeks):** demo to each other, re-groom backlog, adjust scope if behind
+
+---
+
+## 8. Risk Watch
+
+- **UTD Course Book API access** — request credentials/docs in Week 0; if delayed, build against mocked data so it doesn't block Sprint 1–2.
+- **Matching workflow misunderstood** — the system surfaces candidates, humans decide; do not build auto-assignment. AC approval gate must exist before any list reaches professors.
+- **Evaluation form + upload scope** — both pathways (built-in form and document upload) are MVP; don't defer the upload path.
+- **Matching algorithm complexity** — keep v1 rule-based (focus-area overlap + availability), not optimization-heavy. Don't over-engineer.
+- **Scope creep from stretch goals** — hold the line until Week 8; only pull in stretch items (desktop wrapper, email delivery, exports) if MVP is done early.
