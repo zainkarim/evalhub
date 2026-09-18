@@ -1,10 +1,15 @@
+import { BrowserRouter, Routes, Route } from "react-router-dom"
+import Professors from "./pages/Professors"
+import ProfessorDetail from "./pages/ProfessorDetail"
+
 function App() {
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <h1 className="text-4xl font-bold">
-        EvalHub
-      </h1>
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Professors />} />
+        <Route path="/professors/:id" element={<ProfessorDetail />} />
+      </Routes>
+    </BrowserRouter>
   )
 }
 
