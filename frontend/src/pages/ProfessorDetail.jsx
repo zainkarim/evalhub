@@ -1,4 +1,4 @@
-import { useParams } from "react-router-dom"
+import { Link, useParams } from "react-router-dom"
 
 
 function ProfessorDetail() {
@@ -51,6 +51,7 @@ function ProfessorDetail() {
       <p>School: {professor.school}</p>
       <p>Rank: {professor.rank}</p>
       <p>Status: {professor.active ? "Active" : "Inactive"}</p>
+      <Link to="/">Back to Professor List</Link>
     </div>
   )
 }
