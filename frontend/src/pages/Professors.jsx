@@ -46,23 +46,27 @@ function Professors() {
   })
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-5">Professor List</h1>
+  <div className="min-h-screen bg-[#f5f7f6] px-5 py-[60px] font-[Arial]">
+    <div className="mx-auto max-w-[800px] rounded-xl bg-white p-[35px] shadow-lg">
+      
+      <h1 className="mt-0 mb-6 text-[30px] font-normal text-[#154734]">
+        Professor List
+      </h1>
 
-      {/* 검색 및 rank 선택 */}
-      <div className="mb-5">
+      {/* Search and filter */}
+      <div className="mb-6 flex gap-3">
         <input
           type="text"
           placeholder="Search professor"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="border px-3 py-2 mr-2"
+          className="flex-1 rounded-md border border-gray-300 px-3 py-3 text-base"
         />
 
         <select
           value={rank}
           onChange={(e) => setRank(e.target.value)}
-          className="border px-3 py-2"
+          className="rounded-md border border-gray-300 bg-white px-3 py-3 text-base"
         >
           <option value="All">All Ranks</option>
           <option value="Assistant Professor">Assistant Professor</option>
@@ -71,31 +75,39 @@ function Professors() {
         </select>
       </div>
 
-      {/* 교수 목록 */}
-      <table className="border-collapse">
+      {/* gyosoo table */}
+      <table className="w-full border-collapse">
         <thead>
-          <tr>
-            <th className="border px-4 py-2 text-left">Name</th>
-            <th className="border px-4 py-2 text-left">Rank</th>
-            <th className="border px-4 py-2 text-left">Status</th>
+          <tr className="bg-[#f5f7f6]">
+            <th className="border-b-2 border-gray-300 p-3 text-left">
+              Name
+            </th>
+            <th className="border-b-2 border-gray-300 p-3 text-left">
+              Rank
+            </th>
+            <th className="border-b-2 border-gray-300 p-3 text-left">
+              Status
+            </th>
           </tr>
         </thead>
 
         <tbody>
           {filteredProfessors.map((professor) => (
             <tr key={professor.id}>
-              <td className="border px-4 py-2">
+              <td className="border-b border-gray-200 p-3">
                 <Link
                   to={`/professors/${professor.id}`}
-                  className="text-blue-600 underline"
+                  className="font-semibold text-[#154734] hover:underline"
                 >
                   {professor.firstName} {professor.lastName}
                 </Link>
               </td>
 
-              <td className="border px-4 py-2">{professor.rank}</td>
+              <td className="border-b border-gray-200 p-3">
+                {professor.rank}
+              </td>
 
-              <td className="border px-4 py-2">
+              <td className="border-b border-gray-200 p-3">
                 {professor.active ? "Active" : "Inactive"}
               </td>
             </tr>
@@ -104,10 +116,11 @@ function Professors() {
       </table>
 
       {filteredProfessors.length === 0 && (
-        <p className="mt-3">No professors found.</p>
+        <p className="mt-4">No professors found.</p>
       )}
     </div>
-  )
+  </div>
+)
 }
 
 export default Professors

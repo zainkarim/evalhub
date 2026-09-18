@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom"
 import Professors from "./pages/Professors"
 import ProfessorDetail from "./pages/ProfessorDetail"
 
+
 function App() {
   return (
     <BrowserRouter>
