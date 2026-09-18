@@ -10,9 +10,49 @@ function ObservationSignup() {
   // Tracks whether the observation request was submitted
   const [submitted, setSubmitted] = useState(false);
 
+  // Sample courses and their available sections
+  const courses = {
+    "CS 3354": {
+      name: "Software Engineering",
+      sections: ["001", "002", "003"],
+    },
+    "CS 3345": {
+      name: "Data Structures and Algorithmic Analysis",
+      sections: ["001", "002", "004"],
+    },
+    "CS 4348": {
+      name: "Operating Systems Concepts",
+      sections: ["001", "002"],
+    },
+    "CS 4349": {
+      name: "Advanced Algorithm Design",
+      sections: ["001", "002"],
+    },
+    "CS 4375": {
+      name: "Introduction to Machine Learning",
+      sections: ["001", "003"],
+    },
+    "CS 4384": {
+      name: "Automata Theory",
+      sections: ["001", "002"],
+    },
+    "CS 6360": {
+      name: "Database Design",
+      sections: ["001", "002"],
+    },
+  };
+
+  // Runs when a professor selects a different course
+  const handleCourseChange = (event) => {
+    setCourse(event.target.value);
+
+    // Reset the section because each course may have different sections
+    setSection("");
+    setSubmitted(false);
+  };
+
   // Runs when the professor submits the form
   const handleSubmit = (event) => {
-    // Prevent the page from refreshing
     event.preventDefault();
 
     // Do not submit until all required fields are selected
@@ -43,11 +83,15 @@ function ObservationSignup() {
             <label>Semester</label>
             <select
               value={semester}
-              onChange={(e) => setSemester(e.target.value)}
+              onChange={(e) => {
+                setSemester(e.target.value);
+                setSubmitted(false);
+              }}
             >
               <option value="">Select semester</option>
               <option value="Fall 2026">Fall 2026</option>
               <option value="Spring 2027">Spring 2027</option>
+              <option value="Fall 2027">Fall 2027</option>
             </select>
           </div>
 
@@ -56,18 +100,15 @@ function ObservationSignup() {
             <label>Course</label>
             <select
               value={course}
-              onChange={(e) => setCourse(e.target.value)}
+              onChange={handleCourseChange}
             >
               <option value="">Select course</option>
-              <option value="CS 3354">
-                CS 3354 - Software Engineering
-              </option>
-              <option value="CS 4349">
-                CS 4349 - Advanced Algorithm Design
-              </option>
-              <option value="CS 3345">
-                CS 3345 - Data Structures
-              </option>
+
+              {Object.entries(courses).map(([courseNumber, courseInfo]) => (
+                <option key={courseNumber} value={courseNumber}>
+                  {courseNumber} - {courseInfo.name}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -76,11 +117,22 @@ function ObservationSignup() {
             <label>Section</label>
             <select
               value={section}
-              onChange={(e) => setSection(e.target.value)}
+              onChange={(e) => {
+                setSection(e.target.value);
+                setSubmitted(false);
+              }}
+              disabled={!course}
             >
-              <option value="">Select section</option>
-              <option value="001">Section 001</option>
-              <option value="002">Section 002</option>
+              <option value="">
+                {course ? "Select section" : "Select a course first"}
+              </option>
+
+              {course &&
+                courses[course].sections.map((sectionNumber) => (
+                  <option key={sectionNumber} value={sectionNumber}>
+                    Section {sectionNumber}
+                  </option>
+                ))}
             </select>
           </div>
 
@@ -93,8 +145,8 @@ function ObservationSignup() {
         {/* Show confirmation after successful submission */}
         {submitted && (
           <p className="success-message">
-            Observation request submitted for {course}, Section {section},
-            {` ${semester}`}.
+            Observation request submitted for {course} -{" "}
+            {courses[course].name}, Section {section}, {semester}.
           </p>
         )}
 
