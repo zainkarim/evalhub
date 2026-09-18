@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<head>
+    <title>EvalHub - Test Eligibility</title>
+</head>
+<body>
+    <h1>Professor Evaluation Checker</h1>
+    <fieldset>
+        <legend>Professor Info</legend>
+        
+        <div>
+            <label for="rank">Rank:</label>
+            <select id="rank">
+                <option value="Assistant">Assistant Professor</option>
+                <option value="Associate">Associate Professor</option>
+                <option value="Full">Full Professor</option>
+            </select>
+        </div>
+        <br>
+
+        <div>
+            <label for="current-term">Current Term:</label>
+            <select id="current-term">
+                <option value="Fall">Fall</option>
+                <option value="Spring">Spring</option>
+                <option value="Summer">Summer</option>
+            </select>
+            
+            <label for="current-year">Current Year:</label>
+            <input type="number" id="current-year" value="2026" max="2026">
+        </div>
+        <br>
+
+        <div>
+            <label for="first-semester">First Semester?</label>
+            <input type="checkbox" id="first-semester">
+        </div>
+    </fieldset>
+    <br>
+
+    <fieldset>
+        <legend>Evaluation History</legend>
+        
+        <div>
+            <input type="checkbox" id="never-evaluated" onchange="toggleEvalHistory()">
+            <label for="never-evaluated"><strong>Never evaluated before</strong></label>
+        </div>
+        <br>
+
+        <div>
+            <label for="last-eval-term">Last Evaluation Term:</label>
+            <select id="last-eval-term">
+                <option value="Fall">Fall</option>
+                <option value="Spring">Spring</option>
+                <option value="Summer">Summer</option>
+            </select>
+
+            <label for="last-eval-year">Last Evaluation Year:</label>
+            <input type="number" id="last-eval-year" value="2024">
+        </div>
+        <br>
+
+        <div>
+            <label for="cycle-override">Evaluation Cycle Override:</label>
+            <select id="cycle-override">
+                <option value="2">Default (2 Years)</option>
+                <option value="1">1 Year</option>
+                <option value="3">3 Years</option>
+            </select>
+        </div>
+    </fieldset>
+    <br>
+
+    <button onclick="checkEligibility()">Check Eligibility</button>
+
+    <hr>
+
+    <h2>Result</h2>
+    <h3 id="result-status"></h3>
+    <p id="result-reason"></p>
+
+    <script>
+        function toggleEvalHistory() 
+        {
+            const isNever = document.getElementById('never-evaluated').checked;
+            document.getElementById('last-eval-term').disabled = isNever;
+            document.getElementById('last-eval-year').disabled = isNever;
+        }
+        function checkEligibility() {
+            const rank = document.getElementById('rank').value;
+            const currentTerm = document.getElementById('current-term').value;
+            const currentYear = parseInt(document.getElementById('current-year').value) || 2026;
+            const firstSemester = document.getElementById('first-semester').checked;
+            
+            const neverEvaluated = document.getElementById('never-evaluated').checked;
+            const lastEvalTerm = document.getElementById('last-eval-term').value;
+            const lastEvalYear = parseInt(document.getElementById('last-eval-year').value);
+            const cycleOverride = parseInt(document.getElementById('cycle-override').value);
+
+            const resultStatus = document.getElementById('result-status');
+            const resultReason = document.getElementById('result-reason');
+
+            let isEligible = false;
+            let reason = "";
+
+            // Rule 1 - NO summer.
+            if (currentTerm === "Summer") 
+            {
+                isEligible = false;
+                reason = "Summer evaluations are not eligible.";
+            } 
+            // Rule 2 - Associates are only evaluated during the Spring/Fall AFTER their initial semester.
+            else if (rank === "Assistant") 
+            {
+                if (firstSemester)
+                {
+                    isEligible = false;
+                    reason = "Assistant Professors are not evaluated during their first semester.";
+                } 
+                else 
+                {
+                    isEligible = true;
+                    reason = "Assistant Professors are evaluated during Spring and Fall after their first semester.";
+                }
+            } 
+
+            // Rule 3 - Block if last evaluation was too recent, else if they have never had an eval or it's been a while, let them be evaluated.
+            else 
+            {
+                if (neverEvaluated || isNaN(lastEvalYear)) 
+                {
+                    isEligible = true;
+                    reason = "No previous evaluation recorded. The professor is eligible for evaluation.";
+                }
+                else 
+                {
+                    const yearsPassed = currentYear - lastEvalYear;
+                    
+                    if (yearsPassed >= cycleOverride) {
+                        isEligible = true;
+                        let defaultText = cycleOverride !== 2 ? "(Custom Override)" : "(Default Cycle)";
+                        reason = `The required evaluation interval of ${cycleOverride} year(s) has passed ${defaultText}.`;
+                    } 
+                    else 
+                    {
+                        isEligible = false;
+                        let defaultText = cycleOverride !== 2 ? "(Custom Override)" : "(Default Cycle)";
+                        reason = `The professor has not yet reached the required evaluation interval of ${cycleOverride} year(s) ${defaultText}. Last evaluation was in ${lastEvalYear}.`;
+                    }
+                }
+            }
+
+            if (isEligible) 
+            {
+                resultStatus.innerText = "✅ CAN BE EVALUATED";
+            } 
+            else 
+            {
+                resultStatus.innerText = "❌ CANNOT BE EVALUATED";
+            }
+
+            resultReason.innerText = "Reason: " + reason;
+        }
+    </script>
+</body>
+</html>
