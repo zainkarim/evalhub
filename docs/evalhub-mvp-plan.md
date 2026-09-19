@@ -1,6 +1,6 @@
 # Assessment Helper — 9-Week MVP Plan
 
-**Team size:** 6 · **Constraint:** everything free/open-source, no trials · **Cadence:** weekly faculty check-in + 2-week sprints · **Platform:** Web application (desktop app is a stretch goal, not required)
+**Team size:** 6 · **Constraint:** everything free/open-source, no trials · **Cadence:** weekly faculty check-in + 2-week sprints · **Platform:** Web application (confirmed 2026-09-11; desktop wrapper is stretch-only, not the primary target)
 
 ---
 
@@ -38,27 +38,36 @@ Everyone writes their own unit tests for what they build; PM/QA owns integration
 - **Professors** — sign up for courses, view observations given/received, access evaluation forms
 - **AC (Assessment Committee) members** — review and approve observer lists, monitor dashboards, act as observers for new hires when needed
 
-### Evaluation Frequency Rules
+### Evaluation Frequency Rules (corrected 2026-09-11)
 | Professor Rank | Required Frequency |
 |---|---|
-| Assistant Professor | At least once per year |
-| Associate Professor | Once every 2 years |
-| Full Professor | Once every 2 years |
+| Assistant Professor | Not evaluated their first semester; every Spring and every Fall after that |
+| Associate Professor | Every 2 years, Summer excluded |
+| Full Professor | Every 2 years, Summer excluded |
 
-The system uses these rules to automatically determine which professors are due for evaluation each semester.
+Frequency must be configurable per professor (e.g., after a promotion or role change), not a hardcoded lookup by rank alone. The system uses rank + last-evaluation-date + semester type to determine who is due each term.
+
+### Observer Matching — by course level, not focus area (corrected 2026-09-11)
+- Matching key is **course level** — the most-significant-digit (MSD) of the course number (1000-level, 2000-level, etc.) — not subject/focus area.
+- A valid observer must (a) be from the **same school** as the requester and (b) have **taught that course level within the last 2 years**.
+- Professors teaching different subjects can still match if their courses share a level (e.g., an ECS 1200 instructor can observe any ECS 1000-level course); cross-school matches are invalid even at the same level (an EPPS 1000-level instructor cannot observe an ECS 1000-level course).
+- The system always returns **exactly 5 candidates**; if more than 5 qualify, pick 5 at random — no ranking/scoring algorithm needed.
 
 ### The Matching & Approval Workflow (Human-in-the-Loop)
 
 This is **not** a fully automated assignment system. The correct flow is:
 
 1. System generates a list of professors who are **due** for evaluation based on rank + last evaluation date
-2. For each, system surfaces **~5 potential observer professors** in the same focus area/course who have signed up and are available
-3. Those ~5 professors **decide among themselves** whether they are willing/able — this is a human decision, not an auto-assignment
+2. For each, system surfaces **~5 potential observer professors** per the course-level matching rule above who have signed up and are available
+3. The requesting professor **contacts those candidates directly** and works out availability — this is a human decision, not an auto-assignment
 4. The generated observer list is sent to the **AC for review and approval first** — it never goes directly to professors
 5. Only after AC approval does an email/notification go out to professors (with reminders as needed)
 6. **The system never auto-sends communications** — the AC is always the approval gate
+7. Once an observer agrees, they attend the class on the scheduled date and give feedback; **both observer and observee sign off** afterward
+8. If the observation doesn't happen (illness, conflict, etc.), retry within roughly 3–4 weeks
+9. If it still doesn't happen, the requester notifies the system/AC — a committee member may step in as observer, or it gets postponed to the next semester
 
-**Edge case — new hires:** If a new hire professor needs an evaluation and no same-area observer is available, an AC member may step in to conduct the evaluation themselves.
+**Edge case — new hires:** If a new hire professor needs an evaluation and no same-school/same-level observer is available, an AC member may step in to conduct the evaluation themselves.
 
 ### Sign-Up & Visibility Rules
 - Professors sign up for a course each semester and get access to observations tied to that course
@@ -68,22 +77,27 @@ This is **not** a fully automated assignment system. The correct flow is:
   - Evaluations they have **given** (with attribution)
   - Evaluations they have **received** (with attribution)
 
-### Evaluation Form
-- Professors conducting an observation may either:
-  - Use the **built-in online form**, or
-  - **Upload their own** form/document
-- Both pathways must be supported in the MVP
+### Evaluation Forms — four distinct forms (corrected 2026-09-11)
+- **Sign-up form:** web form with SSO
+- **Observation confirmation** (posted by the observee): web form with SSO
+- **Observation form itself** (used by the observer during the observation): **DOCX file**, not a web form — the observer fills it out and submits the completed DOCX afterward. Not intended for data analysis/aggregation.
+- **Process feedback form:** web form with SSO
+
+### Evaluation Criteria (added 2026-09-11)
+- Criteria, weights, scoring levels, and rating scales are **not fixed in code** — AC members must be able to add/edit them (a sample rubric to be provided by Prof. Narayanasami).
+- Example criteria (not exhaustive): clarity, student engagement, preparedness, response to questions, academic rigor, pacing, organization, accessibility, learning-objective alignment, appropriate (not maximal) use of technology.
+- Do not penalize for absence of lecture recording — it isn't a university requirement.
 
 ---
 
 ## 4. MVP Scope Cut
 
 **In scope (MVP):**
-- Teacher profiles with rank, focus areas, current level, and evaluation cycle
+- Teacher profiles with rank, school, course levels taught, and evaluation cycle
 - Course metadata (sections, schedule, historical instructors)
 - Assessment workflow: sign-up → AC-approved observer list → confirmation → reporting
 - Evaluation frequency scheduling based on rank rules (see above)
-- Focus-area observer matching (~5 candidates surfaced; human decision follows)
+- Course-level observer matching (~5 candidates surfaced; human decision follows)
 - AC approval gate before any observer list is communicated
 - Evaluation form (built-in) + document upload option
 - Professor dashboard: evaluations given, evaluations received, attribution visible for both
@@ -118,7 +132,7 @@ This is **not** a fully automated assignment system. The correct flow is:
 - **Deliverable:** Working login, professors and courses viewable/editable end-to-end
 
 ### Sprint 2 — Weeks 3–4: Assessment Workflow Core
-- Backend: Evaluation eligibility engine (rank-based frequency rules), sign-up API, observer candidate generation (~5 per subject area), AC approval queue endpoints, observer confirmation endpoints
+- Backend: Evaluation eligibility engine (rank-based frequency rules), sign-up API, observer candidate generation (~5 per course level + school), AC approval queue endpoints, observer confirmation endpoints
 - Frontend: Sign-up flow UI, observer candidate list view (surfaced to AC, not professors directly), AC approval UI, confirmation UI
 - Integration: Wire real UTD Course Book data if available; otherwise continue with mocks
 - **Deliverable:** A professor can be matched to observer candidates, the list goes to AC for approval, and an observation can be confirmed — start to finish, with no auto-communication bypassing AC
@@ -160,7 +174,7 @@ Treat these as a feature checklist — every KPI must be surfaced somewhere in t
 - Average observations per observer
 
 **Recommendation Engine KPIs**
-- Focus-area match accuracy
+- Course-level match accuracy
 - List sufficiency rate
 
 **Survey & Observation Completion KPIs**
@@ -187,5 +201,5 @@ Treat these as a feature checklist — every KPI must be surfaced somewhere in t
 - **UTD Course Book API access** — request credentials/docs in Week 0; if delayed, build against mocked data so it doesn't block Sprint 1–2.
 - **Matching workflow misunderstood** — the system surfaces candidates, humans decide; do not build auto-assignment. AC approval gate must exist before any list reaches professors.
 - **Evaluation form + upload scope** — both pathways (built-in form and document upload) are MVP; don't defer the upload path.
-- **Matching algorithm complexity** — keep v1 rule-based (focus-area overlap + availability), not optimization-heavy. Don't over-engineer.
+- **Matching algorithm complexity** — keep v1 rule-based (course-level + same-school overlap, taught within last 2 years), not optimization-heavy. Don't over-engineer.
 - **Scope creep from stretch goals** — hold the line until Week 8; only pull in stretch items (desktop wrapper, email delivery, exports) if MVP is done early.
