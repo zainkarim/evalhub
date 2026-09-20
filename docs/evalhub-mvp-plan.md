@@ -47,27 +47,29 @@ Everyone writes their own unit tests for what they build; PM/QA owns integration
 
 Frequency must be configurable per professor (e.g., after a promotion or role change), not a hardcoded lookup by rank alone. The system uses rank + last-evaluation-date + semester type to determine who is due each term.
 
-### Observer Matching — by course level, not focus area (corrected 2026-09-11)
+### Observer Matching — by course level, not focus area (corrected 2026-09-11, refined 2026-09-18/20)
 - Matching key is **course level** — the most-significant-digit (MSD) of the course number (1000-level, 2000-level, etc.) — not subject/focus area.
-- A valid observer must (a) be from the **same school** as the requester and (b) have **taught that course level within the last 2 years**.
-- Professors teaching different subjects can still match if their courses share a level (e.g., an ECS 1200 instructor can observe any ECS 1000-level course); cross-school matches are invalid even at the same level (an EPPS 1000-level instructor cannot observe an ECS 1000-level course).
-- The system always returns **exactly 5 candidates**; if more than 5 qualify, pick 5 at random — no ranking/scoring algorithm needed.
+- A valid observer must (a) be from the **same school/department** as the requester ("school" and "department" are used interchangeably here — team decision 2026-09-20) and (b) have **taught that course level** (recency window disputed — see `docs/requirements.md` §8).
+- Professors teaching different subjects can still match if their courses share a level (e.g., an ECS 1200 instructor can observe any ECS 1000-level course); cross-department matches are invalid even at the same level (an EPPS 1000-level instructor cannot observe an ECS 1000-level course).
+- Availability is computed from course schedules, not entered manually.
+- The system shows **up to 5 candidates**: 5+ eligible → pick 5 at random; fewer than 5 → show all; zero → notify the AC via its dashboard.
 
 ### The Matching & Approval Workflow (Human-in-the-Loop)
 
-This is **not** a fully automated assignment system. The correct flow is:
+This is **not** a fully automated assignment system. **Reconciled 2026-09-20:** kickoff said the AC approves the candidate list before any professor sees it; the 9/11 and 9/18 meetings instead have the system show candidates directly to the requesting professor. Team decision: keep the AC gate, but move it to the pairing-confirmation step (step 5 below) rather than the candidate-list step.
 
 1. System generates a list of professors who are **due** for evaluation based on rank + last evaluation date
-2. For each, system surfaces **~5 potential observer professors** per the course-level matching rule above who have signed up and are available
-3. The requesting professor **contacts those candidates directly** and works out availability — this is a human decision, not an auto-assignment
-4. The generated observer list is sent to the **AC for review and approval first** — it never goes directly to professors
-5. Only after AC approval does an email/notification go out to professors (with reminders as needed)
-6. **The system never auto-sends communications** — the AC is always the approval gate
-7. Once an observer agrees, they attend the class on the scheduled date and give feedback; **both observer and observee sign off** afterward
-8. If the observation doesn't happen (illness, conflict, etc.), retry within roughly 3–4 weeks
+2. System surfaces up to 5 observer candidates per the course-level matching rule above, shown directly to the requesting professor
+3. The requesting professor sends system-generated **requests** (not "invitations") to one, several, or all candidates — cannot request outside the list. Requests expire after 48 hours; one acceptance auto-cancels the rest
+4. Once an observer accepts, the system records the pairing and scheduled observation date
+5. **Before the pairing is treated as final, it goes to the AC for approval** — the approval gate now lives here
+6. **The system never auto-sends communications without this AC step**
+7. Once approved, the observer attends the class and gives feedback; **both observer and observee sign off** afterward (the observee's sign-off confirms the observation occurred, not agreement with the ratings)
+8. If the observation doesn't happen (illness, conflict, etc.), reschedule and complete within the same semester where possible
 9. If it still doesn't happen, the requester notifies the system/AC — a committee member may step in as observer, or it gets postponed to the next semester
+10. Once signed/submitted, a completed observation cannot be edited by anyone — view-only access only
 
-**Edge case — new hires:** If a new hire professor needs an evaluation and no same-school/same-level observer is available, an AC member may step in to conduct the evaluation themselves.
+**Edge case — new hires:** If a new hire professor needs an evaluation and no eligible observer is available, the AC is notified via its dashboard and an AC member may step in to conduct the evaluation themselves.
 
 ### Sign-Up & Visibility Rules
 - Professors sign up for a course each semester and get access to observations tied to that course
