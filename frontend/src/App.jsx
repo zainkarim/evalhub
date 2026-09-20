@@ -3,6 +3,7 @@ import Layout from "./components/Layout"
 import ProtectedRoute from "./components/ProtectedRoute"
 import { AuthProvider } from "./context/AuthContext"
 import CourseDetail from "./pages/CourseDetail"
+import ObservationSignup from "./pages/ObservationSignup"
 import Courses from "./pages/Courses"
 import Login from "./pages/Login"
 import ProfessorDetail from "./pages/ProfessorDetail"
@@ -27,6 +28,7 @@ function App() {
             <Route path="/professors/:id" element={<ProfessorDetail />} />
             <Route path="/courses" element={<Courses />} />
             <Route path="/courses/:id" element={<CourseDetail />} />
+            <Route path="/observation-signup" element={<ObservationSignup />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />
