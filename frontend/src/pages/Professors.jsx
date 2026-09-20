@@ -29,7 +29,6 @@ function Professors() {
                 <tr>
                   <th className="px-4 py-3 font-medium">Name</th>
                   <th className="px-4 py-3 font-medium">Rank</th>
-                  <th className="px-4 py-3 font-medium">Focus areas</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                 </tr>
               </thead>
@@ -46,9 +45,6 @@ function Professors() {
                       <span className="block text-muted">{professor.email}</span>
                     </td>
                     <td className="px-4 py-3">{professor.rank}</td>
-                    <td className="px-4 py-3">
-                      {professor.focusAreas?.join(", ") || "—"}
-                    </td>
                     <td className="px-4 py-3">
                       {professor.active ? "Active" : "Inactive"}
                     </td>

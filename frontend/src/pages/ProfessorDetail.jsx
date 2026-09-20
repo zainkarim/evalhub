@@ -34,12 +34,6 @@ function ProfessorDetail() {
                   <dd className="mt-0.5 text-sm">{professor.school}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-muted">Focus areas</dt>
-                  <dd className="mt-0.5 text-sm">
-                    {professor.focusAreas?.join(", ") || "—"}
-                  </dd>
-                </div>
-                <div>
                   <dt className="text-xs text-muted">Last evaluated</dt>
                   <dd className="mt-0.5 text-sm">
                     {professor.lastEvaluated ?? "Never"}
