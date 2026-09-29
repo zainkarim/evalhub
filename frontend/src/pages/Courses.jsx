@@ -166,7 +166,9 @@ const visibleCourses = courses?.filter((courseItem) => {
                   <th className="px-4 py-3 font-medium">Section</th>
                   <th className="px-4 py-3 font-medium">Instructor</th>
                   <th className="px-4 py-3 font-medium">Meets</th>
-                  <th className="px-4 py-3 font-medium">Observation</th>
+                  {user?.role === "faculty" && (
+                    <th className="px-4 py-3 font-medium">Action</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -189,20 +191,22 @@ const visibleCourses = courses?.filter((courseItem) => {
                         ? `${course.schedule.days} ${course.schedule.startTime}–${course.schedule.endTime}`
                         : "—"}
                     </td>
+                    {user?.role === "faculty" && (
                     <td className="px-4 py-3">
-  <Link
-    to="/observation-signup"
-    state={{
-      courseNumber: course.courseNumber,
-      courseTitle: course.title,
-      section: course.section,
-      semester: course.term,
-    }}
-    className="whitespace-nowrap font-medium text-utd-green hover:underline"
-  >
-    Request Observation
-  </Link>
-</td>
+                      <Link
+                        to="/observation-signup"
+                        state={{
+                          courseNumber: course.courseNumber,
+                          courseTitle: course.title,
+                          section: course.section,
+                          semester: course.term,
+                        }}
+                        className="whitespace-nowrap font-medium text-utd-green hover:underline"
+                      >
+                        Select for Observation
+                      </Link>
+                    </td>
+                  )}
                   </tr>
                 ))}
               </tbody>
