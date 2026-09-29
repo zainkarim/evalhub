@@ -1,7 +1,6 @@
 import { useState } from "react"
 import { Navigate, useLocation, useNavigate } from "react-router-dom"
 import { useAuth } from "../context/auth-context"
-import { USE_MOCKS } from "../lib/api"
 
 function Login() {
   const { user, restoring, login } = useAuth()
@@ -103,12 +102,46 @@ function Login() {
             </button>
           </form>
 
-          {USE_MOCKS && (
-            <div className="mt-10 rounded border border-line bg-white px-4 py-3 text-xs leading-relaxed text-muted">
-              Running on sample data. Committee: ac@utdallas.edu / acdemo.
-              Faculty: anita.rao@utdallas.edu / facdemo.
+          <div className="mt-8 rounded border border-line bg-white p-4">
+            <p className="text-sm font-medium">Demo Accounts</p>
+            <p className="mt-1 text-xs text-muted">
+              For development and team testing only.
+            </p>
+
+            <div className="mt-4 space-y-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail("faculty@example.edu")
+                  setPassword("ChangeMe-Dev-123!")
+                }}
+                className="w-full rounded border border-line px-3 py-2 text-left text-sm hover:bg-gray-50"
+              >
+                <span className="font-medium">Faculty</span>
+                <span className="block text-xs text-muted">
+                  faculty@example.edu
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail("ac@example.edu")
+                  setPassword("ChangeMe-Dev-123!")
+                }}
+                className="w-full rounded border border-line px-3 py-2 text-left text-sm hover:bg-gray-50"
+              >
+                <span className="font-medium">Assessment Committee</span>
+                <span className="block text-xs text-muted">
+                  ac@example.edu
+                </span>
+              </button>
             </div>
-          )}
+
+            <p className="mt-3 text-xs text-muted">
+              Password: ChangeMe-Dev-123!
+            </p>
+          </div>
         </div>
       </section>
     </div>

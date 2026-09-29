@@ -124,15 +124,71 @@ function ObservationSignup() {
     setSubmitted(false)
   }
 
-  const handleSubmit = (event) => {
-    event.preventDefault()
-
-    if (!semester || !course || !section) {
-      return
-    }
-
-    setSubmitted(true)
+  const alreadyRequested = availableCourses.some((item) => {
+  if (
+    item.courseNumber !== course ||
+    item.semester !== semester ||
+    item.section !== section
+  ) {
+    return false
   }
+
+  const requests = JSON.parse(
+    localStorage.getItem("observationRequests") || "[]"
+  )
+
+  return requests.some((request) => request.id === item.id)
+})
+
+  const handleSubmit = (event) => {
+  event.preventDefault()
+
+  if (!semester || !course || !section) {
+    return
+  }
+
+  const selected = availableCourses.find(
+    (item) =>
+      item.courseNumber === course &&
+      item.semester === semester &&
+      item.section === section
+  )
+
+  if (!selected) {
+    return
+  }
+
+  const newRequest = {
+  id: selected.id,
+  teacherId: user?.teacherId,
+  facultyName:
+    [user?.firstName, user?.lastName]
+      .filter(Boolean)
+      .join(" ") || user?.email,
+  courseNumber: selected.courseNumber,
+  title: selected.title,
+  semester: selected.semester,
+  section: selected.section,
+  status: "Pending",
+}
+
+  const existingRequests = JSON.parse(
+    localStorage.getItem("observationRequests") || "[]"
+  )
+
+  const alreadyRequested = existingRequests.some(
+    (request) => request.id === newRequest.id
+  )
+
+  if (!alreadyRequested) {
+    localStorage.setItem(
+      "observationRequests",
+      JSON.stringify([...existingRequests, newRequest])
+    )
+  }
+
+  setSubmitted(true)
+}
 
   if (loading) {
     return <p className="text-sm text-muted">Loading courses...</p>
@@ -242,18 +298,21 @@ function ObservationSignup() {
             </select>
           </div>
 
-          <button
-            type="submit"
-            className="rounded bg-utd-green px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-          >
-            Submit Observation Request
-          </button>
+         <button
+              type="submit"
+              disabled={alreadyRequested}
+              className="rounded bg-utd-green px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {alreadyRequested
+                ? "✓ Observation Already Requested"
+                : "Submit Observation Request"}
+            </button>
         </form>
 
         {submitted && (
           <div className="mt-5 rounded border border-line bg-gray-50 p-4 text-sm">
             <span className="font-medium text-utd-green">
-              Observation request submitted.
+              ✓ Observation request submitted.
             </span>
 
             <p className="mt-1 text-muted">
@@ -265,6 +324,13 @@ function ObservationSignup() {
               )?.title ?? "Course"}
               , Section {section}, {semester}
             </p>
+
+            <Link
+              to="/observations"
+              className="mt-4 inline-block rounded bg-utd-green px-4 py-2 font-medium text-white hover:opacity-90"
+            >
+              View My Observations
+            </Link>
           </div>
         )}
       </div>

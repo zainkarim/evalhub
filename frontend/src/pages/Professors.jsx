@@ -4,6 +4,15 @@ import StateBlock from "../components/StateBlock"
 import { api } from "../lib/api"
 import { useApi } from "../lib/useApi"
 
+  const formatRank = (rank) => {
+  if (!rank) return "—"
+
+  return rank
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ")
+}
+
 function Professors() {
   const call = useCallback(async () => {
     const response = await api.listProfessors()
@@ -13,10 +22,12 @@ function Professors() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight">Professors</h1>
-      <p className="mt-1 text-sm text-muted">
-        Faculty on the evaluation roster.
-      </p>
+      <h1 className="text-2xl font-semibold tracking-tight">
+          Faculty Evaluation Roster
+        </h1>
+        <p className="mt-1 text-sm text-muted">
+          View faculty members and their evaluation information.
+        </p>
 
       <div className="mt-6">
         <StateBlock
@@ -47,7 +58,9 @@ function Professors() {
                       </Link>
                       <span className="block text-muted">{professor.email}</span>
                     </td>
-                    <td className="px-4 py-3">{professor.rank}</td>
+                    <td className="px-4 py-3">
+                      {formatRank(professor.rank)}
+                    </td>
                     <td className="px-4 py-3">
                      {professor.isActive ? "Active" : "Inactive"}
                     </td>

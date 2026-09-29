@@ -13,6 +13,16 @@ function Courses() {
   const [search, setSearch] = useState("")
   const [committedSearch, setCommittedSearch] = useState("")
 
+  const [observationRequests, setObservationRequests] = useState([])
+
+useEffect(() => {
+  const savedRequests = JSON.parse(
+    localStorage.getItem("observationRequests") || "[]"
+  )
+
+  setObservationRequests(savedRequests)
+}, [])
+
   useEffect(() => {
     const timer = setTimeout(() => setCommittedSearch(search.trim()), 300)
     return () => clearTimeout(timer)
@@ -188,23 +198,38 @@ const visibleCourses = courses?.filter((courseItem) => {
                     <td className="px-4 py-3">{course.instructor?.name ?? "—"}</td>
                     <td className="px-4 py-3">
                       {course.schedule
-                        ? `${course.schedule.days} ${course.schedule.startTime}–${course.schedule.endTime}`
+                        ? course.schedule.startTime && course.schedule.endTime
+                          ? `${course.schedule.days} ${course.schedule.startTime}–${course.schedule.endTime}`
+                          : course.schedule.days
                         : "—"}
                     </td>
-                    {user?.role === "faculty" && (
+                  {user?.role === "faculty" && (
                     <td className="px-4 py-3">
-                      <Link
-                        to="/observation-signup"
-                        state={{
-                          courseNumber: course.courseNumber,
-                          courseTitle: course.title,
-                          section: course.section,
-                          semester: course.term,
-                        }}
-                        className="whitespace-nowrap font-medium text-utd-green hover:underline"
-                      >
-                        Select for Observation
-                      </Link>
+                      {observationRequests.some(
+                        (request) => request.id === course.id
+                      ) ? (
+                        <div>
+                          <span className="font-medium text-utd-green">
+                            ✓ Requested
+                          </span>
+                          <span className="block text-xs text-muted">
+                            Pending
+                          </span>
+                        </div>
+                      ) : (
+                        <Link
+                          to="/observation-signup"
+                          state={{
+                            courseNumber: course.courseNumber,
+                            courseTitle: course.title,
+                            section: course.section,
+                            semester: course.term,
+                          }}
+                          className="whitespace-nowrap font-medium text-utd-green hover:underline"
+                        >
+                          Select for Observation
+                        </Link>
+                      )}
                     </td>
                   )}
                   </tr>

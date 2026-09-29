@@ -4,7 +4,7 @@ import { useAuth } from "../context/auth-context"
 const links = [
   { to: "/professors", label: "Professors" },
   { to: "/courses", label: "Courses" },
-  { to: "/observation-signup", label: "Observations" },
+  { to: "/observations", label: "Observations" },
 ]
 
 function Layout() {
@@ -49,8 +49,12 @@ function Layout() {
 
           <div className="ml-auto flex items-center gap-4 text-sm">
             <span className="text-muted">
-              {user?.name}
-              {user?.role === "ac_member" ? " · Assessment Committee" : ""}
+              {[user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.email}
+              {user?.role === "ac_member"
+                ? " · Assessment Committee"
+                : user?.role === "faculty"
+                  ? " · Faculty"
+                  : ""}
             </span>
             <button
               type="button"
