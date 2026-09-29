@@ -1,24 +1,16 @@
--- =====================================================================
--- EvalHub — Sprint 2 / assessment workflow schema
--- Adds: assessments, candidate_lists, observer_candidates, observations,
---       evaluation_criteria, process_feedback, app_settings.
+-- Sprint 2: assessment workflow tables.
+-- Adds assessments, candidate_lists, observer_candidates, observations,
+-- evaluation_criteria, process_feedback, app_settings.
 --
--- Requirement source: 9/11 Q&A + meeting summary (not the original sprint
--- plan wording, which is superseded where the two disagree — see
--- docs/schema.md §"Sprint plan vs. requirements").
+-- One thing that changed from the original sprint plan: an assessment is
+-- NOT one row per teacher per term. Per the 9/11 Q&A (#18), a teacher can
+-- sign up for more than one section in a term, but each section only gets
+-- observed once — so this is keyed per (teacher, section) instead, with a
+-- UNIQUE constraint on section_id to enforce the "only 1 observation"
+-- part. See docs/schema.md for the full writeup.
 --
--- Key correction from the original plan: an assessment is NOT one row per
--- teacher per term. Q&A 18 says "For one course/section, there will be
--- only 1 observation. The Professor can sign up to be observed for
--- different courses" — so a teacher may have several assessments in the
--- same term (one per section they sign up with), and a section can be
--- claimed by exactly one assessment (UNIQUE below).
---
--- Ownership (per Sprint 2 split): this migration + the sign-up API belong
--- to Backend/Data (Prethel). The matching algorithm and AC-approval
--- endpoints that write into candidate_lists / observations belong to
--- Fabian — the tables are ready for him to build against.
--- =====================================================================
+-- This migration covers the sign-up side. Matching + AC approval get
+-- built on top of these tables next.
 
 -- Tunable rules the AC/admin may need to change without a deploy.
 CREATE TABLE app_settings (
@@ -42,7 +34,7 @@ CREATE TABLE assessments (
   due_term_id  INT  NOT NULL REFERENCES terms (id) ON DELETE RESTRICT,          -- term this counts toward (= section's term)
   status       TEXT NOT NULL DEFAULT 'signed_up' CHECK (status IN (
                  'signed_up',            -- teacher submitted the sign-up form
-                 'candidates_generated', -- ~5 candidates surfaced (Fabian's endpoint)
+                 'candidates_generated', -- ~5 candidates surfaced (matching endpoint, not built yet)
                  'pending_ac_approval',  -- teacher's chosen observer sent to AC
                  'approved',             -- AC approved; communication may go out
                  'completed',            -- observation done + both sign-offs

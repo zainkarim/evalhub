@@ -56,9 +56,9 @@ router.get('/', requireRole(...AC_OR_ADMIN), validate(listQuery, 'query'), async
   res.json(paged(rows.map(toAssessment), count[0].total, page, pageSize));
 });
 
-// GET /api/assessments/mine   (faculty) — the current user's own sign-ups,
-// both as observee here. (Observations they've *given* live under
-// GET /api/observations once that endpoint exists — Fabian's piece.)
+// GET /api/assessments/mine   (faculty) — the current user's own sign-ups
+// as observee. Observations they've given as an observer will live under
+// GET /api/observations once that route exists.
 router.get('/mine', async (req, res) => {
   if (!req.user.teacherId) {
     throw new HttpError(403, 'forbidden', 'This account is not linked to a teacher profile');
@@ -147,9 +147,9 @@ router.post('/:id/cancel', requireRole(...AC_OR_ADMIN), validate(idParams, 'para
 
 export default router;
 
-// --- Not built here (Sprint 2, Fabian's half of the split) ---------------
-// POST /api/assessments/:id/candidates   — generate ~5 observer candidates
-//   (see db/queries/eligible_observers.sql for the matching query this builds on)
-// POST /api/assessments/:id/observations — record the chosen observer -> 'proposed'
-// POST /api/observations/:id/review      — AC approve/reject (human-in-the-loop gate)
-// POST /api/observations/:id/sign-off    — observer/observee confirm completion
+// Not built yet — next up for the matching/observation-review work:
+// POST /api/assessments/:id/candidates   generate ~5 observer candidates
+//   (db/queries/eligible_observers.sql has the matching query to build this on)
+// POST /api/assessments/:id/observations record the chosen observer -> 'proposed'
+// POST /api/observations/:id/review      AC approve/reject (human-in-the-loop gate)
+// POST /api/observations/:id/sign-off    observer/observee confirm completion

@@ -89,7 +89,7 @@ Base URL (dev): `http://localhost:3000/api` · JSON in/out · **camelCase** fiel
   "createdAt": "2026-09-29T12:00:00.000Z", "updatedAt": "2026-09-29T12:00:00.000Z" }
 ```
 
-## Assessment workflow (🗓 not yet built — Fabian, Sprint 2)
+## Assessment workflow (🗓 not yet built)
 
 | | Route | Who | Purpose |
 |---|---|---|---|

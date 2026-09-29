@@ -87,7 +87,7 @@ erDiagram
 ## Design decisions
 
 - **`assessments` is per (teacher, section), not per (teacher, term).** The original sprint plan implied one assessment per teacher per due term; Q&A 18 corrects this — a teacher may sign up for multiple sections, but each section can only be claimed once (`UNIQUE(section_id)`).
-- **Sprint 2 backend split:** Backend/Data (Prethel) owns this migration, `app_settings`, and the sign-up API (`POST /assessments/sign-up`). Fabian owns the matching/candidate-generation endpoint and the AC-approval + sign-off endpoints, built on top of these tables. `db/queries/eligible_observers.sql` is the reference query for his matching endpoint.
+- **This migration covers the data layer and sign-up API** (`POST /assessments/sign-up`, `app_settings`). The matching/candidate-generation endpoint and the AC-approval + sign-off endpoints build on top of these tables and aren't written yet — `db/queries/eligible_observers.sql` has the reference query for whoever picks that up.
 - **Plain SQL migrations** run by a small runner (`npm run migrate`), tracked in `schema_migrations`. Schema changes are new numbered files; applied files are never edited.
 - **School lives on both teachers and courses.** The Q&A (question 8) defines observer eligibility by *school + course level*: an ECS 1000-level instructor may observe any ECS 1000-level course; an EPPS 1000-level instructor may not. Storing `courses.school` and `teachers.school` supports that in Sprint 2. School is a short upper-case code, normalised by the API.
 - **`course_level` is derived in the database** from the first digit of the course number, so it cannot disagree with the number. Different subjects in the same school and level count as the same category (9/11 summary).
@@ -100,7 +100,7 @@ erDiagram
 
 Built (this migration): `assessments`, `candidate_lists`, `observer_candidates`, `observations`, `evaluation_criteria`, `process_feedback`, `app_settings`; sign-up API (`GET /assessments`, `GET /assessments/mine`, `GET /assessments/:id`, `POST /assessments/sign-up`, `POST /assessments/:id/cancel`).
 
-Not built yet (Fabian's half of the split, see `docs/api-contract.md`):
+Not built yet (see `docs/api-contract.md` for the full list):
 - `POST /assessments/:id/candidates` — generate ~5 observer candidates
 - `POST /assessments/:id/observations` — record the chosen observer
 - `POST /observations/:id/review` — AC approve/reject
