@@ -5,6 +5,7 @@ import { config } from './config.js';
 import { query } from './db/pool.js';
 import { authenticate } from './middleware/auth.js';
 import { errorHandler } from './middleware/errors.js';
+import assessmentRoutes from './routes/assessments.js';
 import authRoutes from './routes/auth.js';
 import courseRoutes from './routes/courses.js';
 import sectionRoutes from './routes/sections.js';
@@ -26,6 +27,7 @@ export function createApp() {
   });
 
   app.use('/api/auth', authRoutes); // /login is public; /me and /register authenticate inside the router
+  app.use('/api/assessments', authenticate, assessmentRoutes);
   app.use('/api/teachers', authenticate, teacherRoutes);
   app.use('/api/terms', authenticate, termRoutes);
   app.use('/api/courses', authenticate, courseRoutes);

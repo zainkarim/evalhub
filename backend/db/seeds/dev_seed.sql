@@ -4,7 +4,9 @@
 -- (9/11 meeting summary). Term dates are approximate placeholders.
 -- =====================================================================
 
-TRUNCATE course_sections, courses, users, teachers, terms RESTART IDENTITY CASCADE;
+TRUNCATE process_feedback, observations, observer_candidates, candidate_lists, assessments,
+         evaluation_criteria, app_settings, course_sections, courses, users, teachers, terms
+  RESTART IDENTITY CASCADE;
 
 INSERT INTO terms (id, season, year, start_date, end_date) VALUES
   ( 1, 'fall',   2023, '2023-08-21', '2023-12-15'),
@@ -65,8 +67,27 @@ INSERT INTO course_sections (id, course_id, term_id, section_number, teacher_id,
   (21, 1, 10, '001',  3, 'MW', 'seed'),  -- CS 1337  Fall 2026    Prof C
   (22, 6, 10, '001',  6, 'F',  'seed');  -- CS 4485  Fall 2026    Prof F
 
+-- Sample assessments (sign-ups): Prof C is due (assistant professor, past
+-- first semester) and has signed up with two different sections she teaches
+-- (Q&A 18: multiple sign-ups allowed, one per section).
+INSERT INTO app_settings (key, value, description) VALUES
+  ('candidate_list_size',     '5',                    'Exactly this many observer candidates are surfaced per request (Q&A 15)'),
+  ('observer_lookback_years', '2',                    'Observer must have taught the target level, in the same school, within this many years (Q&A 8)'),
+  ('retry_window_weeks',      '{"min": 3, "max": 4}', 'If an observation does not happen, retry within this window, then AC / postponement (9/11 summary)');
+
+INSERT INTO assessments (id, teacher_id, section_id, due_term_id, status) VALUES
+  (1, 3, 21, 10, 'signed_up'),  -- Prof C, CS 1337 section, Fall 2026
+  (2, 3, 17, 8,  'completed');  -- Prof C, CS 2305 section, Spring 2026 (past example)
+
+INSERT INTO evaluation_criteria (name, description, weight, max_score, sort_order) VALUES
+  ('Instructional clarity',  'Explanations are clear and well paced',            1.0, 5, 1),
+  ('Student engagement',     'Students are actively involved in the lesson',     1.0, 5, 2),
+  ('Course organization',    'Lesson objectives and structure are evident',      1.0, 5, 3);
+
 -- Keep identity sequences ahead of the explicit ids inserted above.
 SELECT setval(pg_get_serial_sequence('terms',           'id'), (SELECT max(id) FROM terms));
 SELECT setval(pg_get_serial_sequence('teachers',        'id'), (SELECT max(id) FROM teachers));
 SELECT setval(pg_get_serial_sequence('courses',         'id'), (SELECT max(id) FROM courses));
 SELECT setval(pg_get_serial_sequence('course_sections', 'id'), (SELECT max(id) FROM course_sections));
+SELECT setval(pg_get_serial_sequence('assessments',       'id'), (SELECT max(id) FROM assessments));
+SELECT setval(pg_get_serial_sequence('evaluation_criteria','id'), (SELECT max(id) FROM evaluation_criteria));
