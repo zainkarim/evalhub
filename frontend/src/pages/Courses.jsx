@@ -19,7 +19,15 @@ function Courses() {
   }, [search])
 
  const call = useCallback(async () => {
-  const [coursesResponse, sectionsResponse, termsResponse] = await Promise.all([
+  const canViewTeachers =
+    user?.role === "ac_member" || user?.role === "admin"
+
+  const [
+    coursesResponse,
+    sectionsResponse,
+    termsResponse,
+    professorsResponse,
+  ] = await Promise.all([
     api.listCourses({}),
     api.listSections(
       user?.role === "faculty" && user?.teacherId
@@ -27,36 +35,61 @@ function Courses() {
         : {}
     ),
     api.listTerms({}),
+    canViewTeachers
+      ? api.listProfessors({})
+      : Promise.resolve({ data: [] }),
   ])
 
   const courses = coursesResponse.data ?? []
   const sections = sectionsResponse.data ?? []
   const termData = termsResponse.data ?? []
+  const professors = professorsResponse.data ?? []
 
   return sections.map((section) => {
-    const course = courses.find((item) => item.id === section.courseId)
-    const courseTerm = termData.find((item) => item.id === section.termId)
+    const course = courses.find(
+      (item) => item.id === section.courseId
+    )
+
+    const courseTerm = termData.find(
+      (item) => item.id === section.termId
+    )
+
+    const professor = professors.find(
+      (item) => item.id === section.teacherId
+    )
+
+    const instructorName =
+      user?.role === "faculty"
+        ? [user.firstName, user.lastName]
+            .filter(Boolean)
+            .join(" ") || user.email
+        : professor
+          ? `${professor.firstName} ${professor.lastName}`
+          : null
 
     return {
       id: section.id,
       courseId: section.courseId,
+
       courseNumber: course
         ? `${course.subject} ${course.courseNumber}`
         : "Unknown Course",
+
       title: course?.title ?? "",
+
       term: courseTerm
         ? `${courseTerm.season.charAt(0).toUpperCase() + courseTerm.season.slice(1)} ${courseTerm.year}`
         : "Unknown Term",
+
       section: section.sectionNumber,
-      instructor:
-        user?.role === "faculty"
-          ? {
-            name:
-              [user.firstName, user.lastName]
-                .filter(Boolean)
-                .join(" ") || user.email
-         }
+
+      instructor: instructorName
+        ? {
+            id: section.teacherId,
+            name: instructorName,
+          }
         : null,
+
       schedule: section.meetingDays
         ? {
             days: section.meetingDays,
@@ -141,7 +174,7 @@ const visibleCourses = courses?.filter((courseItem) => {
                   <tr key={course.id} className="border-b border-line last:border-0">
                     <td className="px-4 py-3">
                       <Link
-                        to={`/courses/${course.id}`}
+                        to={`/courses/${course.courseId}`}
                         className="font-medium text-utd-green hover:underline"
                       >
                         {course.courseNumber}
