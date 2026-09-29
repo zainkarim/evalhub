@@ -3,10 +3,12 @@ import { Link } from "react-router-dom"
 import StateBlock from "../components/StateBlock"
 import { api } from "../lib/api"
 import { useApi } from "../lib/useApi"
+import { useAuth } from "../context/auth-context"
 
 const terms = ["Fall 2026", "Spring 2026", "Fall 2025"]
 
 function Courses() {
+  const { user } = useAuth()
   const [term, setTerm] = useState("")
   const [search, setSearch] = useState("")
   const [committedSearch, setCommittedSearch] = useState("")
@@ -16,11 +18,72 @@ function Courses() {
     return () => clearTimeout(timer)
   }, [search])
 
-  const call = useCallback(
-    () => api.listCourses({ term, search: committedSearch }),
-    [term, committedSearch],
-  )
-  const { data: courses, error, loading, reload } = useApi(call)
+ const call = useCallback(async () => {
+  const [coursesResponse, sectionsResponse, termsResponse] = await Promise.all([
+    api.listCourses({}),
+    api.listSections(
+      user?.role === "faculty" && user?.teacherId
+        ? { teacherId: user.teacherId }
+        : {}
+    ),
+    api.listTerms({}),
+  ])
+
+  const courses = coursesResponse.data ?? []
+  const sections = sectionsResponse.data ?? []
+  const termData = termsResponse.data ?? []
+
+  return sections.map((section) => {
+    const course = courses.find((item) => item.id === section.courseId)
+    const courseTerm = termData.find((item) => item.id === section.termId)
+
+    return {
+      id: section.id,
+      courseId: section.courseId,
+      courseNumber: course
+        ? `${course.subject} ${course.courseNumber}`
+        : "Unknown Course",
+      title: course?.title ?? "",
+      term: courseTerm
+        ? `${courseTerm.season.charAt(0).toUpperCase() + courseTerm.season.slice(1)} ${courseTerm.year}`
+        : "Unknown Term",
+      section: section.sectionNumber,
+      instructor:
+        user?.role === "faculty"
+          ? {
+            name:
+              [user.firstName, user.lastName]
+                .filter(Boolean)
+                .join(" ") || user.email
+         }
+        : null,
+      schedule: section.meetingDays
+        ? {
+            days: section.meetingDays,
+            startTime: section.startTime ?? "",
+            endTime: section.endTime ?? "",
+          }
+        : null,
+    }
+  })
+}, [user])
+
+const { data: courses, error, loading, reload } = useApi(call)
+
+const visibleCourses = courses?.filter((courseItem) => {
+  const matchesTerm =
+    !term || courseItem.term === term
+
+  const searchText = committedSearch.toLowerCase()
+
+  const matchesSearch =
+    !searchText ||
+    courseItem.courseNumber.toLowerCase().includes(searchText) ||
+    courseItem.title.toLowerCase().includes(searchText) ||
+    courseItem.instructor?.name?.toLowerCase().includes(searchText)
+
+  return matchesTerm && matchesSearch
+})
 
   return (
     <div>
@@ -58,7 +121,7 @@ function Courses() {
           loading={loading}
           error={error}
           onRetry={reload}
-          empty={courses?.length === 0}
+          empty={visibleCourses?.length === 0}
           emptyMessage="No courses match these filters. Clear the search or pick another term."
         >
           <div className="overflow-x-auto rounded border border-line bg-white">
@@ -70,10 +133,11 @@ function Courses() {
                   <th className="px-4 py-3 font-medium">Section</th>
                   <th className="px-4 py-3 font-medium">Instructor</th>
                   <th className="px-4 py-3 font-medium">Meets</th>
+                  <th className="px-4 py-3 font-medium">Observation</th>
                 </tr>
               </thead>
               <tbody>
-                {courses?.map((course) => (
+                {visibleCourses?.map((course) => (
                   <tr key={course.id} className="border-b border-line last:border-0">
                     <td className="px-4 py-3">
                       <Link
@@ -92,6 +156,20 @@ function Courses() {
                         ? `${course.schedule.days} ${course.schedule.startTime}–${course.schedule.endTime}`
                         : "—"}
                     </td>
+                    <td className="px-4 py-3">
+  <Link
+    to="/observation-signup"
+    state={{
+      courseNumber: course.courseNumber,
+      courseTitle: course.title,
+      section: course.section,
+      semester: course.term,
+    }}
+    className="whitespace-nowrap font-medium text-utd-green hover:underline"
+  >
+    Request Observation
+  </Link>
+</td>
                   </tr>
                 ))}
               </tbody>

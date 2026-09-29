@@ -4,6 +4,7 @@ import { useAuth } from "../context/auth-context"
 const links = [
   { to: "/professors", label: "Professors" },
   { to: "/courses", label: "Courses" },
+  { to: "/observation-signup", label: "Observations" },
 ]
 
 function Layout() {
@@ -27,7 +28,9 @@ function Layout() {
           </span>
 
           <nav className="flex gap-6 text-sm">
-            {links.map((link) => (
+           {links
+          .filter((link) => user?.role === "AC" || link.to !== "/professors")
+          .map((link) => (
               <NavLink
                 key={link.to}
                 to={link.to}

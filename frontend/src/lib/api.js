@@ -76,11 +76,14 @@ export const api = {
   // GET /auth/me -> user
   me: () => request("/auth/me"),
 
-  listProfessors: (params) => request(`/professors${query(params)}`),
+   listProfessors: (params) => request(`/professors${query(params)}`),
   getProfessor: (id) => request(`/professors/${id}`),
 
   listCourses: (params) => request(`/courses${query(params)}`),
   getCourse: (id) => request(`/courses/${id}`),
+
+  listSections: (params) => request(`/sections${query(params)}`),
+  listTerms: (params) => request(`/terms${query(params)}`),
 }
 
 export { USE_MOCKS }

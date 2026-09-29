@@ -18,8 +18,12 @@ export function AuthProvider({ children }) {
   }, [])
 
   const login = useCallback(async (email, password) => {
-    const { token, user: profile } = await api.login(email, password)
+    const { token } = await api.login(email, password)
+
     setToken(token)
+
+    const profile = await api.me()
+
     setUser(profile)
     return profile
   }, [])

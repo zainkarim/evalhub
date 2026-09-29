@@ -1,40 +1,121 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { Link, useLocation } from "react-router-dom"
+import { useAuth } from "../context/auth-context"
+import { api } from "../lib/api"
 
 function ObservationSignup() {
-  const [semester, setSemester] = useState("")
-  const [course, setCourse] = useState("")
-  const [section, setSection] = useState("")
+  const location = useLocation()
+  const selectedCourse = location.state
+  const { user } = useAuth()
+
+  const [availableCourses, setAvailableCourses] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+
+  const [semester, setSemester] = useState(
+    selectedCourse?.semester || ""
+  )
+
+  const [course, setCourse] = useState(
+    selectedCourse?.courseNumber || ""
+  )
+
+  const [section, setSection] = useState(
+    selectedCourse?.section || ""
+  )
+
   const [submitted, setSubmitted] = useState(false)
 
-  const courses = {
-    "CS 3354": {
-      name: "Software Engineering",
-      sections: ["001", "002", "003"],
-    },
-    "CS 3345": {
-      name: "Data Structures and Algorithmic Analysis",
-      sections: ["001", "002", "004"],
-    },
-    "CS 4348": {
-      name: "Operating Systems Concepts",
-      sections: ["001", "002"],
-    },
-    "CS 4349": {
-      name: "Advanced Algorithm Design",
-      sections: ["001", "002"],
-    },
-    "CS 4375": {
-      name: "Introduction to Machine Learning",
-      sections: ["001", "003"],
-    },
-    "CS 4384": {
-      name: "Automata Theory",
-      sections: ["001", "002"],
-    },
-    "CS 6360": {
-      name: "Database Design",
-      sections: ["001", "002"],
-    },
+  useEffect(() => {
+    async function loadCourses() {
+      try {
+        setLoading(true)
+        setError("")
+
+        const [coursesResponse, sectionsResponse, termsResponse] =
+          await Promise.all([
+            api.listCourses({}),
+            api.listSections(
+              user?.role === "faculty" && user?.teacherId
+                ? { teacherId: user.teacherId }
+                : {}
+            ),
+            api.listTerms({}),
+          ])
+
+        const courses = coursesResponse.data ?? []
+        const sections = sectionsResponse.data ?? []
+        const terms = termsResponse.data ?? []
+
+        const combined = sections.map((sectionItem) => {
+          const courseItem = courses.find(
+            (item) => item.id === sectionItem.courseId
+          )
+
+          const termItem = terms.find(
+            (item) => item.id === sectionItem.termId
+          )
+
+          const termName = termItem
+            ? `${
+                termItem.season.charAt(0).toUpperCase() +
+                termItem.season.slice(1)
+              } ${termItem.year}`
+            : "Unknown Term"
+
+          return {
+            id: sectionItem.id,
+            courseId: sectionItem.courseId,
+            courseNumber: courseItem
+              ? `${courseItem.subject} ${courseItem.courseNumber}`
+              : "Unknown Course",
+            title: courseItem?.title ?? "",
+            section: sectionItem.sectionNumber,
+            semester: termName,
+          }
+        })
+
+        setAvailableCourses(combined)
+      } catch (err) {
+        setError(err.message || "Unable to load courses.")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (user) {
+      loadCourses()
+    }
+  }, [user])
+
+  const semesters = [
+    ...new Set(availableCourses.map((item) => item.semester)),
+  ]
+
+  const coursesForSemester = availableCourses.filter(
+    (item) => !semester || item.semester === semester
+  )
+
+  const uniqueCourses = Array.from(
+    new Map(
+      coursesForSemester.map((item) => [
+        item.courseNumber,
+        item,
+      ])
+    ).values()
+  )
+
+  const sectionsForCourse = availableCourses.filter(
+    (item) =>
+      item.courseNumber === course &&
+      item.semester === semester
+  )
+
+  const handleSemesterChange = (event) => {
+    setSemester(event.target.value)
+    setCourse("")
+    setSection("")
+    setSubmitted(false)
   }
 
   const handleCourseChange = (event) => {
@@ -53,8 +134,25 @@ function ObservationSignup() {
     setSubmitted(true)
   }
 
+  if (loading) {
+    return <p className="text-sm text-muted">Loading courses...</p>
+  }
+
+  if (error) {
+    return <p className="text-sm text-red-600">{error}</p>
+  }
+
   return (
     <div>
+      <div className="mb-4">
+        <Link
+          to="/courses"
+          className="text-sm font-medium text-utd-green hover:underline"
+        >
+          ← Back to Courses
+        </Link>
+      </div>
+
       <h1 className="text-2xl font-semibold tracking-tight">
         Observation Sign-Up
       </h1>
@@ -65,7 +163,6 @@ function ObservationSignup() {
 
       <div className="mt-6 max-w-2xl rounded border border-line bg-white p-6">
         <form onSubmit={handleSubmit} className="space-y-5">
-
           <div>
             <label className="mb-2 block text-sm font-medium">
               Semester
@@ -73,16 +170,16 @@ function ObservationSignup() {
 
             <select
               value={semester}
-              onChange={(event) => {
-                setSemester(event.target.value)
-                setSubmitted(false)
-              }}
+              onChange={handleSemesterChange}
               className="w-full rounded border border-line bg-white px-3 py-2 text-sm"
             >
               <option value="">Select semester</option>
-              <option value="Fall 2026">Fall 2026</option>
-              <option value="Spring 2027">Spring 2027</option>
-              <option value="Fall 2027">Fall 2027</option>
+
+              {semesters.map((semesterItem) => (
+                <option key={semesterItem} value={semesterItem}>
+                  {semesterItem}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -94,13 +191,21 @@ function ObservationSignup() {
             <select
               value={course}
               onChange={handleCourseChange}
-              className="w-full rounded border border-line bg-white px-3 py-2 text-sm"
+              disabled={!semester}
+              className="w-full rounded border border-line bg-white px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-muted"
             >
-              <option value="">Select course</option>
+              <option value="">
+                {semester
+                  ? "Select course"
+                  : "Select a semester first"}
+              </option>
 
-              {Object.entries(courses).map(([courseNumber, courseInfo]) => (
-                <option key={courseNumber} value={courseNumber}>
-                  {courseNumber} - {courseInfo.name}
+              {uniqueCourses.map((courseItem) => (
+                <option
+                  key={courseItem.courseNumber}
+                  value={courseItem.courseNumber}
+                >
+                  {courseItem.courseNumber} - {courseItem.title}
                 </option>
               ))}
             </select>
@@ -121,15 +226,19 @@ function ObservationSignup() {
               className="w-full rounded border border-line bg-white px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-muted"
             >
               <option value="">
-                {course ? "Select section" : "Select a course first"}
+                {course
+                  ? "Select section"
+                  : "Select a course first"}
               </option>
 
-              {course &&
-                courses[course].sections.map((sectionNumber) => (
-                  <option key={sectionNumber} value={sectionNumber}>
-                    Section {sectionNumber}
-                  </option>
-                ))}
+              {sectionsForCourse.map((courseItem) => (
+                <option
+                  key={courseItem.id}
+                  value={courseItem.section}
+                >
+                  Section {courseItem.section}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -148,7 +257,13 @@ function ObservationSignup() {
             </span>
 
             <p className="mt-1 text-muted">
-              {course} - {courses[course].name}, Section {section}, {semester}
+              {course} -{" "}
+              {availableCourses.find(
+                (item) =>
+                  item.courseNumber === course &&
+                  item.semester === semester
+              )?.title ?? "Course"}
+              , Section {section}, {semester}
             </p>
           </div>
         )}
