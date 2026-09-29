@@ -76,8 +76,8 @@ export const api = {
   // GET /auth/me -> user
   me: () => request("/auth/me"),
 
-   listProfessors: (params) => request(`/professors${query(params)}`),
-  getProfessor: (id) => request(`/professors/${id}`),
+  listProfessors: (params) => request(`/teachers${query(params)}`),
+  getProfessor: (id) => request(`/teachers/${id}`),
 
   listCourses: (params) => request(`/courses${query(params)}`),
   getCourse: (id) => request(`/courses/${id}`),

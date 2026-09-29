@@ -42,7 +42,7 @@ function ProfessorDetail() {
                 <div>
                   <dt className="text-xs text-muted">Status</dt>
                   <dd className="mt-0.5 text-sm">
-                    {professor.active ? "Active" : "Inactive"}
+                   {professor.isActive ? "Active" : "Inactive"}
                   </dd>
                 </div>
               </dl>

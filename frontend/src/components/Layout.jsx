@@ -29,8 +29,8 @@ function Layout() {
 
           <nav className="flex gap-6 text-sm">
            {links
-          .filter((link) => user?.role === "AC" || link.to !== "/professors")
-          .map((link) => (
+         .filter((link) => user?.role === "ac_member" || link.to !== "/professors")
+            .map((link) => (
               <NavLink
                 key={link.to}
                 to={link.to}
@@ -50,7 +50,7 @@ function Layout() {
           <div className="ml-auto flex items-center gap-4 text-sm">
             <span className="text-muted">
               {user?.name}
-              {user?.role === "AC" ? " · Assessment Committee" : ""}
+              {user?.role === "ac_member" ? " · Assessment Committee" : ""}
             </span>
             <button
               type="button"

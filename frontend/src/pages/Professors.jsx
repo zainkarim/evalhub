@@ -5,7 +5,10 @@ import { api } from "../lib/api"
 import { useApi } from "../lib/useApi"
 
 function Professors() {
-  const call = useCallback(() => api.listProfessors(), [])
+  const call = useCallback(async () => {
+    const response = await api.listProfessors()
+    return response.data ?? []
+  }, [])
   const { data: professors, error, loading, reload } = useApi(call)
 
   return (
@@ -46,7 +49,7 @@ function Professors() {
                     </td>
                     <td className="px-4 py-3">{professor.rank}</td>
                     <td className="px-4 py-3">
-                      {professor.active ? "Active" : "Inactive"}
+                     {professor.isActive ? "Active" : "Inactive"}
                     </td>
                   </tr>
                 ))}
