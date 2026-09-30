@@ -1,138 +1,107 @@
 import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import StateBlock from "../components/StateBlock"
-import { api } from "../lib/api"
-import { useApi } from "../lib/useApi"
+import StatusBadge from "../components/StatusBadge"
 import { useAuth } from "../context/auth-context"
+import { api } from "../lib/api"
+import {
+  ASSESSMENT_STATUS,
+  formatDays,
+  formatTerm,
+  formatTime,
+  fullName,
+  todayISO,
+  toDateOnly,
+} from "../lib/format"
+import { isAC } from "../lib/roles"
+import { useApi } from "../lib/useApi"
 
-const terms = ["Fall 2026", "Spring 2026", "Fall 2025"]
+const canSignUp = (term) =>
+  term && term.season !== "summer" && toDateOnly(term.endDate) >= todayISO()
 
 function Courses() {
   const { user } = useAuth()
+  const committee = isAC(user)
   const [term, setTerm] = useState("")
   const [search, setSearch] = useState("")
   const [committedSearch, setCommittedSearch] = useState("")
-
-  const [observationRequests, setObservationRequests] = useState([])
-
-useEffect(() => {
-  const savedRequests = JSON.parse(
-    localStorage.getItem("observationRequests") || "[]"
-  )
-
-  setObservationRequests(savedRequests)
-}, [])
 
   useEffect(() => {
     const timer = setTimeout(() => setCommittedSearch(search.trim()), 300)
     return () => clearTimeout(timer)
   }, [search])
 
- const call = useCallback(async () => {
-  const canViewTeachers =
-    user?.role === "ac_member" || user?.role === "admin"
+  // Faculty see their own sections; the committee sees every section plus who
+  // teaches it and whether it already has an observation sign-up.
+  const call = useCallback(async () => {
+    const [coursesResponse, sectionsResponse, termsResponse, professorsResponse, signUps] =
+      await Promise.all([
+        api.listCourses({}),
+        api.listSections(
+          !committee && user?.teacherId ? { teacherId: user.teacherId } : {},
+        ),
+        api.listTerms({}),
+        committee ? api.listProfessors({}) : Promise.resolve({ data: [] }),
+        committee ? api.listAssessments({}) : api.myAssessments(),
+      ])
 
-  const [
-    coursesResponse,
-    sectionsResponse,
-    termsResponse,
-    professorsResponse,
-  ] = await Promise.all([
-    api.listCourses({}),
-    api.listSections(
-      user?.role === "faculty" && user?.teacherId
-        ? { teacherId: user.teacherId }
-        : {}
-    ),
-    api.listTerms({}),
-    canViewTeachers
-      ? api.listProfessors({})
-      : Promise.resolve({ data: [] }),
-  ])
+    const courses = coursesResponse.data ?? []
+    const terms = termsResponse.data ?? []
+    const professors = professorsResponse.data ?? []
+    const taken = new Map((signUps.data ?? []).map((item) => [item.sectionId, item]))
 
-  const courses = coursesResponse.data ?? []
-  const sections = sectionsResponse.data ?? []
-  const termData = termsResponse.data ?? []
-  const professors = professorsResponse.data ?? []
+    return (sectionsResponse.data ?? []).map((section) => {
+      const course = courses.find((item) => item.id === section.courseId)
+      const courseTerm = terms.find((item) => item.id === section.termId)
+      const professor = professors.find((item) => item.id === section.teacherId)
 
-  return sections.map((section) => {
-    const course = courses.find(
-      (item) => item.id === section.courseId
-    )
+      return {
+        id: section.id,
+        courseId: section.courseId,
+        courseNumber: course ? `${course.subject} ${course.courseNumber}` : "Unknown Course",
+        title: course?.title ?? "",
+        term: formatTerm(courseTerm),
+        open: canSignUp(courseTerm),
+        section: section.sectionNumber,
+        instructor: committee
+          ? professor
+            ? { id: professor.id, name: fullName(professor) }
+            : null
+          : { id: user.teacherId, name: fullName(user) },
+        schedule: section.meetingDays
+          ? {
+              days: formatDays(section.meetingDays),
+              startTime: section.startTime ? formatTime(section.startTime) : "",
+              endTime: section.endTime ? formatTime(section.endTime) : "",
+            }
+          : null,
+        signUp: taken.get(section.id) ?? null,
+      }
+    })
+  }, [committee, user])
 
-    const courseTerm = termData.find(
-      (item) => item.id === section.termId
-    )
+  const { data: courses, error, loading, reload } = useApi(call)
 
-    const professor = professors.find(
-      (item) => item.id === section.teacherId
-    )
+  const terms = [...new Set((courses ?? []).map((item) => item.term))]
 
-    const instructorName =
-      user?.role === "faculty"
-        ? [user.firstName, user.lastName]
-            .filter(Boolean)
-            .join(" ") || user.email
-        : professor
-          ? `${professor.firstName} ${professor.lastName}`
-          : null
-
-    return {
-      id: section.id,
-      courseId: section.courseId,
-
-      courseNumber: course
-        ? `${course.subject} ${course.courseNumber}`
-        : "Unknown Course",
-
-      title: course?.title ?? "",
-
-      term: courseTerm
-        ? `${courseTerm.season.charAt(0).toUpperCase() + courseTerm.season.slice(1)} ${courseTerm.year}`
-        : "Unknown Term",
-
-      section: section.sectionNumber,
-
-      instructor: instructorName
-        ? {
-            id: section.teacherId,
-            name: instructorName,
-          }
-        : null,
-
-      schedule: section.meetingDays
-        ? {
-            days: section.meetingDays,
-            startTime: section.startTime ?? "",
-            endTime: section.endTime ?? "",
-          }
-        : null,
-    }
+  const visibleCourses = courses?.filter((courseItem) => {
+    const matchesTerm = !term || courseItem.term === term
+    const searchText = committedSearch.toLowerCase()
+    const matchesSearch =
+      !searchText ||
+      courseItem.courseNumber.toLowerCase().includes(searchText) ||
+      courseItem.title.toLowerCase().includes(searchText) ||
+      courseItem.instructor?.name?.toLowerCase().includes(searchText)
+    return matchesTerm && matchesSearch
   })
-}, [user])
-
-const { data: courses, error, loading, reload } = useApi(call)
-
-const visibleCourses = courses?.filter((courseItem) => {
-  const matchesTerm =
-    !term || courseItem.term === term
-
-  const searchText = committedSearch.toLowerCase()
-
-  const matchesSearch =
-    !searchText ||
-    courseItem.courseNumber.toLowerCase().includes(searchText) ||
-    courseItem.title.toLowerCase().includes(searchText) ||
-    courseItem.instructor?.name?.toLowerCase().includes(searchText)
-
-  return matchesTerm && matchesSearch
-})
 
   return (
     <div>
       <h1 className="text-2xl font-semibold tracking-tight">Courses</h1>
       <p className="mt-1 text-sm text-muted">
-        Course sections available for observation sign-up.
+        {committee
+          ? "All course sections, their instructors, and whether they have an observation sign-up."
+          : "Your course sections available for observation sign-up."}
       </p>
 
       <div className="mt-6 flex flex-wrap gap-3">
@@ -140,7 +109,11 @@ const visibleCourses = courses?.filter((courseItem) => {
           type="search"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search by course number, title, or instructor"
+          placeholder={
+            committee
+              ? "Search by course number, title, or instructor"
+              : "Search by course number or title"
+          }
           aria-label="Search courses"
           className="w-full max-w-sm rounded border border-line bg-white px-3 py-2 text-sm"
         />
@@ -174,11 +147,11 @@ const visibleCourses = courses?.filter((courseItem) => {
                   <th className="px-4 py-3 font-medium">Course</th>
                   <th className="px-4 py-3 font-medium">Term</th>
                   <th className="px-4 py-3 font-medium">Section</th>
-                  <th className="px-4 py-3 font-medium">Instructor</th>
+                  {committee && <th className="px-4 py-3 font-medium">Instructor</th>}
                   <th className="px-4 py-3 font-medium">Meets</th>
-                  {user?.role === "faculty" && (
-                    <th className="px-4 py-3 font-medium">Action</th>
-                  )}
+                  <th className="px-4 py-3 font-medium">
+                    {committee ? "Observation" : "Action"}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -195,7 +168,9 @@ const visibleCourses = courses?.filter((courseItem) => {
                     </td>
                     <td className="px-4 py-3">{course.term}</td>
                     <td className="px-4 py-3">{course.section}</td>
-                    <td className="px-4 py-3">{course.instructor?.name ?? "—"}</td>
+                    {committee && (
+                      <td className="px-4 py-3">{course.instructor?.name ?? "—"}</td>
+                    )}
                     <td className="px-4 py-3">
                       {course.schedule
                         ? course.schedule.startTime && course.schedule.endTime
@@ -203,35 +178,31 @@ const visibleCourses = courses?.filter((courseItem) => {
                           : course.schedule.days
                         : "—"}
                     </td>
-                  {user?.role === "faculty" && (
                     <td className="px-4 py-3">
-                      {observationRequests.some(
-                        (request) => request.id === course.id
-                      ) ? (
+                      {course.signUp ? (
                         <div>
-                          <span className="font-medium text-utd-green">
-                            ✓ Requested
-                          </span>
-                          <span className="block text-xs text-muted">
-                            Pending
-                          </span>
+                          <StatusBadge status={course.signUp.status} map={ASSESSMENT_STATUS} />
+                          <Link
+                            to={`/assessments/${course.signUp.id}`}
+                            className="mt-1 block whitespace-nowrap text-xs font-medium text-utd-green hover:underline"
+                          >
+                            View
+                          </Link>
                         </div>
-                      ) : (
+                      ) : course.open && !committee ? (
                         <Link
                           to="/observation-signup"
-                          state={{
-                            courseNumber: course.courseNumber,
-                            courseTitle: course.title,
-                            section: course.section,
-                            semester: course.term,
-                          }}
+                          state={{ sectionId: course.id }}
                           className="whitespace-nowrap font-medium text-utd-green hover:underline"
                         >
                           Select for Observation
                         </Link>
+                      ) : (
+                        <span className="text-muted">
+                          {course.open ? "Not signed up" : "—"}
+                        </span>
                       )}
                     </td>
-                  )}
                   </tr>
                 ))}
               </tbody>

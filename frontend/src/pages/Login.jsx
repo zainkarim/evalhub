@@ -1,6 +1,8 @@
 import { useState } from "react"
 import { Navigate, useLocation, useNavigate } from "react-router-dom"
 import { useAuth } from "../context/auth-context"
+import { USE_MOCKS } from "../lib/api"
+import { resetMockData } from "../lib/mockServer"
 
 function Login() {
   const { user, restoring, login } = useAuth()
@@ -13,7 +15,7 @@ function Login() {
   const [submitting, setSubmitting] = useState(false)
 
   if (restoring) return <p className="p-10 text-sm text-muted">Loading…</p>
-  if (user) return <Navigate to={location.state?.from ?? "/courses"} replace />
+  if (user) return <Navigate to={location.state?.from ?? "/"} replace />
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -21,7 +23,7 @@ function Login() {
     setSubmitting(true)
     try {
       await login(email, password)
-      navigate(location.state?.from ?? "/courses", { replace: true })
+      navigate(location.state?.from ?? "/", { replace: true })
     } catch (err) {
       setError(err.message)
       setSubmitting(false)
@@ -109,38 +111,54 @@ function Login() {
             </p>
 
             <div className="mt-4 space-y-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail("faculty@example.edu")
-                  setPassword("ChangeMe-Dev-123!")
-                }}
-                className="w-full rounded border border-line px-3 py-2 text-left text-sm hover:bg-gray-50"
-              >
-                <span className="font-medium">Faculty</span>
-                <span className="block text-xs text-muted">
-                  faculty@example.edu
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail("ac@example.edu")
-                  setPassword("ChangeMe-Dev-123!")
-                }}
-                className="w-full rounded border border-line px-3 py-2 text-left text-sm hover:bg-gray-50"
-              >
-                <span className="font-medium">Assessment Committee</span>
-                <span className="block text-xs text-muted">
-                  ac@example.edu
-                </span>
-              </button>
+              {[
+                { label: "Faculty", email: "faculty@example.edu", note: "Professor C — signs up, picks observers" },
+                { label: "Assessment Committee", email: "ac@example.edu", note: "Professor B — approvals, step-ins" },
+                { label: "Administrator", email: "admin@example.edu", note: "Committee view, no teaching profile" },
+                ...(USE_MOCKS
+                  ? [
+                      { label: "Faculty (observer)", email: "professor.h@example.edu", note: "Professor H — receives requests" },
+                      { label: "Faculty (5+ candidates)", email: "professor.e@example.edu", note: "Professor E — CS 3354 has 6 eligible observers" },
+                    ]
+                  : []),
+              ].map((account) => (
+                <button
+                  key={account.email}
+                  type="button"
+                  onClick={() => {
+                    setEmail(account.email)
+                    setPassword("ChangeMe-Dev-123!")
+                  }}
+                  className="w-full rounded border border-line px-3 py-2 text-left text-sm hover:bg-gray-50"
+                >
+                  <span className="font-medium">{account.label}</span>
+                  <span className="block text-xs text-muted">
+                    {account.email} · {account.note}
+                  </span>
+                </button>
+              ))}
             </div>
 
             <p className="mt-3 text-xs text-muted">
               Password: ChangeMe-Dev-123!
             </p>
+
+            {USE_MOCKS && (
+              <p className="mt-3 border-t border-line pt-3 text-xs text-muted">
+                Running on built-in sample data (no backend needed). Changes are kept in
+                this browser.{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetMockData()
+                    setError(null)
+                  }}
+                  className="font-medium text-utd-green hover:underline"
+                >
+                  Reset demo data
+                </button>
+              </p>
+            )}
           </div>
         </div>
       </section>
