@@ -15,10 +15,12 @@ Replace a manual, spreadsheet/email-based process for scheduling and tracking pe
 | Requirement | Value |
 |---|---|
 | Platform | Web application (confirmed 2026-09-11; desktop wrapper is stretch-only) |
-| Cost | All tooling must be free/open-source; no paid tiers, no trials that expire |
-| Runtime | Must be able to run on a virtual machine |
+| Cost | All tooling must be free/open-source; **no paid tiers, no trials that expire or auto-delete after a fixed period** |
+| Runtime | Software must be capable of running on a VM (self-hostable in principle) — this is not a mandate to self-host; managed platforms (Render, Vercel, etc.) are fine as long as they don't violate the no-expiring-trial rule above |
 | Team size | 6 |
 | Timeline | 9-week MVP, as much as possible done before Thanksgiving |
+
+**Corrected 2026-09-29:** the team had read "must be able to run on a Virtual Machine" (9/11 Q&A, Q9) as effectively banning managed hosting like Render/Vercel, and treated the fix as "get department VM access." Re-reading the actual source: that sentence is phrased permissively ("as long as it is free and can run on a VM, you can use it") and is about the *software* being self-hostable, not a requirement to personally provision infrastructure. The real, concrete conflict is narrower and comes from a different sentence entirely — the kickoff notes' "no paid tools, no 30-day trials," repeated in the same Q9 answer ("should not be a trial version... require the user to pay after it runs out"). **Render's free-tier Postgres databases are deleted after 30 days** unless upgraded to paid — that's the actual violation. Render's free web service (the API, not the DB) has no such expiry, and Vercel's free static hosting doesn't either. Fix: keep Render (API) and Vercel (frontend), swap only the database off Render's free Postgres onto a provider whose free tier doesn't time-box the database (see Hosting row in `CLAUDE.md`).
 
 ## 3. Personas / End Users
 

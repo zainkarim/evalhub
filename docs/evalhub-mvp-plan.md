@@ -12,7 +12,7 @@
 | Backend | Node.js + Express (or Django if team knows Python better) | REST API, easy auth middleware |
 | Database | PostgreSQL | Relational — fits teacher/course/assessment structure well |
 | Auth | JWT + bcrypt (roll your own) or Auth.js | No paid identity providers needed |
-| Hosting | Render / Railway free tier (backend+DB), Vercel/Netlify (frontend) | $0, good enough for a semester demo |
+| Hosting | Render (backend API), Neon (Postgres), Vercel (frontend) | $0; Render's free Postgres auto-deletes after 30 days (violates the no-expiring-trial rule), Neon's free tier doesn't time-box the DB |
 | Version control | GitHub (private repo, free for students) | |
 | PM/tracking | GitHub Projects or Trello | Free kanban board |
 | Docs | Markdown in repo + shared Google Doc | |
