@@ -53,6 +53,7 @@ async function request(path, { method = "GET", body, auth = true } = {}) {
       response.status,
     )
   }
+
   return data
 }
 
@@ -60,7 +61,9 @@ function query(params = {}) {
   const entries = Object.entries(params).filter(
     ([, value]) => value !== undefined && value !== null && value !== "",
   )
+
   if (entries.length === 0) return ""
+
   return `?${new URLSearchParams(entries)}`
 }
 
@@ -76,13 +79,32 @@ export const api = {
   // GET /auth/me -> user
   me: () => request("/auth/me"),
 
+  // Professors / Teachers
   listProfessors: (params) => request(`/teachers${query(params)}`),
+
   getProfessor: (id) => request(`/teachers/${id}`),
 
+  createProfessor: (data) =>
+    request("/teachers", {
+      method: "POST",
+      body: data,
+    }),
+
+  updateProfessor: (id, data) =>
+    request(`/teachers/${id}`, {
+      method: "PATCH",
+      body: data,
+    }),
+
+  // Courses
   listCourses: (params) => request(`/courses${query(params)}`),
+
   getCourse: (id) => request(`/courses/${id}`),
 
+  // Sections
   listSections: (params) => request(`/sections${query(params)}`),
+
+  // Terms
   listTerms: (params) => request(`/terms${query(params)}`),
 }
 
