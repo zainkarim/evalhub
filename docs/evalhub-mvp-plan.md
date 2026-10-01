@@ -54,19 +54,19 @@ Frequency must be configurable per professor (e.g., after a promotion or role ch
 - Availability is computed from course schedules, not entered manually.
 - The system shows **up to 5 candidates**: 5+ eligible → pick 5 at random; fewer than 5 → show all; zero → notify the AC via its dashboard.
 
-### The Matching & Approval Workflow (Human-in-the-Loop)
+### The Matching & Observer Selection Workflow (Human-in-the-Loop)
 
-This is **not** a fully automated assignment system. **Reconciled 2026-09-20:** kickoff said the AC approves the candidate list before any professor sees it; the 9/11 and 9/18 meetings instead have the system show candidates directly to the requesting professor. Team decision: keep the AC gate, but move it to the pairing-confirmation step (step 5 below) rather than the candidate-list step.
+This is **not** a fully automated assignment system. **Corrected 2026-09-30 (second correction this day — supersedes the "AC approval at pairing-confirmation" fix made earlier the same day):** per the 9/30 TA/professor meeting, **the AC does not approve observer pairings at all.** No "Committee Approval"/"Awaiting AC Approval" status anywhere in the system.
 
-1. System generates a list of professors who are **due** for evaluation based on rank + last evaluation date
-2. System surfaces up to 5 observer candidates per the course-level matching rule above, shown directly to the requesting professor
-3. The requesting professor sends system-generated **requests** (not "invitations") to one, several, or all candidates — cannot request outside the list. Requests expire after 48 hours. **Corrected 2026-09-30:** multiple observers may independently confirm — no auto-cancel on first acceptance. The observee sees all confirmed observers and manually picks one, sending graceful declines to the rest.
-4. Once the observee confirms their chosen observer, the system records the pairing and scheduled observation date
-5. **Before the pairing is treated as final, it goes to the AC for approval** — the approval gate now lives here
-6. **The AC approval step gates the pairing-confirmation notification specifically** — other in-app notifications (deadlines, list-ready, request updates) are MVP and not withheld pending AC approval
-7. Once approved, the observer attends the class and gives feedback; **both observer and observee sign off** afterward (the observee's sign-off confirms the observation occurred, not agreement with the ratings)
-8. If the observation doesn't happen (illness, conflict, etc.), reschedule and complete within the same semester where possible
-9. If it still doesn't happen, the requester notifies the system/AC — a committee member may step in as observer, or it gets postponed to the next semester
+1. Observee signs up for the course/section they want to be observed in.
+2. After the signup deadline, AC reviews sign-ups, then triggers **"Start Observer Selection"** to begin candidate generation.
+3. System surfaces up to 5 observer candidates per the course-level matching rule above. Insufficient/zero pool → AC dashboard alert, handled manually.
+4. **Corrected 2026-09-30, replaces this morning's multi-observer-confirm model:** the observee selects **one** observer and offers **multiple possible dates (roughly 4–8)** — course schedules are system-checked, personal calendars aren't — before a single request is sent.
+5. The observer confirms one date. The system records the pairing and scheduled date. **No AC approval follows.**
+6. **Open/BLOCKED (from the team's own backend Jira breakdown):** when AC manually assigns an observer (step 3's insufficient-candidate case), must it come from the eligible pool, or can AC assign anyone? Blocks the backend "assign endpoint" ticket.
+7. Observer attends the class and gives feedback; **both observer and observee sign off** afterward (the observee's sign-off confirms the observation occurred, not agreement with the ratings)
+8. **Never cancel/delete** a sign-up that doesn't happen — log the attempt and mark it "Postponed"; reschedule within the same semester where possible
+9. A confirmed date is "scheduled/confirmed," not "Completed" — "Completed" means observation held *and* both sign-offs submitted
 10. Once signed/submitted, a completed observation cannot be edited by anyone — view-only access only
 
 **Edge case — new hires:** If a new hire professor needs an evaluation and no eligible observer is available, the AC is notified via its dashboard and an AC member may step in to conduct the evaluation themselves.
