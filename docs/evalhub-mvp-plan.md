@@ -38,10 +38,10 @@ Everyone writes their own unit tests for what they build; PM/QA owns integration
 - **Professors** — sign up for courses, view observations given/received, access evaluation forms
 - **AC (Assessment Committee) members** — review and approve observer lists, monitor dashboards, act as observers for new hires when needed
 
-### Evaluation Frequency Rules (corrected 2026-09-11)
+### Evaluation Frequency Rules (corrected 2026-09-30 — resolved with the professor directly, overwrites 2026-09-11 understanding)
 | Professor Rank | Required Frequency |
 |---|---|
-| Assistant Professor | Not evaluated their first semester; every Spring and every Fall after that |
+| Assistant Professor | Once every calendar year (either Spring or Fall satisfies it) — no first-semester exemption, no twice-per-year cadence |
 | Associate Professor | Every 2 years, Summer excluded |
 | Full Professor | Every 2 years, Summer excluded |
 
@@ -60,10 +60,10 @@ This is **not** a fully automated assignment system. **Reconciled 2026-09-20:** 
 
 1. System generates a list of professors who are **due** for evaluation based on rank + last evaluation date
 2. System surfaces up to 5 observer candidates per the course-level matching rule above, shown directly to the requesting professor
-3. The requesting professor sends system-generated **requests** (not "invitations") to one, several, or all candidates — cannot request outside the list. Requests expire after 48 hours; one acceptance auto-cancels the rest
-4. Once an observer accepts, the system records the pairing and scheduled observation date
+3. The requesting professor sends system-generated **requests** (not "invitations") to one, several, or all candidates — cannot request outside the list. Requests expire after 48 hours. **Corrected 2026-09-30:** multiple observers may independently confirm — no auto-cancel on first acceptance. The observee sees all confirmed observers and manually picks one, sending graceful declines to the rest.
+4. Once the observee confirms their chosen observer, the system records the pairing and scheduled observation date
 5. **Before the pairing is treated as final, it goes to the AC for approval** — the approval gate now lives here
-6. **The system never auto-sends communications without this AC step**
+6. **The AC approval step gates the pairing-confirmation notification specifically** — other in-app notifications (deadlines, list-ready, request updates) are MVP and not withheld pending AC approval
 7. Once approved, the observer attends the class and gives feedback; **both observer and observee sign off** afterward (the observee's sign-off confirms the observation occurred, not agreement with the ratings)
 8. If the observation doesn't happen (illness, conflict, etc.), reschedule and complete within the same semester where possible
 9. If it still doesn't happen, the requester notifies the system/AC — a committee member may step in as observer, or it gets postponed to the next semester
@@ -79,10 +79,10 @@ This is **not** a fully automated assignment system. **Reconciled 2026-09-20:** 
   - Evaluations they have **given** (with attribution)
   - Evaluations they have **received** (with attribution)
 
-### Evaluation Forms — four distinct forms (corrected 2026-09-11)
+### Evaluation Forms — four distinct forms (corrected 2026-09-11, observation form corrected again 2026-09-30)
 - **Sign-up form:** web form with SSO
 - **Observation confirmation** (posted by the observee): web form with SSO
-- **Observation form itself** (used by the observer during the observation): **DOCX file**, not a web form — the observer fills it out and submits the completed DOCX afterward. Not intended for data analysis/aggregation.
+- **Observation form itself** (used by the observer during the observation): **in-app copy of the Observation Template, required for MVP** — the observer enters notes/ratings directly in the app, and both observer and observee sign that copy in-app. (This replaces the earlier "DOCX file, not a web form" framing; a printable/downloadable version may still be offered as a convenience but isn't the core submission path.) Not intended for data analysis/aggregation.
 - **Process feedback form:** web form with SSO
 
 ### Evaluation Criteria (added 2026-09-11)
@@ -101,7 +101,8 @@ This is **not** a fully automated assignment system. **Reconciled 2026-09-20:** 
 - Evaluation frequency scheduling based on rank rules (see above)
 - Course-level observer matching (~5 candidates surfaced; human decision follows)
 - AC approval gate before any observer list is communicated
-- Evaluation form (built-in) + document upload option
+- Evaluation form (built-in, in-app signed copy — see Evaluation Forms above) + document upload option
+- In-app notifications at key milestones (deadlines, list-ready, request/confirmation updates, observation uploaded) — corrected 2026-09-30, this moved from stretch into MVP
 - Professor dashboard: evaluations given, evaluations received, attribution visible for both
 - AC dashboard with core KPIs (see §6)
 - POC-level UTD Course Book API integration
@@ -110,7 +111,7 @@ This is **not** a fully automated assignment system. **Reconciled 2026-09-20:** 
 
 **Deferred to stretch (only if ahead of schedule):**
 - Desktop application wrapper
-- Email/notification delivery (AC-approval step exists; actual sending is stretch)
+- Outbound email/SMTP delivery infrastructure (the in-app notification itself is MVP — see above; only the actual email-sending mechanism may be deferred)
 - Calendar integration
 - Semester-based workload analytics
 - Exportable evaluation and observation reports
@@ -204,4 +205,4 @@ Treat these as a feature checklist — every KPI must be surfaced somewhere in t
 - **Matching workflow misunderstood** — the system surfaces candidates, humans decide; do not build auto-assignment. AC approval gate must exist before any list reaches professors.
 - **Evaluation form + upload scope** — both pathways (built-in form and document upload) are MVP; don't defer the upload path.
 - **Matching algorithm complexity** — keep v1 rule-based (course-level + same-school overlap, taught within last 2 years), not optimization-heavy. Don't over-engineer.
-- **Scope creep from stretch goals** — hold the line until Week 8; only pull in stretch items (desktop wrapper, email delivery, exports) if MVP is done early.
+- **Scope creep from stretch goals** — hold the line until Week 8; only pull in stretch items (desktop wrapper, outbound email/SMTP delivery, exports) if MVP is done early. In-app notifications are MVP, not stretch (corrected 2026-09-30) — don't lump them in here.

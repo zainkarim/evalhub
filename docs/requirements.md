@@ -33,8 +33,8 @@ Replace a manual, spreadsheet/email-based process for scheduling and tracking pe
 ## 4. Functional Requirements
 
 ### 4.1 Evaluation Frequency (eligibility engine)
-- Assistant Professor: **not** evaluated in their first semester; evaluated every Spring and every Fall after that.
-- Associate/Full Professor: every 2 years; **Summer terms are excluded** from that count.
+- **Corrected 2026-09-30 — resolved directly with the professor at the TA/professor meeting; the Process Explanation doc is treated as source of truth and overwrites the prior 9/11 understanding:** Assistant Professor is evaluated **once every calendar year**, satisfied by either Spring or Fall of that year. Example from the professor's own doc: last evaluation Spring 2025 → due again in Spring 2026 or Fall 2026. There is **no first-semester exemption and no twice-per-year (every Spring and every Fall) cadence** — that 9/11 framing is superseded, not just supplemented.
+- Associate/Full Professor: every 2 years; **Summer terms are excluded** from that count. (Unchanged — this correction was scoped to the Assistant Professor cadence only.)
 - Frequency must be **configurable per professor** (e.g., after a promotion or role change) — not a static lookup keyed only on rank.
 - The system computes who is due each term from rank + last-evaluation-date + semester type.
 
@@ -44,6 +44,8 @@ Replace a manual, spreadsheet/email-based process for scheduling and tracking pe
   1. be from the **same school/department** as the requesting professor (the team treats "school" and "department" as interchangeable for this purpose — e.g. School of Engineering ≈ Department of Engineering — so this is one requirement, not two competing ones), and
   2. have **taught that course level** (recency window: 9/11 said "within the last 2 years"; 9/18 said a professor who once satisfied this doesn't need to re-satisfy it after a break or teaching another level, which reads as *not* time-boxed — **open question, see §8**).
 - Professors teaching different subjects can still be matched if their courses share a level (an ECS 1200 instructor can observe any ECS 1000-level course); cross-department matches are invalid even at the same level (an EPPS 1000-level instructor cannot observe an ECS 1000-level course).
+- **Course numbering continues into graduate levels** (5000, 6000, etc.) — confirmed 2026-09-18 Q&A; the same MSD matching logic applies at those levels, not just 1000–4000.
+- **Observer Pool mechanic (confirmed 2026-09-18 Q&A):** a professor who signs up to be observed in a given cycle is automatically added to that cycle's pool of potential observers — there is no separate opt-in to become an observer. Candidate generation for a given sign-up draws from this pool.
 - **Availability is computed from course schedules, not entered manually** — when a professor selects a course/section to be observed, the system finds eligible professors who are free (not teaching a conflicting section) at that class time.
 - The system shows **up to 5 candidates**: if 5+ are eligible, pick 5 at random (no ranking/scoring algorithm); if fewer than 5 are eligible, show all of them; if zero are eligible, notify the AC via their dashboard (see §4.3 edge case).
 - A previously-suggested/previous observer is not excluded from being suggested again in a later cycle — no forced rotation/diversity requirement.
@@ -56,17 +58,18 @@ Replace a manual, spreadsheet/email-based process for scheduling and tracking pe
 
 1. System generates the list of professors due for evaluation this term.
 2. System surfaces up to 5 observer candidates per §4.2, presented directly to the requesting professor (the observee).
-3. The observee sends system-generated **"requests"** (not "invitations") to one, several, or all of the listed candidates — cannot request anyone outside the generated list. Each request expires after 48 hours. If multiple requests are outstanding and one observer accepts, the system auto-cancels the rest and notifies those candidates.
-4. Once an observer accepts, the system records the observer-observee pairing and the scheduled observation date/time.
+3. The observee sends system-generated **"requests"** (not "invitations") to one, several, or all of the listed candidates — cannot request anyone outside the generated list. Each request expires after 48 hours.
+   - **Acceptance mechanism (corrected 2026-09-30):** multiple observers may independently confirm the same observee's request — there is **no auto-cancel on the first acceptance**. The system shows the observee all observers who have confirmed, and the observee manually picks one to proceed with and sends graceful declines to the rest. (This supersedes the 9/18 Q&A's "first acceptance auto-cancels the others" answer, which that same document marks as superseded by the Process Explanation doc — the auto-cancel language was struck through in favor of this manual-pick flow.)
+4. Once the observee confirms their chosen observer, the system records the observer-observee pairing and the scheduled observation date/time.
 5. **Before the pairing is treated as final/official, it goes to the AC for approval** — this is the accommodation described above; the AC is always the approval gate before anything is treated as confirmed, even though it's no longer gating the initial candidate list.
-6. **The system never auto-sends outbound notifications without this AC step.**
+6. **The AC approval step still gates any pairing-confirmation notification** — but in-app notifications/reminders earlier in the flow (deadlines, "your list is ready," request received) are expected system behavior, not something withheld pending AC approval. See §4.9 for the full notification scope.
 7. Once approved, the observer attends the class on the scheduled date and gives feedback; **both observer and observee sign off** afterward. The observee's sign-off confirms the observation *occurred* — it does not mean they agree with the observer's ratings/comments; the observee may attach a document giving their own perspective if needed.
 8. If the observation doesn't happen (illness, scheduling conflict, etc.), it should be **rescheduled** and completed within the same semester where possible.
 9. If it still can't happen, the requester notifies the system/AC — a committee member may step in as observer, or the observation is postponed to the next semester.
 10. **Once signed/submitted, a completed observation cannot be edited by anyone** — not the observer, observee, AC, Department Head, or Annual Review Committee. Those roles (plus other "relevant professors" as appropriate) get view-only access instead. The observee is notified and can view the record as soon as the observer uploads it.
 
 ### 4.4 Evaluation Criteria
-- Criteria, weights, scoring levels, and rating scales are **configurable by AC members**, not hardcoded. A sample rubric is to be provided by Prof. Narayanasami.
+- Criteria, weights, scoring levels, and rating scales are **configurable by AC members**, not hardcoded. **Reconfirmed 2026-09-30** in the TA/professor meeting. A sample rubric is to be provided by Prof. Narayanasami.
 - Example criteria discussed (not exhaustive, not fixed): clarity, student engagement, preparedness, response to questions, academic rigor, pacing, organization, accessibility, learning-objective alignment, appropriate (not maximal) use of technology.
 - Lecture recording is not a university requirement — do not penalize its absence in any criterion.
 
@@ -77,14 +80,16 @@ Four distinct forms, not one generic "form or upload" choice:
 |---|---|---|
 | Sign-up | Web form | Requesting professor |
 | Observation confirmation | Web form | Observee |
-| Observation form (the actual evaluation) | **Printable PDF/DOCX** — important for MVP | Observer, during/after the observation |
+| Observation form (the actual evaluation) | **In-app copy of the Observation Template** — required for MVP | Observer, during/after the observation; signed in-app by both parties |
 | Process feedback | Web form | Participant(s) |
 
 **Auth clarification (2026-09-18):** actual UTD Single Sign-On is *not* required — demonstration accounts with role-based auth are sufficient. This resolves any earlier tension with the planned JWT + bcrypt stack; "web form with SSO" in the 9/11 notes should be read as "web form," full stop.
 
-**Observation form details (2026-09-18):**
-- Professors can print the form, take notes during the observation, sign it, and upload the completed document. Full in-browser completion is a stretch goal, not MVP.
-- In the downloadable PDF/DOCX, observer entry fields are editable; criteria, rating ranges, and other template-defined content are **not** editable by the observer.
+**Observation form details — corrected 2026-09-30 (supersedes 9/18 "printable PDF/DOCX is MVP, in-browser is stretch" framing):**
+- The 9/18 Q&A originally answered this question with "printable page" / "PDF/Docx download, entry fields editable" / "in-browser view is stretch" — but that entire answer is struck through in the source doc, with a note to defer to the Process Explanation doc instead. The Process Explanation doc's actual (current) answer: *"we will let the Observer use a copy of the Observation Template and make notes directly in that copy. Then Both Observer & Observee can sign that copy."* It also lists **"Required: In-app view of copy of the Observation Template."**
+- **Net effect: full in-browser completion is now MVP, not stretch.** The observer works from an in-app copy of the current template, enters notes/ratings directly in the app, and both observer and observee sign that same copy electronically within the app.
+- A printable/downloadable version may still be offered as a convenience, but it is not the core submission path for MVP.
+- In the in-app copy, observer entry fields are editable; criteria, rating ranges, and other template-defined content are **not** editable by the observer.
 - Only the AC can modify the observation form **template** itself — criteria, rating ranges, question types, required questions, weights, and wording. Template changes apply to future observations only; they never retroactively modify a completed observation.
 - The observation record is not intended for data analysis/aggregation — it's a record, not a structured dataset.
 
@@ -106,10 +111,18 @@ Four distinct forms, not one generic "form or upload" choice:
 - Nobody — including the AC — can edit a completed observation (§4.3 step 10).
 - Relevant professors, AC members, Department Heads, and Annual Review Committee members receive view-only access to completed records as appropriate; no one outside those roles has access.
 
+### 4.9 Notifications — corrected 2026-09-30 (moves part of this out of Deferred/Stretch, see §7)
+`CLAUDE.md` and this doc previously listed "email/notification delivery" entirely under stretch goals, based on the 9/4–9/11 meetings. The Process Explanation doc (2026-09-18, direct from Prof. Narayanasami) describes several notification touchpoints as standard AC/system capabilities, not optional extras:
+- AC can notify due/overdue professors, and communicate the signup deadline, observation-period deadline, and feedback/survey deadline.
+- System/AC sends each observee a notification once their 5-candidate observer list is ready ("a Button to send notifications to each Observee that their list is ready").
+- After the observation-period deadline, AC can notify all observees to complete the process-feedback survey.
+- Observee is notified when the observer uploads the signed observation (already captured in §4.3 step 10).
+- **Reconciliation:** treat the *capability* to notify users at these milestones (surfaced in-app at minimum — dashboard alerts, a notification/inbox view, "list ready" indicators) as **MVP**, not stretch. Actual outbound **email/SMTP delivery infrastructure** can remain a stretch/time-permitting item if the team is short on time — the in-app notification is the part that's load-bearing for the workflow (e.g., §4.3 step 3's confirmation flow depends on the observee seeing who has confirmed). This does not change §4.3's rule that the AC approval step still gates the *pairing-confirmation* notification specifically.
+
 ## 5. Non-Functional Requirements
 - Free/OSS stack only (see §2).
 - Role-based access control gating every dashboard/report by persona (§3, §4.6).
-- System must not send outbound communications without a prior AC approval step (§4.3).
+- Pairing-confirmation communications must not go out without a prior AC approval step (§4.3); other in-app notifications (deadlines, list-ready, request confirmations) are not gated behind AC approval (§4.9).
 
 ## 6. KPI / Dashboard Requirements
 Every item below must be surfaced somewhere in the AC or professor dashboard:
@@ -127,7 +140,9 @@ Every item below must be surfaced somewhere in the AC or professor dashboard:
 - Outstanding Observation Report
 
 ## 7. Out of Scope for MVP (Stretch Only)
-Do not build until the core MVP above is complete: desktop application wrapper, email/notification delivery, calendar integration, semester-based workload analytics, exportable reports.
+Do not build until the core MVP above is complete: desktop application wrapper, calendar integration, semester-based workload analytics, exportable reports.
+
+**Corrected 2026-09-30:** "email/notification delivery" was removed from this list — see §4.9. In-app notifications at key milestones are MVP; only the outbound-email/SMTP delivery mechanism itself (as opposed to the in-app notification) may be deferred if time-constrained.
 
 ## 8. Open Questions
 - **Recency window for "taught that course level":** is it strictly "within the last 2 years" (9/11) or does satisfying it once remove the time-box entirely (9/18 reads this way)? Unresolved — confirm with professor/TA before hardcoding either interpretation.
@@ -147,3 +162,4 @@ Do not build until the core MVP above is complete: desktop application wrapper, 
 | 2026-09-17 | This document written, consolidating the above into a single requirements definition, in response to reviewer feedback that the sprint plan was built without one. |
 | 2026-09-18 | Meeting notes added significant detail: availability computed from course schedules, observer "request" mechanics (48h expiry, auto-cancel), completed-observation immutability, new Annual Review Committee persona, AC-only template editing, no real SSO required (demo accounts suffice), CourseBook API not required (real course data OK, only professor names must be fictional), professors can self-update rank. Also introduced two apparent conflicts with earlier decisions (same-department vs. same-school; whether the AC approval gate still applies to the candidate list). |
 | 2026-09-20 | Team resolved both 9/18 conflicts: (1) "school" and "department" are being used interchangeably by the team for this requirement, not treated as different scopes; (2) the AC-approval gate is preserved by moving it to the pairing-confirmation step rather than the candidate-list step, so both meetings' descriptions are accommodated (see §4.3). The course-level recency window question remains open. |
+| 2026-09-30 | Added `docs/process-explanation.pdf` and `docs/q_and_a_9_18_*.pdf` (direct answers from Prof. Narayanasami, 2026-09-18) to the repo. Reconciled three points where these superseded earlier answers: (1) observation form is now an in-app signed copy of the template, required for MVP — not a printable PDF/DOCX with in-browser completion as stretch (§4.5); (2) in-app notifications at key milestones (deadlines, list-ready, request confirmations) are MVP, not stretch — only outbound email/SMTP delivery may remain stretch (§4.9, §7); (3) observer acceptance is now multi-confirm-then-manual-pick, not auto-cancel-on-first-accept (§4.3 step 3). Also added: course numbering extends to graduate levels, and the "Observer Pool" auto-enrollment mechanic (§4.2). Reconfirmed §4.4 (AC-configurable criteria) at the TA/professor meeting. Also resolved at that meeting, overwriting prior understanding per the professor's direct guidance: Assistant Professor evaluation cadence is **once per calendar year** (either Spring or Fall), not the 9/11 "no first semester, then every Spring and every Fall" framing — §4.1 updated accordingly, closing the open question previously tracked here. |
