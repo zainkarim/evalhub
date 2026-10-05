@@ -103,12 +103,11 @@ function AssessmentDetail() {
               )}
 
               {committeeView && (
-                <CommitteeActions assessment={assessment} user={user} onChanged={reload} />
+                <CommitteeActions assessment={assessment} onChanged={reload} />
               )}
               {committee && owner && (
                 <p className="mt-6 rounded border border-line bg-white px-5 py-4 text-sm text-muted">
-                  This is your own sign-up, so another committee member handles approval and
-                  any step-in.
+                  This is your own sign-up, so another committee member handles any step-in.
                 </p>
               )}
 

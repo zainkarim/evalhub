@@ -4,7 +4,6 @@ import ProtectedRoute from "./components/ProtectedRoute"
 import { AuthProvider } from "./context/AuthContext"
 import { useAuth } from "./context/auth-context"
 import { AC_ROLES, isAC } from "./lib/roles"
-import Approvals from "./pages/Approvals"
 import AssessmentDetail from "./pages/AssessmentDetail"
 import CourseDetail from "./pages/CourseDetail"
 import Courses from "./pages/Courses"
@@ -21,10 +20,11 @@ function CommitteeRoute({ children }) {
   return <ProtectedRoute roles={AC_ROLES}>{children}</ProtectedRoute>
 }
 
-// Each role lands on the page it works from.
+// Each role lands on the page it works from. AC doesn't have a dedicated
+// dashboard yet (see #32), so it lands on Professors for now.
 function Home() {
   const { user } = useAuth()
-  return <Navigate to={isAC(user) ? "/approvals" : "/observations"} replace />
+  return <Navigate to={isAC(user) ? "/professors" : "/observations"} replace />
 }
 
 function App() {
@@ -64,14 +64,6 @@ function App() {
             <Route path="/observation-signup" element={<ObservationSignup />} />
             <Route path="/assessments/:id" element={<AssessmentDetail />} />
             <Route path="/records/:id" element={<ObservationRecord />} />
-            <Route
-              path="/approvals"
-              element={
-                <CommitteeRoute>
-                  <Approvals />
-                </CommitteeRoute>
-              }
-            />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

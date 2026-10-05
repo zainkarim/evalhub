@@ -3,7 +3,7 @@ import { formatDate } from "./format"
 export const STEPS = [
   "Signed up",
   "Choose observer",
-  "Committee approval",
+  "Confirmed",
   "Observation",
   "Sign-off",
 ]
@@ -48,7 +48,7 @@ export function nextStep(assessment) {
       if (attention === "requests_unanswered") return "No one accepted — send new requests"
       return "Choose who to ask"
     case "pending_ac_approval":
-      return "Waiting for committee approval"
+      return "Pairing confirmed — observation being scheduled"
     case "approved":
       return pairing?.scheduledDate
         ? `Observation on ${formatDate(pairing.scheduledDate)}`

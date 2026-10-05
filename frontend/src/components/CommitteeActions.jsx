@@ -2,7 +2,6 @@ import { useCallback, useState } from "react"
 import { api } from "../lib/api"
 import { formatDate, fullName, meetingDates } from "../lib/format"
 import { useApi } from "../lib/useApi"
-import ReviewControls from "./ReviewControls"
 
 function AssignObserver({ assessment, onChanged }) {
   const call = useCallback(() => api.stepInOptions(assessment.id), [assessment.id])
@@ -39,7 +38,7 @@ function AssignObserver({ assessment, onChanged }) {
       <h3 className="text-sm font-medium">Assign an observer</h3>
       <p className="mt-1 text-sm text-muted">
         Use this when no candidate is eligible or no one accepts: a committee member steps in
-        as observer. Another committee member still has to approve the pairing.
+        as observer.
       </p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <div>
@@ -108,15 +107,15 @@ function AssignObserver({ assessment, onChanged }) {
   )
 }
 
-// Committee-only controls on a sign-up: approve/reject the proposed pairing,
-// step in as observer, postpone, or cancel.
-function CommitteeActions({ assessment, user, onChanged }) {
+// Committee-only controls on a sign-up: step in as observer, postpone, or
+// cancel. There is no approval step — the AC does not approve pairings; it
+// only assigns an observer when no candidate is eligible or no one accepts.
+function CommitteeActions({ assessment, onChanged }) {
   const [confirming, setConfirming] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
 
-  const { status, pairing } = assessment
-  const awaitingReview = status === "pending_ac_approval" && pairing?.status === "proposed"
+  const { status } = assessment
   const canAssign = ["signed_up", "candidates_generated"].includes(status)
   const terminal = ["completed", "cancelled", "postponed", "not_eligible"].includes(status)
 
@@ -134,22 +133,11 @@ function CommitteeActions({ assessment, user, onChanged }) {
     }
   }
 
-  if (!awaitingReview && !canAssign && terminal) return null
+  if (!canAssign && terminal) return null
 
   return (
     <section className="mt-6 rounded border border-line bg-white p-6">
       <h2 className="text-sm font-semibold">Committee actions</h2>
-
-      {awaitingReview && (
-        <div className="mt-4">
-          <h3 className="text-sm font-medium">Review the proposed pairing</h3>
-          <p className="mt-1 mb-3 text-sm text-muted">
-            Nothing is treated as final — and no one is told it is — until the committee
-            approves.
-          </p>
-          <ReviewControls observation={pairing} user={user} onDone={onChanged} />
-        </div>
-      )}
 
       {canAssign && (
         <div className="mt-4">

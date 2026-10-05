@@ -10,7 +10,6 @@ const links = [
   { to: "/professors", label: "Professors", committeeOnly: true },
   { to: "/courses", label: "Courses" },
   { to: "/observations", label: "Observations", badge: "requests" },
-  { to: "/approvals", label: "Approvals", committeeOnly: true, badge: "approvals" },
 ]
 
 function Layout() {
@@ -18,18 +17,14 @@ function Layout() {
   const navigate = useNavigate()
   const location = useLocation()
   const committee = isAC(user)
-  const [counts, setCounts] = useState({ requests: 0, approvals: 0 })
+  const [counts, setCounts] = useState({ requests: 0 })
 
   // Refresh the nav counters whenever the person moves to another page.
   useEffect(() => {
     let active = true
     async function refresh() {
-      const next = { requests: 0, approvals: 0 }
+      const next = { requests: 0 }
       try {
-        if (committee) {
-          const queue = await api.assessmentQueue()
-          next.approvals = queue.counts.pendingApproval + queue.counts.needsAttention
-        }
         if (hasTeacherProfile(user)) {
           const incoming = await api.incomingRequests()
           next.requests = (incoming.data ?? []).filter(
@@ -67,12 +62,7 @@ function Layout() {
             {links
               .filter((link) => committee || !link.committeeOnly)
               .map((link) => {
-                const count =
-                  link.badge === "requests"
-                    ? counts.requests
-                    : link.badge === "approvals"
-                      ? counts.approvals
-                      : 0
+                const count = link.badge === "requests" ? counts.requests : 0
                 return (
                   <NavLink
                     key={link.to}

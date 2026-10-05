@@ -183,7 +183,7 @@ function CandidatePanel({ assessment, owner, onChanged }) {
               <p className="mt-2 text-xs text-muted">
                 You can ask one, several, or all of them — only people on this list. Each
                 request expires after 48 hours, and when one person accepts the rest are
-                cancelled. The committee approves the final pairing.
+                cancelled.
               </p>
             </div>
           )}

@@ -110,8 +110,8 @@ export function meetingDates(section, { from = todayISO(), limit = 40 } = {}) {
 export const ASSESSMENT_STATUS = {
   signed_up: { label: "Signed up", tone: "neutral" },
   candidates_generated: { label: "Choosing observer", tone: "info" },
-  pending_ac_approval: { label: "Awaiting AC approval", tone: "warn" },
-  approved: { label: "Approved · scheduled", tone: "good" },
+  pending_ac_approval: { label: "Pairing confirmed", tone: "info" },
+  approved: { label: "Scheduled", tone: "good" },
   completed: { label: "Completed", tone: "done" },
   not_eligible: { label: "Not eligible", tone: "neutral" },
   postponed: { label: "Postponed", tone: "neutral" },
@@ -119,9 +119,9 @@ export const ASSESSMENT_STATUS = {
 }
 
 export const OBSERVATION_STATUS = {
-  proposed: { label: "Awaiting AC approval", tone: "warn" },
-  approved: { label: "Approved", tone: "good" },
-  rejected: { label: "Rejected by AC", tone: "bad" },
+  proposed: { label: "Scheduled", tone: "good" },
+  approved: { label: "Scheduled", tone: "good" },
+  rejected: { label: "Not confirmed", tone: "bad" },
   completed: { label: "Completed", tone: "done" },
   not_completed: { label: "Did not happen", tone: "bad" },
   postponed: { label: "Postponed", tone: "neutral" },

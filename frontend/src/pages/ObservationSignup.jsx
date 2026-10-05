@@ -145,8 +145,7 @@ function ObservationSignup() {
                 </p>
                 <p className="mt-3 text-muted">
                   Next: find your observer candidates (professors from your school who have
-                  taught this course level). You choose who to ask, and the committee approves
-                  the final pairing.
+                  taught this course level), then choose who to ask.
                 </p>
                 <div className="mt-5 flex flex-wrap gap-3">
                   <Link

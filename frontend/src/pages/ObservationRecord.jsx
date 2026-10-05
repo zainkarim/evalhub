@@ -121,21 +121,9 @@ function ObservationRecord() {
                   </Field>
                   <Field label="Being observed">{fullName(observation.observee)}</Field>
                   <Field label="Observation date">{formatDate(observation.scheduledDate)}</Field>
-                  <Field label="Committee review">
-                    {observation.acReviewedAt
-                      ? `${status === "rejected" ? "Rejected" : "Approved"} ${formatDateTime(observation.acReviewedAt)}${observation.acReviewedBy ? ` by ${observation.acReviewedBy}` : ""}`
-                      : "Waiting for approval"}
-                  </Field>
                 </dl>
                 {observation.acNotes && (
                   <p className="mt-4 text-sm text-muted">Committee note: {observation.acNotes}</p>
-                )}
-                {committee && status === "proposed" && (
-                  <p className="mt-4 text-sm">
-                    <Link to="/approvals" className="font-medium text-utd-green hover:underline">
-                      Review this pairing in Approvals
-                    </Link>
-                  </p>
                 )}
               </section>
 
@@ -163,13 +151,12 @@ function ObservationRecord() {
 
                 {status === "proposed" && (
                   <p className="mt-4 text-sm text-muted">
-                    This pairing is waiting for committee approval. Sign-off opens once it is
-                    approved.
+                    Sign-off opens once the observation is scheduled.
                   </p>
                 )}
                 {status === "rejected" && (
                   <p className="mt-4 text-sm text-muted">
-                    The committee did not approve this pairing, so there is nothing to sign.
+                    This pairing was not confirmed, so there is nothing to sign.
                   </p>
                 )}
                 {status === "not_completed" && (
