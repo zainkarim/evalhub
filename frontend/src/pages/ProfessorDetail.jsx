@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom"
 import StateBlock from "../components/StateBlock"
 import { api } from "../lib/api"
 import { useApi } from "../lib/useApi"
+import { formatRank } from "./Professors"
 
 function ProfessorDetail() {
   const { id } = useParams()
@@ -28,7 +29,7 @@ function ProfessorDetail() {
                     {professor.firstName} {professor.lastName}
                   </h1>
 
-                  <p className="mt-1 text-muted">{professor.rank}</p>
+                  <p className="mt-1 text-muted">{formatRank(professor.rank)}</p>
                 </div>
 
                 <Link

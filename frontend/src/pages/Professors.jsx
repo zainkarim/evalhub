@@ -4,7 +4,7 @@ import StateBlock from "../components/StateBlock"
 import { api } from "../lib/api"
 import { useApi } from "../lib/useApi"
 
-const formatRank = (rank) => {
+export const formatRank = (rank) => {
   if (!rank) return "—"
 
   return rank
