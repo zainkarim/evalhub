@@ -524,6 +524,41 @@ route("GET", "/teachers/(\\d+)", ({ user, match }) => {
   return teacher
 })
 
+route("POST", "/teachers", ({ user, body }) => {
+  if (!isAC(user)) {
+    throw fail(403, "forbidden", "Access denied")
+  }
+
+  const s = load()
+  const teacher = {
+    ...body,
+    id: Math.max(...s.teachers.map((teacher) => teacher.id), 0) + 1,
+  }
+
+  s.teachers.push(teacher)
+  save()
+  return teacher
+})
+
+route("PATCH", "/teachers/(\\d+)", ({ user, match, body }) => {
+  if (!isAC(user)) {
+    throw fail(403, "forbidden", "Access denied")
+  }
+
+  const s = load()
+  const teacher = byId(s.teachers, match[1])
+
+  if (!teacher) {
+    throw fail(404, "not_found", "Profesor not found")
+  }
+
+  Object.assign(teacher, body)
+  teacher.id = Number(match[1])
+
+  save()
+  return teacher
+})
+
 route("GET", "/terms", () => ({
   data: [...load().terms].sort((a, b) => b.startDate.localeCompare(a.startDate)),
 }))
