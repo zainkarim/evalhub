@@ -16,7 +16,7 @@ const eligibleObserversSql = readFileSync(
 const STATUSES = [
   'signed_up',
   'candidates_generated',
-  'pending_ac_approval',
+  'pending_ac_approval', // Legacy records only; new selections skip AC review.
   'approved',
   'completed',
   'not_eligible',
@@ -240,6 +240,10 @@ router.post(
 
     const assessment = assessmentRows[0];
 
+    if (['approved', 'completed', 'not_eligible', 'postponed', 'cancelled', 'pending_ac_approval'].includes(assessment.status)) {
+      throw new HttpError(409, 'conflict', 'This assessment is not open for observer selection');
+    }
+
     // 2. Only the owner or AC/admin may generate candidates
     const isOwner = req.user.teacherId === assessment.teacher_id;
 
@@ -410,6 +414,10 @@ router.post(
 
     const assessment = assessmentRows[0];
 
+    if (['approved', 'completed', 'not_eligible', 'postponed', 'cancelled', 'pending_ac_approval'].includes(assessment.status)) {
+      throw new HttpError(409, 'conflict', 'This assessment is not open for observer selection');
+    }
+
     // 2. Only the owner or AC/admin may choose an observer
     const isOwner = req.user.teacherId === assessment.teacher_id;
 
@@ -441,12 +449,81 @@ router.post(
           'The selected observer is not on the candidate list for this assessment',
         );
       }
-    } else if (!AC_OR_ADMIN.includes(req.user.role)) {
-      // No candidate list means AC step-in.
+    } else {
+      // AC/admin may override matching only when the current eligible pool is empty.
+      if (!AC_OR_ADMIN.includes(req.user.role)) {
+        throw new HttpError(
+          403,
+          'forbidden',
+          'A candidate list is required unless an AC/admin is stepping in',
+        );
+      }
+
+      const { rows: sectionRows } = await query(
+        `SELECT cs.teacher_id AS observee_id, c.school, c.course_level
+           FROM course_sections cs
+           JOIN courses c ON c.id = cs.course_id
+          WHERE cs.id = $1`,
+        [assessment.section_id],
+      );
+
+      if (!sectionRows[0]) throw notFound('Section');
+
+      const section = sectionRows[0];
+
+      const { rows: settings } = await query(
+        "SELECT value FROM app_settings WHERE key = 'observer_lookback_years'",
+      );
+
+      const lookbackYears = Number(settings[0]?.value ?? 2);
+
+      if (!Number.isFinite(lookbackYears) || lookbackYears < 0) {
+        throw new HttpError(
+          500,
+          'configuration_error',
+          'Invalid observer lookback setting',
+        );
+      }
+
+      // A limit of one is sufficient to establish whether anybody qualifies.
+      const { rows: eligible } = await query(eligibleObserversSql, [
+        section.observee_id,
+        section.school,
+        section.course_level,
+        new Date().toISOString().slice(0, 10),
+        1,
+        lookbackYears,
+      ]);
+
+      if (eligible.length > 0) {
+        throw new HttpError(
+          409,
+          'conflict',
+          'AC override is only allowed when there are no eligible observers',
+        );
+      }
+    }
+
+    if (observerId === assessment.teacher_id) {
       throw new HttpError(
-        403,
-        'forbidden',
-        'A candidate list is required unless an AC/admin is stepping in',
+        409,
+        'conflict',
+        'A teacher cannot observe themselves',
+      );
+    }
+
+    const { rows: observerRows } = await query(
+      'SELECT id, is_active FROM teachers WHERE id = $1',
+      [observerId],
+    );
+
+    if (!observerRows[0]) throw notFound('Observer');
+
+    if (!observerRows[0].is_active) {
+      throw new HttpError(
+        409,
+        'conflict',
+        'The selected observer is inactive',
       );
     }
 
@@ -472,7 +549,7 @@ router.post(
           is_ac_stepin,
           status
         )
-       VALUES ($1, $2, $3, $4, $5, $6, 'proposed')
+       VALUES ($1, $2, $3, $4, $5, $6, 'approved')
        RETURNING *`,
       [
         assessmentId,
@@ -486,10 +563,11 @@ router.post(
 
     const observation = observationRows[0];
 
-    // 6. Move the assessment into the AC approval stage
+    // 6. Ready to proceed immediately; 'approved' is the existing DB status.
+    // No AC review occurs. Rename this status when the SQL schema is updated.
     const { rows: updatedAssessmentRows } = await query(
       `UPDATE assessments
-          SET status = 'pending_ac_approval'
+          SET status = 'approved'
         WHERE id = $1
         RETURNING *`,
       [assessmentId],
