@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { api } from "../lib/api"
+import { useApi } from "../lib/useApi"
 
 const EMPTY_FORM = {
   firstName: "",
@@ -17,40 +18,38 @@ function ProfessorForm() {
   const isEditing = Boolean(id)
 
   const [form, setForm] = useState(EMPTY_FORM)
-  const [loading, setLoading] = useState(isEditing)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
-  const [loadError, setLoadError] = useState("")
+
+  const call = useCallback(
+    () => (isEditing ? api.getProfessor(id) : Promise.resolve(null)),
+    [id, isEditing],
+  )
+
+  const {
+    data: professor,
+    error: loadError,
+    loading,
+  } = useApi(call)
 
   useEffect(() => {
     if (!isEditing) {
       setForm(EMPTY_FORM)
       setError("")
-      setLoading(false)
       return
     }
 
-    async function loadProfessor() {
-      try {
-        const professor = await api.getProfessor(id)
+    if (!professor) return
 
-        setForm({
-          firstName: professor.firstName ?? "",
-          lastName: professor.lastName ?? "",
-          email: professor.email ?? "",
-          school: professor.school ?? "",
-          rank: professor.rank ?? "assistant_professor",
-          isActive: professor.isActive ?? true,
-        })
-      } catch (err) {
-        setLoadError(err.message)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadProfessor()
-  }, [id, isEditing])
+    setForm({
+      firstName: professor.firstName ?? "",
+      lastName: professor.lastName ?? "",
+      email: professor.email ?? "",
+      school: professor.school ?? "",
+      rank: professor.rank ?? "assistant_professor",
+      isActive: professor.isActive ?? true,
+    })
+  }, [isEditing, professor])
 
   function handleChange(event) {
     const { name, value, type, checked } = event.target
@@ -92,7 +91,7 @@ function ProfessorForm() {
         </Link>
 
         <p className="mt-4 text-sm text-red-700">
-          {loadError}
+          {loadError.message}
         </p>
       </div>
     )
