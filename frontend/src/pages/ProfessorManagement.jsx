@@ -22,7 +22,12 @@ function ProfessorForm() {
   const [error, setError] = useState("")
 
   useEffect(() => {
-    if (!isEditing) return
+    if (!isEditing) {
+      setForm(EMPTY_FORM)
+      setError("")
+      setLoading(false)
+      return
+    }
 
     async function loadProfessor() {
       try {
