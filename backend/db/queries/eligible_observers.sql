@@ -1,6 +1,13 @@
--- Reference query for observer matching (not run by the migration
--- runner — this is for whoever builds the candidate-generation endpoint,
--- POST /assessments/:id/candidates).
+-- Reference query for observer matching, used by POST /assessments/:id/candidates
+-- and the AC-override check inside POST /assessments/:id/observations.
+--
+-- FIXED 2026-10-06: placeholders renumbered to match how assessments.js
+-- actually calls this (6 positional args, not 7 -- the original version of
+-- this file had a leftover unused $1 and referenced $7, which meant every
+-- real call to this query failed with "bind message supplies 6 parameters,
+-- but prepared statement requires 7". Both call sites in assessments.js
+-- pass [observee_id, school, course_level, date, limit, lookbackYears] in
+-- that order -- this file now matches that exactly.
 --
 -- Rules, per Q&A 8 and 15:
 --   - match by course level (first digit of course number), not focus area
@@ -11,16 +18,22 @@
 --     more than 5 do
 --   - if fewer than 5 qualify (new hire, small department, etc.) just
 --     return what's there. if the pool is completely empty, don't call
---     this at all — an AC member steps in instead
+--     this at all -- an AC member steps in instead
 --     (observations.is_ac_stepin = true, source_list_id = NULL)
 --
--- $1 assessment id (to exclude the observee / read their section)
--- $2 observee teacher id
--- $3 target school (school of the section being observed)
--- $4 target course level
--- $5 as-of date (usually CURRENT_DATE)
--- $6 list size (app_settings.candidate_list_size)
--- $7 lookback years (app_settings.observer_lookback_years)
+-- KNOWN SEPARATE GAP (not fixed here, flagging for whoever picks it up):
+-- requirements.md §4.2 "Observer Pool mechanic" says the eligible pool
+-- should be restricted to teachers who signed up as an observee THIS
+-- cycle, not the full historical roster matching school+level+recency.
+-- This query still pulls from the full roster. Not a crash, just broader
+-- than spec -- worth fixing, just not urgent tonight.
+--
+-- $1 observee teacher id (to exclude self)
+-- $2 target school (school of the section being observed)
+-- $3 target course level
+-- $4 as-of date (usually CURRENT_DATE)
+-- $5 list size / limit (app_settings.candidate_list_size)
+-- $6 lookback years (app_settings.observer_lookback_years)
 WITH pool AS (
   SELECT DISTINCT t.id, t.first_name, t.last_name, t.email
   FROM teachers t
@@ -28,25 +41,15 @@ WITH pool AS (
   JOIN courses c          ON c.id = cs.course_id
   JOIN terms tm           ON tm.id = cs.term_id
   WHERE t.is_active
-    AND t.id <> $2
-    AND t.school = $3
-    AND c.school = $3
-    AND c.course_level = $4
-    AND tm.start_date <= $5::date
-    AND tm.end_date   >= ($5::date - make_interval(years => $7::int))
+    AND t.id <> $1
+    AND t.school = $2
+    AND c.school = $2
+    AND c.course_level = $3
+    AND tm.start_date <= $4::date
+    AND tm.end_date   >= ($4::date - make_interval(years => $6::int))
 )
 SELECT p.id, p.first_name, p.last_name, p.email,
        (SELECT count(*) FROM pool)::int AS pool_size
 FROM pool p
 ORDER BY random()
-LIMIT $6::int;
-
--- Usage sketch for the endpoint that generates candidates:
---   1. Look up the assessment's section -> course -> (school, course_level)
---   2. Run the query above to get up to 5 random candidates + pool_size
---   3. INSERT one candidate_lists row (target_school, target_level, pool_size, list_size)
---   4. INSERT one observer_candidates row per candidate, position 1..N
---   5. UPDATE assessments SET status = 'candidates_generated' WHERE id = $1
---   6. If pool_size = 0, do NOT create a candidate list — surface the
---      new-hire edge case instead so an AC member can step in
---      (observations row with is_ac_stepin = true, source_list_id NULL).
+LIMIT $5::int;
