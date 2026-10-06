@@ -20,6 +20,7 @@ function ProfessorForm() {
   const [loading, setLoading] = useState(isEditing)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
+  const [loadError, setLoadError] = useState("")
 
   useEffect(() => {
     if (!isEditing) {
@@ -42,7 +43,7 @@ function ProfessorForm() {
           isActive: professor.isActive ?? true,
         })
       } catch (err) {
-        setError(err.message)
+        setLoadError(err.message)
       } finally {
         setLoading(false)
       }
@@ -82,6 +83,19 @@ function ProfessorForm() {
 
   if (loading) {
     return <p className="text-sm text-muted">Loading professor...</p>
+  }
+  if (isEditing && loadError) {
+    return (
+      <div>
+        <Link to="/professors" className="text-sm text-muted hover:text-ink">
+          Back
+        </Link>
+
+        <p className="mt-4 text-sm text-red-700">
+          {loadError}
+        </p>
+      </div>
+    )
   }
 
   return (
