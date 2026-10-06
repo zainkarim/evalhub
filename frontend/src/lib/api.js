@@ -106,7 +106,8 @@ export const api = {
 
   // ---- observer candidates + requests (professor side)
   generateCandidates: (id) => post(`/assessments/${id}/candidates`),
-  sendRequests: (id, observerIds) => post(`/assessments/${id}/requests`, { observerIds }),
+  sendRequests: (id, observerIds, possibleDates) =>
+    post(`/assessments/${id}/requests`, { observerIds, possibleDates }),
   cancelRequest: (requestId) => post(`/observer-requests/${requestId}/cancel`),
   incomingRequests: () => request("/observer-requests/incoming"),
   acceptRequest: (requestId, scheduledDate) =>

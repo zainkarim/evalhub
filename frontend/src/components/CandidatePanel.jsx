@@ -12,6 +12,7 @@ const td = "px-4 py-3"
 //                can see how the pool was matched and who has answered
 function CandidatePanel({ assessment, owner, onChanged }) {
   const [selected, setSelected] = useState([])
+  const [possibleDates, setPossibleDates] = useState([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
 
@@ -43,6 +44,24 @@ function CandidatePanel({ assessment, owner, onChanged }) {
     )
 
   const allSelected = selectable.length > 0 && selected.length === selectable.length
+
+    const addDate = () => {
+      if (possibleDates.length < 8) {
+        setPossibleDates([...possibleDates, ""])
+      }
+    }
+
+    const updateDate = (index, value) => {
+      setPossibleDates((current) =>
+        current.map((date, i) => (i === index ? value : date)),
+      )
+    }
+
+    const removeDate = (index) => {
+      setPossibleDates((current) =>
+        current.filter((_, i) => i !== index),
+      )
+    }
 
   return (
     <section className="mt-6 rounded border border-line bg-white p-6">
@@ -168,10 +187,66 @@ function CandidatePanel({ assessment, owner, onChanged }) {
 
           {canRequest && (
             <div className="mt-4">
+          {selected.length > 0 && (
+        <div className="mb-4 rounded border border-line bg-canvas p-4">
+          <h3 className="text-sm font-semibold">Choose possible observation dates</h3>
+
+          <p className="mt-1 text-xs text-muted">
+            Select 4–8 possible class dates for the observer to choose from.
+          </p>
+
+          <div className="mt-3 space-y-2">
+            {possibleDates.map((date, index) => (
+              <div key={index} className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(event) => updateDate(index, event.target.value)}
+                  className="rounded border border-line bg-white px-3 py-2 text-sm"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => removeDate(index)}
+                  className="text-xs text-muted hover:text-ink"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {possibleDates.length < 8 && (
+            <button
+              type="button"
+              onClick={addDate}
+              className="mt-3 rounded border border-line bg-white px-3 py-2 text-sm hover:border-ink"
+            >
+              + Add possible date
+            </button>
+          )}
+
+          <p className="mt-2 text-xs text-muted">
+            {possibleDates.filter(Boolean).length} of at least 4 dates selected
+          </p>
+        </div>
+      )}
               <button
                 type="button"
-                disabled={busy || selected.length === 0}
-                onClick={() => run(() => api.sendRequests(assessment.id, selected))}
+                disabled={
+                  busy ||
+                  selected.length === 0 ||
+                  possibleDates.filter(Boolean).length < 4
+                }
+                onClick={() =>
+                  run(() =>
+                    api.sendRequests(
+                      assessment.id,
+                      selected,
+                      possibleDates.filter(Boolean),
+                    ),
+                  )
+                }
                 className="rounded bg-utd-green px-4 py-2 text-sm font-medium text-white hover:bg-utd-green-dark disabled:opacity-50"
               >
                 {busy
