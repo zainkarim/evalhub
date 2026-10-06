@@ -11,6 +11,7 @@ import courseRoutes from './routes/courses.js';
 import sectionRoutes from './routes/sections.js';
 import teacherRoutes from './routes/teachers.js';
 import termRoutes from './routes/terms.js';
+import timeOptionRoutes from './routes/timeOptions.js';
 
 export function createApp() {
   const app = express();
@@ -32,6 +33,7 @@ export function createApp() {
   app.use('/api/terms', authenticate, termRoutes);
   app.use('/api/courses', authenticate, courseRoutes);
   app.use('/api/sections', authenticate, sectionRoutes);
+  app.use('/api/time-options', authenticate, timeOptionRoutes);
 
   app.use((req, res) => {
     res.status(404).json({ error: { code: 'not_found', message: `No route for ${req.method} ${req.path}` } });

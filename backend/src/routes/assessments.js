@@ -589,4 +589,165 @@ router.post(
   },
 );
 
+// POST /api/assessments/:id/time-options   (the observee who owns this assessment, or AC/admin)
+const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Expected HH:MM (24h)');
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD');
+
+const toTimeOption = (r) => ({
+  id: r.id,
+  assessmentId: r.assessment_id,
+  proposedDate: r.proposed_date,
+  startTime: r.start_time ? r.start_time.slice(0, 5) : null,
+  endTime: r.end_time ? r.end_time.slice(0, 5) : null,
+  offeredToTeacherId: r.offered_to_teacher_id,
+  isConfirmed: r.is_confirmed,
+});
+
+// Only truly terminal states block new date proposals. 'postponed' is
+// deliberately NOT in this list -- requirements.md section 4.3 step 8 says a
+// postponed sign-up should be rescheduled within the same semester where
+// possible, which means proposing fresh dates on it is the normal path,
+// not an error case.
+const TIME_OPTIONS_BLOCKED_STATUSES = ['completed', 'cancelled', 'not_eligible'];
+
+const addOptionsBody = z.object({
+  options: z.array(z.object({
+    proposedDate: isoDate,
+    startTime: hhmm,
+    endTime: hhmm,
+  })).min(1).max(8),
+});
+
+router.post(
+  '/:id/time-options',
+  validate(idParams, 'params'),
+  validate(addOptionsBody),
+  async (req, res) => {
+    const assessmentId = req.valid.params.id;
+
+    const { rows: assessmentRows } = await query(
+      'SELECT * FROM assessments WHERE id = $1',
+      [assessmentId],
+    );
+
+    if (!assessmentRows[0]) throw notFound('Assessment');
+
+    const assessment = assessmentRows[0];
+
+    if (TIME_OPTIONS_BLOCKED_STATUSES.includes(assessment.status)) {
+      throw new HttpError(409, 'conflict', 'This assessment is no longer open for scheduling');
+    }
+
+    const isOwner = req.user.teacherId === assessment.teacher_id;
+
+    if (!isOwner && !AC_OR_ADMIN.includes(req.user.role)) {
+      throw new HttpError(
+        403,
+        'forbidden',
+        'Only the observee (or AC/admin) can propose dates for this assessment',
+      );
+    }
+
+    const inserted = [];
+
+    for (const opt of req.valid.body.options) {
+      const { rows } = await query(
+        `INSERT INTO assessment_time_options (assessment_id, proposed_date, start_time, end_time)
+         VALUES ($1, $2, $3, $4)
+         RETURNING *`,
+        [assessmentId, opt.proposedDate, opt.startTime, opt.endTime],
+      );
+
+      inserted.push(rows[0]);
+    }
+
+    res.status(201).json({ data: inserted.map(toTimeOption) });
+  },
+);
+
+// GET /api/assessments/:id/time-options   (owner, the offered observer, or AC/admin)
+router.get('/:id/time-options', validate(idParams, 'params'), async (req, res) => {
+  const assessmentId = req.valid.params.id;
+
+  const { rows: assessmentRows } = await query(
+    'SELECT * FROM assessments WHERE id = $1',
+    [assessmentId],
+  );
+
+  if (!assessmentRows[0]) throw notFound('Assessment');
+
+  const { rows } = await query(
+    'SELECT * FROM assessment_time_options WHERE assessment_id = $1 ORDER BY proposed_date, start_time',
+    [assessmentId],
+  );
+
+  const isOwner = req.user.teacherId === assessmentRows[0].teacher_id;
+  const isOfferedObserver = rows.some((r) => r.offered_to_teacher_id === req.user.teacherId);
+
+  if (!isOwner && !isOfferedObserver && !AC_OR_ADMIN.includes(req.user.role)) {
+    throw new HttpError(
+      403,
+      'forbidden',
+      'You do not have permission to view these time options',
+    );
+  }
+
+  res.json({ data: rows.map(toTimeOption) });
+});
+
+const sendRequestBody = z.object({ teacherId: z.number().int().positive() });
+
+// POST /api/assessments/:id/time-options/send   (owner, or AC/admin)
+router.post(
+  '/:id/time-options/send',
+  validate(idParams, 'params'),
+  validate(sendRequestBody),
+  async (req, res) => {
+    const assessmentId = req.valid.params.id;
+    const { teacherId } = req.valid.body;
+
+    const { rows: assessmentRows } = await query(
+      'SELECT * FROM assessments WHERE id = $1',
+      [assessmentId],
+    );
+
+    if (!assessmentRows[0]) throw notFound('Assessment');
+
+    const assessment = assessmentRows[0];
+
+    if (TIME_OPTIONS_BLOCKED_STATUSES.includes(assessment.status)) {
+      throw new HttpError(409, 'conflict', 'This assessment is no longer open for scheduling');
+    }
+
+    const isOwner = req.user.teacherId === assessment.teacher_id;
+
+    if (!isOwner && !AC_OR_ADMIN.includes(req.user.role)) {
+      throw new HttpError(
+        403,
+        'forbidden',
+        'Only the observee (or AC/admin) can send this request',
+      );
+    }
+
+    if (teacherId === assessment.teacher_id) {
+      throw new HttpError(400, 'validation_error', 'An observee cannot be offered as their own observer');
+    }
+
+    const { rows } = await query(
+      `UPDATE assessment_time_options
+          SET offered_to_teacher_id = $2
+        WHERE assessment_id = $1
+          AND NOT is_confirmed
+        RETURNING *`,
+      [assessmentId, teacherId],
+    );
+
+    if (!rows.length) {
+      throw new HttpError(400, 'validation_error', 'No open date options to send -- add some first');
+    }
+
+    res.json({ data: rows.map(toTimeOption) });
+  },
+);
+
 export default router;
