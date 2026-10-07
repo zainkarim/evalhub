@@ -2,16 +2,8 @@ import { useCallback } from "react"
 import { Link } from "react-router-dom"
 import StateBlock from "../components/StateBlock"
 import { api } from "../lib/api"
+import { formatRank } from "../lib/format"
 import { useApi } from "../lib/useApi"
-
-export const formatRank = (rank) => {
-  if (!rank) return "—"
-
-  return rank
-    .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ")
-}
 
 function Professors() {
   const call = useCallback(async () => {
