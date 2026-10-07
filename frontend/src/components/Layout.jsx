@@ -1,15 +1,54 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom"
+import { useEffect, useState } from "react"
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { useAuth } from "../context/auth-context"
+import { api, CHANGED_EVENT } from "../lib/api"
+import { displayName, hasTeacherProfile, isAC, roleLabel } from "../lib/roles"
 
+// Faculty and committee members see different navigation. `badge` names the
+// live counter shown next to the link.
 const links = [
-  { to: "/professors", label: "Professors" },
+  { to: "/professors", label: "Professors", committeeOnly: true },
   { to: "/courses", label: "Courses" },
-  { to: "/observations", label: "Observations" },
+  { to: "/observations", label: "Observations", badge: "requests" },
+  { to: "/review", label: "Sign-up review", committeeOnly: true, badge: "alerts" },
 ]
 
 function Layout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const committee = isAC(user)
+  const [counts, setCounts] = useState({ requests: 0, alerts: 0 })
+
+  // Refresh the nav counters when the person moves to another page or changes data.
+  useEffect(() => {
+    let active = true
+    async function refresh() {
+      const next = { requests: 0, alerts: 0 }
+      try {
+        if (committee) {
+          // Insufficient pools: nobody eligible (urgent) plus short lists (limited).
+          const alerts = await api.assessmentAlerts()
+          next.alerts = alerts.counts.urgent + alerts.counts.limited
+        }
+        if (hasTeacherProfile(user)) {
+          const incoming = await api.incomingRequests()
+          next.requests = (incoming.data ?? []).filter(
+            (request) => request.status === "pending",
+          ).length
+        }
+      } catch {
+        // counters are a convenience; pages show their own errors
+      }
+      if (active) setCounts(next)
+    }
+    refresh()
+    window.addEventListener(CHANGED_EVENT, refresh)
+    return () => {
+      active = false
+      window.removeEventListener(CHANGED_EVENT, refresh)
+    }
+  }, [location.pathname, committee, user])
 
   const signOut = () => {
     logout()
@@ -28,33 +67,45 @@ function Layout() {
           </span>
 
           <nav className="flex gap-6 text-sm">
-           {links
-         .filter((link) => user?.role === "ac_member" || link.to !== "/professors")
-            .map((link) => (
-              <NavLink
-                key={link.to}
-                to={link.to}
-                className={({ isActive }) =>
-                  `border-b-2 pb-1 ${
-                    isActive
-                      ? "border-utd-green text-ink"
-                      : "border-transparent text-muted hover:text-ink"
-                  }`
-                }
-              >
-                {link.label}
-              </NavLink>
-            ))}
+            {links
+              .filter((link) => committee || !link.committeeOnly)
+              .map((link) => {
+                const count =
+                  link.badge === "requests"
+                    ? counts.requests
+                    : link.badge === "alerts"
+                      ? counts.alerts
+                      : 0
+                return (
+                  <NavLink
+                    key={link.to}
+                    to={link.to}
+                    className={({ isActive }) =>
+                      `border-b-2 pb-1 ${
+                        isActive
+                          ? "border-utd-green text-ink"
+                          : "border-transparent text-muted hover:text-ink"
+                      }`
+                    }
+                  >
+                    {link.label}
+                    {count > 0 && (
+                      <span
+                        className="ml-1.5 rounded-full bg-utd-orange px-1.5 py-0.5 text-[10px] font-semibold text-white"
+                        aria-label={`${count} waiting`}
+                      >
+                        {count}
+                      </span>
+                    )}
+                  </NavLink>
+                )
+              })}
           </nav>
 
           <div className="ml-auto flex items-center gap-4 text-sm">
             <span className="text-muted">
-              {[user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.email}
-              {user?.role === "ac_member"
-                ? " · Assessment Committee"
-                : user?.role === "faculty"
-                  ? " · Faculty"
-                  : ""}
+              {displayName(user)}
+              {roleLabel(user) ? ` · ${roleLabel(user)}` : ""}
             </span>
             <button
               type="button"

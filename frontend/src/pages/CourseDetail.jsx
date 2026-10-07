@@ -2,6 +2,7 @@ import { useCallback } from "react"
 import { Link, useParams } from "react-router-dom"
 import StateBlock from "../components/StateBlock"
 import { api } from "../lib/api"
+import { formatTerm } from "../lib/format"
 import { useApi } from "../lib/useApi"
 
 function CourseDetail() {
@@ -25,9 +26,7 @@ function CourseDetail() {
 
       return {
         ...section,
-        termName: term
-          ? `${term.season.charAt(0).toUpperCase() + term.season.slice(1)} ${term.year}`
-          : "Unknown Term",
+        termName: formatTerm(term),
       }
     })
 
@@ -70,7 +69,7 @@ function CourseDetail() {
                 </h2>
 
                 {course.sections?.length ? (
-                  <div className="mt-4 overflow-x-auto">
+                  <div className="relative mt-4 overflow-x-auto">
                     <table className="w-full text-left text-sm">
                       <thead className="border-b border-line text-xs text-muted">
                         <tr>
