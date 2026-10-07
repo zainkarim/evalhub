@@ -14,7 +14,7 @@ export const hasTeacherProfile = (user) => Boolean(user?.teacherId)
 export function roleLabel(user) {
   if (user?.role === "ac_member") return "Assessment Committee"
   if (user?.role === "admin") return "Administrator"
-  if (user?.role === "faculty") return "Faculty"
+  if (user?.role === "faculty") return "Observee / Observer"
   return ""
 }
 
