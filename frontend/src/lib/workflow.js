@@ -48,13 +48,13 @@ export function nextStep(assessment) {
       if (attention === "requests_unanswered") return "No one accepted — send new requests"
       return "Choose who to ask"
     case "pending_ac_approval":
-      return "Pairing confirmed — observation being scheduled"
+      return "Observer confirmed — waiting for observation date"
     case "approved":
       return pairing?.scheduledDate
-        ? `Observation on ${formatDate(pairing.scheduledDate)}`
-        : "Observation scheduled"
+      ? `Scheduled for ${formatDate(pairing.scheduledDate)}`
+      : "Observation scheduled — not yet completed"
     case "completed":
-      return "Complete — record is view-only"
+      return "Completed — observation and sign-off finished"
     case "postponed":
       return "Postponed to a later semester"
     case "cancelled":
