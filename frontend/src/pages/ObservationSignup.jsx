@@ -4,7 +4,7 @@ import SectionInfo from "../components/SectionInfo"
 import StateBlock from "../components/StateBlock"
 import { useAuth } from "../context/auth-context"
 import { api } from "../lib/api"
-import { courseLabel, formatTerm, fullName, todayISO, toDateOnly } from "../lib/format"
+import { courseLabel, formatDate, formatTerm, fullName, todayISO, toDateOnly } from "../lib/format"
 import { isAC } from "../lib/roles"
 import { useApi } from "../lib/useApi"
 
@@ -144,15 +144,18 @@ function ObservationSignup() {
                   {formatTerm(created.section.term)}
                 </p>
                 <p className="mt-3 text-muted">
-                  Next: find your observer candidates (professors from your school who have
-                  taught this course level), then choose who to ask.
+                  Next: after the sign-up deadline
+                  {created.signupDeadline ? ` (${formatDate(created.signupDeadline)})` : ""} the
+                  committee starts observer selection. You&apos;ll then see up to five
+                  professors from your school who have taught this course level, choose one and
+                  offer 4–8 dates. They confirm one.
                 </p>
                 <div className="mt-5 flex flex-wrap gap-3">
                   <Link
                     to={`/assessments/${created.id}`}
                     className="rounded bg-utd-green px-4 py-2 font-medium text-white hover:bg-utd-green-dark"
                   >
-                    {committee ? "Open sign-up" : "Choose an observer"}
+                    Open sign-up
                   </Link>
                   <button
                     type="button"
@@ -269,6 +272,12 @@ function ObservationSignup() {
                   <div>
                     <p className="mb-2 text-sm font-medium">Section details</p>
                     <SectionInfo section={selected.section} className="bg-canvas" />
+                    {selected.section.term?.signupDeadline && (
+                      <p className="mt-2 text-xs text-muted">
+                        Sign-up deadline: {formatDate(selected.section.term.signupDeadline)}. The
+                        committee starts observer selection after it.
+                      </p>
+                    )}
                   </div>
                 )}
 

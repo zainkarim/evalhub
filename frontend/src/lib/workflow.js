@@ -1,64 +1,53 @@
-import { formatDate } from "./format"
+import { formatDate, fullName, normalizeStatus, timeLeft } from "./format"
 
-export const STEPS = [
-  "Signed up",
-  "Choose observer",
-  "Confirmed",
-  "Observation",
-  "Sign-off",
-]
+// Requirements §4.3: sign up -> the committee starts observer selection ->
+// the professor picks one observer + 4-8 dates -> the observer confirms one ->
+// the class happens and both sign off. The committee never approves a pairing.
+export const STEPS = ["Signed up", "Observer list", "Request sent", "Scheduled", "Sign-off"]
 
 // Which step the sign-up is on. Returns STEPS.length once everything is done.
 export function currentStep(assessment) {
-  switch (assessment.status) {
+  switch (normalizeStatus(assessment.status)) {
     case "signed_up":
-    case "candidates_generated":
       return 1
-    case "pending_ac_approval":
-      return 2
-    case "approved": {
-      const pairing = assessment.pairing
-      return pairing?.observerSignedOffAt || pairing?.observeeSignedOffAt ? 4 : 3
-    }
+    case "candidates_generated":
+      return assessment.offer ? 3 : 2
+    case "approved":
+      return 4
     case "completed":
       return STEPS.length
     default:
-      return -1 // cancelled / postponed / not eligible: no progress bar
+      return -1 // postponed / not eligible: no progress bar
   }
 }
 
 // One line telling the professor what happens next.
 export function nextStep(assessment) {
-  const { status, pairing, requestSummary, attention } = assessment
-  switch (status) {
+  const { pairing, offer, alert, selectionOpen, signupDeadline } = assessment
+  switch (normalizeStatus(assessment.status)) {
     case "signed_up":
-      return attention === "no_eligible_observers"
-        ? "No eligible observers — the committee will step in"
-        : "Find your observer candidates"
+      if (alert === "no_eligible_observers") {
+        return "No eligible observers — the committee will assign one"
+      }
+      return selectionOpen
+        ? "Waiting for the committee to start observer selection"
+        : `Waiting for the committee to start observer selection (after ${formatDate(signupDeadline)})`
     case "candidates_generated":
-      if (attention === "no_eligible_observers") {
-        return "No eligible observers — the committee will step in"
+      if (offer) {
+        return `Waiting for ${fullName(offer.observer)} to confirm a date (${timeLeft(offer.expiresAt)})`
       }
-      if (requestSummary.pending > 0) {
-        return `Waiting for ${requestSummary.pending} observer${requestSummary.pending > 1 ? "s" : ""} to respond`
+      if (alert === "no_eligible_observers") {
+        return "No eligible observers — the committee will assign one"
       }
-      if (attention === "observation_not_completed") {
-        return "Observation didn't happen — send new requests"
-      }
-      if (attention === "requests_unanswered") return "No one accepted — send new requests"
-      return "Choose who to ask"
-    case "pending_ac_approval":
-      return "Pairing confirmed — observation being scheduled"
+      return "Your list is ready — choose one observer and offer 4–8 dates"
     case "approved":
       return pairing?.scheduledDate
-        ? `Observation on ${formatDate(pairing.scheduledDate)}`
-        : "Observation scheduled"
+        ? `Scheduled for ${formatDate(pairing.scheduledDate)}`
+        : "Scheduled"
     case "completed":
       return "Complete — record is view-only"
     case "postponed":
-      return "Postponed to a later semester"
-    case "cancelled":
-      return "Cancelled"
+      return "Postponed — schedule a new attempt"
     default:
       return "—"
   }

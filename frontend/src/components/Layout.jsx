@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { useAuth } from "../context/auth-context"
-import { api } from "../lib/api"
+import { api, CHANGED_EVENT } from "../lib/api"
 import { displayName, hasTeacherProfile, isAC, roleLabel } from "../lib/roles"
 
 // Faculty and committee members see different navigation. `badge` names the
@@ -10,6 +10,7 @@ const links = [
   { to: "/professors", label: "Professors", committeeOnly: true },
   { to: "/courses", label: "Courses" },
   { to: "/observations", label: "Observations", badge: "requests" },
+  { to: "/review", label: "Sign-up review", committeeOnly: true, badge: "alerts" },
 ]
 
 function Layout() {
@@ -17,14 +18,19 @@ function Layout() {
   const navigate = useNavigate()
   const location = useLocation()
   const committee = isAC(user)
-  const [counts, setCounts] = useState({ requests: 0 })
+  const [counts, setCounts] = useState({ requests: 0, alerts: 0 })
 
-  // Refresh the nav counters whenever the person moves to another page.
+  // Refresh the nav counters when the person moves to another page or changes data.
   useEffect(() => {
     let active = true
     async function refresh() {
-      const next = { requests: 0 }
+      const next = { requests: 0, alerts: 0 }
       try {
+        if (committee) {
+          // Insufficient pools: nobody eligible (urgent) plus short lists (limited).
+          const alerts = await api.assessmentAlerts()
+          next.alerts = alerts.counts.urgent + alerts.counts.limited
+        }
         if (hasTeacherProfile(user)) {
           const incoming = await api.incomingRequests()
           next.requests = (incoming.data ?? []).filter(
@@ -37,8 +43,10 @@ function Layout() {
       if (active) setCounts(next)
     }
     refresh()
+    window.addEventListener(CHANGED_EVENT, refresh)
     return () => {
       active = false
+      window.removeEventListener(CHANGED_EVENT, refresh)
     }
   }, [location.pathname, committee, user])
 
@@ -62,7 +70,12 @@ function Layout() {
             {links
               .filter((link) => committee || !link.committeeOnly)
               .map((link) => {
-                const count = link.badge === "requests" ? counts.requests : 0
+                const count =
+                  link.badge === "requests"
+                    ? counts.requests
+                    : link.badge === "alerts"
+                      ? counts.alerts
+                      : 0
                 return (
                   <NavLink
                     key={link.to}

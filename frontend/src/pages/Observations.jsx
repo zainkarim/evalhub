@@ -6,8 +6,8 @@ import StatusBadge from "../components/StatusBadge"
 import { useAuth } from "../context/auth-context"
 import { api } from "../lib/api"
 import {
+  ALERT,
   ASSESSMENT_STATUS,
-  ATTENTION,
   courseLabel,
   formatDate,
   formatTerm,
@@ -82,7 +82,7 @@ function AllSignUps() {
           empty={rows.length === 0}
           emptyMessage="No observation sign-ups match these filters."
         >
-          <div className="overflow-x-auto rounded border border-line bg-white">
+          <div className="relative overflow-x-auto rounded border border-line bg-white">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-line text-xs text-muted">
                 <tr>
@@ -115,24 +115,31 @@ function AllSignUps() {
                     </td>
                     <td className={td}>
                       <StatusBadge status={item.status} map={ASSESSMENT_STATUS} />
-                      {item.attention && (
+                      {item.alert && (
                         <span
-                          title={ATTENTION[item.attention]}
+                          title={ALERT[item.alert].text}
                           className="mt-1 block text-xs font-medium text-utd-orange"
                         >
-                          Needs attention
+                          {ALERT[item.alert].label}
                         </span>
                       )}
                     </td>
                     <td className={td}>
-                      {item.pairing && item.pairing.status !== "rejected"
+                      {item.pairing && item.pairing.status !== "postponed"
                         ? fullName(item.pairing.observer)
-                        : "—"}
+                        : item.offer
+                          ? fullName(item.offer.observer)
+                          : "—"}
+                      {item.offer && !["approved", "completed"].includes(item.pairing?.status) && (
+                        <span className="block text-xs text-muted">Waiting for reply</span>
+                      )}
                       {item.pairing?.isAcStepin && (
                         <span className="block text-xs text-muted">Committee step-in</span>
                       )}
                     </td>
-                    <td className={td}>{formatDate(item.pairing?.scheduledDate)}</td>
+                    <td className={td}>
+                      {item.pairing?.status === "postponed" ? "—" : formatDate(item.pairing?.scheduledDate)}
+                    </td>
                     <td className={td}>
                       <Link
                         to={`/assessments/${item.id}`}
@@ -156,7 +163,7 @@ function AllSignUps() {
 
 function ObservationRows({ rows, mode }) {
   return (
-    <div className="overflow-x-auto rounded border border-line bg-white">
+    <div className="relative overflow-x-auto rounded border border-line bg-white">
       <table className="w-full text-left text-sm">
         <thead className="border-b border-line text-xs text-muted">
           <tr>
@@ -200,7 +207,7 @@ function ObservationRows({ rows, mode }) {
                   to={`/records/${observation.id}`}
                   className="whitespace-nowrap font-medium text-utd-green hover:underline"
                 >
-                  {observation.status === "approved" ? "Confirm" : "View"}
+                  {observation.status === "approved" ? "Sign off" : "View"}
                 </Link>
               </td>
             </tr>
@@ -243,7 +250,7 @@ function MyActivity({ user }) {
                 You haven&apos;t signed up for an observation yet.
               </p>
             ) : (
-              <div className="overflow-x-auto rounded border border-line bg-white">
+              <div className="relative overflow-x-auto rounded border border-line bg-white">
                 <table className="w-full text-left text-sm">
                   <thead className="border-b border-line text-xs text-muted">
                     <tr>
@@ -286,7 +293,7 @@ function MyActivity({ user }) {
 
           <Section
             title="Requests to observe a colleague"
-            hint="Colleagues from your school who picked you as an observer. Requests expire after 48 hours."
+            hint="Colleagues from your school who picked you as their observer. Each request offers several dates: confirm one, or decline. Requests expire after 48 hours."
           >
             {data.incoming.length === 0 ? (
               <p className="rounded border border-line bg-white px-5 py-6 text-sm text-muted">
@@ -303,7 +310,7 @@ function MyActivity({ user }) {
 
           <Section
             title="Observations I'm giving"
-            hint="Classes you have agreed to observe. Confirm after the class takes place."
+            hint="Classes you have agreed to observe. Sign off after the class takes place."
           >
             {data.given.length === 0 ? (
               <p className="rounded border border-line bg-white px-5 py-6 text-sm text-muted">
@@ -354,7 +361,7 @@ function Observations() {
           </h1>
           <p className="mt-1 text-sm text-muted">
             {committee
-              ? "Every faculty sign-up, its observer and its status."
+              ? "Every faculty sign-up, its observer and its status. Start observer selection and review alerts on the Sign-up review page."
               : "Your sign-ups, requests from colleagues, and the observations you give and receive."}
           </p>
         </div>

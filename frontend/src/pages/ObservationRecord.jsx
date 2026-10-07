@@ -1,5 +1,7 @@
 import { useCallback, useState } from "react"
 import { Link, useParams } from "react-router-dom"
+import AttemptHistory from "../components/AttemptHistory"
+import PostponeControl from "../components/PostponeControl"
 import SectionInfo, { Field } from "../components/SectionInfo"
 import StateBlock from "../components/StateBlock"
 import StatusBadge from "../components/StatusBadge"
@@ -10,7 +12,6 @@ import {
   formatDate,
   formatDateTime,
   fullName,
-  meetingDates,
   OBSERVATION_STATUS,
   todayISO,
   toDateOnly,
@@ -30,9 +31,10 @@ function SignOffCard({ label, name, at }) {
   )
 }
 
-// The observation confirmation form. Only the observer and observee can sign
-// off; the committee and everyone else see a read-only record. Once both have
-// signed, the record is locked for good.
+// The observation record. Scheduled / Confirmed is not Completed: only the
+// observer and observee can sign off, after the class; the committee and
+// everyone else see a read-only record. Once both have signed, the record is
+// locked for good. There is no committee approval step.
 function ObservationRecord() {
   const { id } = useParams()
   const { user } = useAuth()
@@ -41,9 +43,6 @@ function ObservationRecord() {
 
   const [confirmed, setConfirmed] = useState(false)
   const [comment, setComment] = useState("")
-  const [newDate, setNewDate] = useState("")
-  const [reason, setReason] = useState("")
-  const [panel, setPanel] = useState(null) // "reschedule" | "not-completed"
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState("")
 
@@ -53,9 +52,6 @@ function ObservationRecord() {
     try {
       await action()
       setConfirmed(false)
-      setPanel(null)
-      setReason("")
-      setNewDate("")
       reload()
     } catch (err) {
       setActionError(err.message)
@@ -92,7 +88,7 @@ function ObservationRecord() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h1 className="text-2xl font-semibold tracking-tight">
-                    Observation confirmation
+                    Observation record
                   </h1>
                   <p className="mt-1 text-muted">
                     {courseLabel(observation.section.course)} · {observation.section.course.title}
@@ -121,10 +117,8 @@ function ObservationRecord() {
                   </Field>
                   <Field label="Being observed">{fullName(observation.observee)}</Field>
                   <Field label="Observation date">{formatDate(observation.scheduledDate)}</Field>
+                  <Field label="Attempt">{observation.attemptNo}</Field>
                 </dl>
-                {observation.acNotes && (
-                  <p className="mt-4 text-sm text-muted">Committee note: {observation.acNotes}</p>
-                )}
               </section>
 
               <section className="mt-6 rounded border border-line bg-white p-6">
@@ -149,22 +143,10 @@ function ObservationRecord() {
                   </p>
                 )}
 
-                {status === "proposed" && (
+                {status === "postponed" && (
                   <p className="mt-4 text-sm text-muted">
-                    Sign-off opens once the observation is scheduled.
-                  </p>
-                )}
-                {status === "rejected" && (
-                  <p className="mt-4 text-sm text-muted">
-                    This pairing was not confirmed, so there is nothing to sign.
-                  </p>
-                )}
-                {status === "not_completed" && (
-                  <p className="mt-4 text-sm text-muted">
-                    Reported as not completed: {observation.notCompletedReason}
-                    {observation.retryAfter
-                      ? ` · try again from ${formatDate(observation.retryAfter)}`
-                      : ""}
+                    This attempt was postponed, so there is nothing to sign. The reason is in
+                    the attempt history below.
                   </p>
                 )}
 
@@ -246,91 +228,15 @@ function ObservationRecord() {
               {canAct && (
                 <section className="mt-6 rounded border border-line bg-white p-6">
                   <h2 className="text-sm font-semibold">Plans changed?</h2>
-                  <p className="mt-1 text-sm text-muted">
-                    If the class can&apos;t be observed on this date, move it within the
-                    semester. If it can&apos;t happen at all, tell the committee — they can
-                    step in or postpone to next semester.
+                  <p className="mt-1 mb-3 text-sm text-muted">
+                    If the class can&apos;t be observed on this date, postpone this attempt. The
+                    reason is recorded, nothing is deleted, and a new attempt can be scheduled
+                    in the same semester.
                   </p>
-
-                  <div className="mt-3 flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setPanel(panel === "reschedule" ? null : "reschedule")}
-                      className="rounded border border-line px-3 py-1.5 text-sm hover:border-ink"
-                    >
-                      Reschedule
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPanel(panel === "not-completed" ? null : "not-completed")
-                      }
-                      className="rounded border border-line px-3 py-1.5 text-sm hover:border-ink"
-                    >
-                      It didn&apos;t happen
-                    </button>
-                  </div>
-
-                  {panel === "reschedule" && (
-                    <div className="mt-4 rounded border border-line bg-canvas p-4">
-                      <label htmlFor="new-date" className="block text-sm font-medium">
-                        New class date
-                      </label>
-                      <select
-                        id="new-date"
-                        value={newDate}
-                        onChange={(event) => setNewDate(event.target.value)}
-                        className="mt-2 w-full max-w-xs rounded border border-line bg-white px-3 py-2 text-sm"
-                      >
-                        <option value="">Select a date</option>
-                        {meetingDates(observation.section).map((value) => (
-                          <option key={value} value={value}>
-                            {formatDate(value)}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="mt-2 text-xs text-muted">
-                        Any sign-off already given is cleared so both of you confirm the new
-                        date.
-                      </p>
-                      <button
-                        type="button"
-                        disabled={!newDate || busy}
-                        onClick={() => run(() => api.rescheduleObservation(observation.id, newDate))}
-                        className="mt-3 rounded bg-utd-green px-3 py-1.5 text-sm font-medium text-white hover:bg-utd-green-dark disabled:opacity-50"
-                      >
-                        Move observation
-                      </button>
-                    </div>
-                  )}
-
-                  {panel === "not-completed" && (
-                    <div className="mt-4 rounded border border-line bg-canvas p-4">
-                      <label htmlFor="reason" className="block text-sm font-medium">
-                        What happened?
-                      </label>
-                      <textarea
-                        id="reason"
-                        value={reason}
-                        onChange={(event) => setReason(event.target.value)}
-                        rows={3}
-                        className="mt-2 w-full rounded border border-line bg-white px-3 py-2 text-sm"
-                        placeholder="Illness, a schedule conflict…"
-                      />
-                      <p className="mt-2 text-xs text-muted">
-                        The committee is alerted. You can ask another observer again after
-                        about 3–4 weeks.
-                      </p>
-                      <button
-                        type="button"
-                        disabled={!reason.trim() || busy}
-                        onClick={() => run(() => api.reportNotCompleted(observation.id, reason))}
-                        className="mt-3 rounded bg-utd-orange px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-                      >
-                        Tell the committee
-                      </button>
-                    </div>
-                  )}
+                  <PostponeControl
+                    onSubmit={(reason) => api.postponeObservation(observation.id, reason)}
+                    onDone={reload}
+                  />
                 </section>
               )}
 
@@ -342,6 +248,8 @@ function ObservationRecord() {
                   {actionError}
                 </p>
               )}
+
+              <AttemptHistory attempts={observation.attempts} />
 
               {(committee || isObservee) && (
                 <p className="mt-6 text-sm">

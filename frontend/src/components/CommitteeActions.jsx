@@ -2,7 +2,13 @@ import { useCallback, useState } from "react"
 import { api } from "../lib/api"
 import { formatDate, fullName, meetingDates } from "../lib/format"
 import { useApi } from "../lib/useApi"
+import PostponeControl from "./PostponeControl"
 
+// TODO(BLOCKED: requirements §4.3 step 6 and §8): when the committee assigns an
+// observer manually, must the pick come from the eligible pool, or can it be any
+// faculty member? This has not been answered, so this form keeps its existing
+// behaviour (a candidate-list member, or a committee member as step-in) and must
+// not be read as the answer.
 function AssignObserver({ assessment, onChanged }) {
   const call = useCallback(() => api.stepInOptions(assessment.id), [assessment.id])
   const { data: options } = useApi(call)
@@ -35,10 +41,10 @@ function AssignObserver({ assessment, onChanged }) {
 
   return (
     <form onSubmit={submit}>
-      <h3 className="text-sm font-medium">Assign an observer</h3>
+      <h3 className="text-sm font-medium">Assign an observer manually</h3>
       <p className="mt-1 text-sm text-muted">
-        Use this when no candidate is eligible or no one accepts: a committee member steps in
-        as observer.
+        Use this when no candidate is eligible or the professor&apos;s requests didn&apos;t work
+        out. The observation is scheduled straight away.
       </p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <div>
@@ -107,33 +113,16 @@ function AssignObserver({ assessment, onChanged }) {
   )
 }
 
-// Committee-only controls on a sign-up: step in as observer, postpone, or
-// cancel. There is no approval step — the AC does not approve pairings; it
-// only assigns an observer when no candidate is eligible or no one accepts.
+// Committee-only controls on a sign-up: assign an observer manually, or postpone
+// with a recorded reason. There is nothing to approve and nothing is cancelled.
 function CommitteeActions({ assessment, onChanged }) {
-  const [confirming, setConfirming] = useState(null)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState("")
+  const { status, candidateList } = assessment
+  const canAssign =
+    ["candidates_generated", "postponed"].includes(status) ||
+    (status === "signed_up" && Boolean(candidateList))
+  const canPostpone = ["signed_up", "candidates_generated", "approved"].includes(status)
 
-  const { status } = assessment
-  const canAssign = ["signed_up", "candidates_generated"].includes(status)
-  const terminal = ["completed", "cancelled", "postponed", "not_eligible"].includes(status)
-
-  const run = async (action) => {
-    setBusy(true)
-    setError("")
-    try {
-      await action()
-      setConfirming(null)
-      onChanged()
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  if (!canAssign && terminal) return null
+  if (!canAssign && !canPostpone) return null
 
   return (
     <section className="mt-6 rounded border border-line bg-white p-6">
@@ -145,52 +134,18 @@ function CommitteeActions({ assessment, onChanged }) {
         </div>
       )}
 
-      {!terminal && (
-        <div className="mt-6 border-t border-line pt-4">
-          <h3 className="text-sm font-medium">Can&apos;t go ahead this semester?</h3>
-          <div className="mt-3 flex flex-wrap gap-3">
-            {[
-              { id: "postpone", label: "Postpone to next semester", run: () => api.postponeAssessment(assessment.id) },
-              { id: "cancel", label: "Cancel sign-up", run: () => api.cancelAssessment(assessment.id, { reason: "other" }) },
-            ].map((item) =>
-              confirming === item.id ? (
-                <span key={item.id} className="flex items-center gap-2 text-sm">
-                  Sure?
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => run(item.run)}
-                    className="rounded bg-utd-orange px-3 py-1.5 font-medium text-white disabled:opacity-60"
-                  >
-                    Yes, {item.label.split(" ")[0].toLowerCase()}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfirming(null)}
-                    className="rounded border border-line px-3 py-1.5 hover:border-ink"
-                  >
-                    No
-                  </button>
-                </span>
-              ) : (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setConfirming(item.id)}
-                  className="rounded border border-line px-3 py-1.5 text-sm hover:border-ink"
-                >
-                  {item.label}
-                </button>
-              ),
-            )}
-          </div>
+      {canPostpone && (
+        <div className={canAssign ? "mt-6 border-t border-line pt-4" : "mt-4"}>
+          <h3 className="text-sm font-medium">Can&apos;t go ahead right now?</h3>
+          <p className="mt-1 mb-3 text-sm text-muted">
+            The sign-up is kept and marked Postponed; the reason is added to the attempt history.
+          </p>
+          <PostponeControl
+            label="Postpone sign-up"
+            onSubmit={(reason) => api.postponeAssessment(assessment.id, reason)}
+            onDone={onChanged}
+          />
         </div>
-      )}
-
-      {error && (
-        <p role="alert" className="mt-3 rounded border border-utd-orange/40 bg-white px-3 py-2 text-sm">
-          {error}
-        </p>
       )}
     </section>
   )

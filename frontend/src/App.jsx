@@ -13,6 +13,7 @@ import ObservationSignup from "./pages/ObservationSignup"
 import Observations from "./pages/Observations"
 import ProfessorDetail from "./pages/ProfessorDetail"
 import Professors from "./pages/Professors"
+import SignupReview from "./pages/SignupReview"
 
 // Committee-only pages: anyone else gets a plain "limited to the committee"
 // message instead of the page (the navigation link is hidden for them too).
@@ -20,11 +21,10 @@ function CommitteeRoute({ children }) {
   return <ProtectedRoute roles={AC_ROLES}>{children}</ProtectedRoute>
 }
 
-// Each role lands on the page it works from. AC doesn't have a dedicated
-// dashboard yet (see #32), so it lands on Professors for now.
+// Each role lands on the page it works from: the committee on Sign-up review.
 function Home() {
   const { user } = useAuth()
-  return <Navigate to={isAC(user) ? "/professors" : "/observations"} replace />
+  return <Navigate to={isAC(user) ? "/review" : "/observations"} replace />
 }
 
 function App() {
@@ -64,6 +64,14 @@ function App() {
             <Route path="/observation-signup" element={<ObservationSignup />} />
             <Route path="/assessments/:id" element={<AssessmentDetail />} />
             <Route path="/records/:id" element={<ObservationRecord />} />
+            <Route
+              path="/review"
+              element={
+                <CommitteeRoute>
+                  <SignupReview />
+                </CommitteeRoute>
+              }
+            />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

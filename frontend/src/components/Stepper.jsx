@@ -1,7 +1,7 @@
 import { currentStep, STEPS } from "../lib/workflow"
 
-// Where a sign-up is in the process: sign-up → choose observer → committee
-// approval → observation → sign-off.
+// Where a sign-up is in the process: sign-up → observer list (started by the
+// committee) → request sent → scheduled → sign-off.
 function Stepper({ assessment }) {
   const current = currentStep(assessment)
   if (current < 0) return null

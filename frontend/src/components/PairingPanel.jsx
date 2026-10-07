@@ -9,17 +9,19 @@ import {
 import { Field } from "./SectionInfo"
 import StatusBadge from "./StatusBadge"
 
-// One observer ↔ observee pairing, with committee review and sign-off state.
+// One observer ↔ observee attempt: who, when, and sign-off state. Scheduled is
+// not Completed: Completed means the class happened and both signed off.
 // Both professors see each other's names (full attribution both ways).
 function PairingPanel({ observation, viewer, title = "Observer pairing" }) {
   const isParty = [observation.observer.id, observation.observee.id].includes(viewer?.teacherId)
-  const action =
-    observation.status === "approved" && isParty ? "Confirm observation" : "Open record"
+  const action = observation.status === "approved" && isParty ? "Sign off" : "Open record"
 
   return (
     <section className="mt-6 rounded border border-line bg-white p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <h2 className="text-sm font-semibold">{title}</h2>
+        <h2 className="text-sm font-semibold">
+          {title} · attempt {observation.attemptNo}
+        </h2>
         <StatusBadge status={observation.status} map={OBSERVATION_STATUS} />
       </div>
 
@@ -35,11 +37,6 @@ function PairingPanel({ observation, viewer, title = "Observer pairing" }) {
           {formatDate(observation.scheduledDate)}
           <span className="block text-xs text-muted">{formatMeeting(observation.section)}</span>
         </Field>
-        <Field label="Committee review">
-          {observation.acReviewedAt
-            ? `${observation.status === "rejected" ? "Rejected" : "Approved"} ${formatDateTime(observation.acReviewedAt)}${observation.acReviewedBy ? ` by ${observation.acReviewedBy}` : ""}`
-            : "Waiting"}
-        </Field>
         <Field label="Observer sign-off">
           {observation.observerSignedOffAt ? formatDateTime(observation.observerSignedOffAt) : "Pending"}
         </Field>
@@ -48,20 +45,9 @@ function PairingPanel({ observation, viewer, title = "Observer pairing" }) {
         </Field>
       </dl>
 
-      {observation.acNotes && (
+      {observation.status === "postponed" && (
         <p className="mt-4 rounded border border-line bg-canvas px-4 py-3 text-sm">
-          <span className="font-medium">Committee note:</span> {observation.acNotes}
-        </p>
-      )}
-      {observation.status === "not_completed" && (
-        <p className="mt-4 rounded border border-line bg-canvas px-4 py-3 text-sm">
-          <span className="font-medium">Did not happen:</span> {observation.notCompletedReason}
-          {observation.retryAfter && (
-            <span className="text-muted">
-              {" "}
-              · Try again from {formatDate(observation.retryAfter)}
-            </span>
-          )}
+          This attempt was postponed. The reason is in the attempt history below.
         </p>
       )}
 
