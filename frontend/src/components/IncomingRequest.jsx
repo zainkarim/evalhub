@@ -22,7 +22,7 @@ function IncomingRequest({ request, onChanged }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
 
-  const dates = meetingDates(request.section)
+  const dates = request.possibleDates ?? meetingDates(request.section)
   const pending = request.status === "pending"
 
   const run = async (action) => {

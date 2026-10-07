@@ -190,6 +190,7 @@ function requestView(request) {
     id: request.id,
     assessmentId: request.assessmentId,
     observerId: request.observerId,
+    possibleDates: request.possibleDates ?? [],
     status: request.status,
     requestedAt: request.requestedAt,
     expiresAt: request.expiresAt,
