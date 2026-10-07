@@ -190,6 +190,7 @@ function requestView(request) {
     id: request.id,
     assessmentId: request.assessmentId,
     observerId: request.observerId,
+    possibleDates: request.possibleDates ?? [],
     status: request.status,
     requestedAt: request.requestedAt,
     expiresAt: request.expiresAt,
@@ -727,6 +728,14 @@ route("POST", "/assessments/(\\d+)/requests", ({ user, match, body }) => {
   }
   const list = latestList(assessment.id)
   const ids = [...new Set(body?.observerIds ?? [])]
+  const possibleDates = [...new Set(body?.possibleDates ?? [])].filter(Boolean)
+  if (possibleDates.length < 4 || possibleDates.length > 8) {
+  throw fail(
+    400,
+    "validation_error",
+    "Choose between 4 and 8 possible observation dates.",
+  )
+}
   if (!list || ids.length === 0) {
     throw fail(400, "validation_error", "Select at least one observer.")
   }
@@ -748,6 +757,7 @@ route("POST", "/assessments/(\\d+)/requests", ({ user, match, body }) => {
       assessmentId: assessment.id,
       listId: list.id,
       observerId,
+      possibleDates,
       status: "pending",
       requestedAt: new Date(now).toISOString(),
       expiresAt: new Date(now + APP_SETTINGS.requestExpiryHours * HOUR).toISOString(),
