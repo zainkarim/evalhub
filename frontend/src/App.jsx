@@ -2,23 +2,29 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 import Layout from "./components/Layout"
 import ProtectedRoute from "./components/ProtectedRoute"
 import { AuthProvider } from "./context/AuthContext"
+import { useAuth } from "./context/auth-context"
+import { AC_ROLES, isAC } from "./lib/roles"
+import AssessmentDetail from "./pages/AssessmentDetail"
 import CourseDetail from "./pages/CourseDetail"
-import ObservationSignup from "./pages/ObservationSignup"
-import Observations from "./pages/Observations"
 import Courses from "./pages/Courses"
 import Login from "./pages/Login"
+import ObservationRecord from "./pages/ObservationRecord"
+import ObservationSignup from "./pages/ObservationSignup"
+import Observations from "./pages/Observations"
 import ProfessorDetail from "./pages/ProfessorDetail"
 import Professors from "./pages/Professors"
-import { useAuth } from "./context/auth-context"
+import SignupReview from "./pages/SignupReview"
 
-function ACOnlyRoute({ children }) {
+// Committee-only pages: anyone else gets a plain "limited to the committee"
+// message instead of the page (the navigation link is hidden for them too).
+function CommitteeRoute({ children }) {
+  return <ProtectedRoute roles={AC_ROLES}>{children}</ProtectedRoute>
+}
+
+// Each role lands on the page it works from: the committee on Sign-up review.
+function Home() {
   const { user } = useAuth()
-
-  if (user?.role !== "ac_member" && user?.role !== "admin") {
-    return <Navigate to="/courses" replace />
-  }
-
-  return children
+  return <Navigate to={isAC(user) ? "/review" : "/observations"} replace />
 }
 
 function App() {
@@ -35,28 +41,37 @@ function App() {
               </ProtectedRoute>
             }
           >
-            <Route path="/" element={<Navigate to="/courses" replace />} />
+            <Route path="/" element={<Home />} />
             <Route
               path="/professors"
               element={
-                <ACOnlyRoute>
+                <CommitteeRoute>
                   <Professors />
-                </ACOnlyRoute>
+                </CommitteeRoute>
               }
             />
-
             <Route
               path="/professors/:id"
               element={
-                <ACOnlyRoute>
+                <CommitteeRoute>
                   <ProfessorDetail />
-                </ACOnlyRoute>
+                </CommitteeRoute>
               }
             />
             <Route path="/courses" element={<Courses />} />
             <Route path="/courses/:id" element={<CourseDetail />} />
             <Route path="/observations" element={<Observations />} />
             <Route path="/observation-signup" element={<ObservationSignup />} />
+            <Route path="/assessments/:id" element={<AssessmentDetail />} />
+            <Route path="/records/:id" element={<ObservationRecord />} />
+            <Route
+              path="/review"
+              element={
+                <CommitteeRoute>
+                  <SignupReview />
+                </CommitteeRoute>
+              }
+            />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />
