@@ -2,32 +2,37 @@ import { useCallback } from "react"
 import { Link } from "react-router-dom"
 import StateBlock from "../components/StateBlock"
 import { api } from "../lib/api"
+import { formatRank } from "../lib/format"
 import { useApi } from "../lib/useApi"
-
-  const formatRank = (rank) => {
-  if (!rank) return "—"
-
-  return rank
-    .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ")
-}
 
 function Professors() {
   const call = useCallback(async () => {
     const response = await api.listProfessors()
     return response.data ?? []
   }, [])
+
   const { data: professors, error, loading, reload } = useApi(call)
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight">
-          Faculty Evaluation Roster
-        </h1>
-        <p className="mt-1 text-sm text-muted">
-          View faculty members and their evaluation information.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Faculty Evaluation Roster
+          </h1>
+
+          <p className="mt-1 text-sm text-muted">
+            View faculty members and their evaluation information.
+          </p>
+        </div>
+
+        <Link
+          to="/professors/new"
+          className="rounded bg-utd-green px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+        >
+          Add Professor
+        </Link>
+      </div>
 
       <div className="mt-6">
         <StateBlock
@@ -46,9 +51,13 @@ function Professors() {
                   <th className="px-4 py-3 font-medium">Status</th>
                 </tr>
               </thead>
+
               <tbody>
                 {professors?.map((professor) => (
-                  <tr key={professor.id} className="border-b border-line last:border-0">
+                  <tr
+                    key={professor.id}
+                    className="border-b border-line last:border-0"
+                  >
                     <td className="px-4 py-3">
                       <Link
                         to={`/professors/${professor.id}`}
@@ -56,13 +65,18 @@ function Professors() {
                       >
                         {professor.firstName} {professor.lastName}
                       </Link>
-                      <span className="block text-muted">{professor.email}</span>
+
+                      <span className="block text-muted">
+                        {professor.email}
+                      </span>
                     </td>
+
                     <td className="px-4 py-3">
                       {formatRank(professor.rank)}
                     </td>
+
                     <td className="px-4 py-3">
-                     {professor.isActive ? "Active" : "Inactive"}
+                      {professor.isActive ? "Active" : "Inactive"}
                     </td>
                   </tr>
                 ))}

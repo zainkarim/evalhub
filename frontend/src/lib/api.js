@@ -67,6 +67,7 @@ async function send(path, { method = "GET", body, auth = true } = {}) {
       response.status,
     )
   }
+
   return data
 }
 
@@ -74,7 +75,9 @@ function query(params = {}) {
   const entries = Object.entries(params).filter(
     ([, value]) => value !== undefined && value !== null && value !== "",
   )
+
   if (entries.length === 0) return ""
+
   return `?${new URLSearchParams(entries)}`
 }
 
@@ -96,11 +99,16 @@ export const api = {
   // ---- catalogue (page size is capped at 100 by the backend)
   listProfessors: (params) => request(`/teachers${query({ pageSize: 100, ...params })}`),
   getProfessor: (id) => request(`/teachers/${id}`),
+  createProfessor: (body) => post("/teachers", body),
+  updateProfessor: (id, body) => request(`/teachers/${id}`, { method: "PATCH", body }),
 
   listCourses: (params) => request(`/courses${query({ pageSize: 100, ...params })}`),
   getCourse: (id) => request(`/courses/${id}`),
 
+  // Sections
   listSections: (params) => request(`/sections${query(params)}`),
+
+  // Terms
   listTerms: (params) => request(`/terms${query(params)}`),
 
   // ---- sign-ups ("assessments")

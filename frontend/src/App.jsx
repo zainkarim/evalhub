@@ -12,6 +12,7 @@ import ObservationRecord from "./pages/ObservationRecord"
 import ObservationSignup from "./pages/ObservationSignup"
 import Observations from "./pages/Observations"
 import ProfessorDetail from "./pages/ProfessorDetail"
+import ProfessorManagement from "./pages/ProfessorManagement"
 import Professors from "./pages/Professors"
 import SignupReview from "./pages/SignupReview"
 
@@ -51,6 +52,24 @@ function App() {
               }
             />
             <Route
+              path="/professors/new"
+              element={
+                <CommitteeRoute>
+                  <ProfessorManagement />
+                </CommitteeRoute>
+              }
+            />
+
+            <Route
+              path="/professors/:id/edit"
+              element={
+                <CommitteeRoute>
+                  <ProfessorManagement />
+                </CommitteeRoute>
+              }
+            />
+
+            <Route
               path="/professors/:id"
               element={
                 <CommitteeRoute>
@@ -58,6 +77,7 @@ function App() {
                 </CommitteeRoute>
               }
             />
+
             <Route path="/courses" element={<Courses />} />
             <Route path="/courses/:id" element={<CourseDetail />} />
             <Route path="/observations" element={<Observations />} />
