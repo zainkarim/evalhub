@@ -134,6 +134,10 @@ export const ASSESSMENT_STATUS = {
 const LEGACY_STATUS = {
   cancelled: "postponed",
   pending_ac_approval: "candidates_generated",
+  // Attempt statuses from the old approval flow.
+  proposed: "approved",
+  rejected: "postponed",
+  not_completed: "postponed",
 }
 export const normalizeStatus = (status) => LEGACY_STATUS[status] ?? status
 

@@ -21,7 +21,7 @@ function CommitteeRoute({ children }) {
   return <ProtectedRoute roles={AC_ROLES}>{children}</ProtectedRoute>
 }
 
-// Each role lands on the page it works from.
+// Each role lands on the page it works from: the committee on Sign-up review.
 function Home() {
   const { user } = useAuth()
   return <Navigate to={isAC(user) ? "/review" : "/observations"} replace />
