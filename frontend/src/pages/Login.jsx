@@ -112,12 +112,12 @@ function Login() {
 
             <div className="mt-4 space-y-3">
               {[
-                { label: "Faculty", email: "faculty@example.edu", note: "Professor C — signs up, picks observers" },
-                { label: "Assessment Committee", email: "ac@example.edu", note: "Professor B — approvals, step-ins" },
+                { label: "Faculty", email: "faculty@example.edu", note: "Professor C — signs up, then picks one observer and dates" },
+                { label: "Assessment Committee", email: "ac@example.edu", note: "Professor B — sign-up review, starts observer selection" },
                 { label: "Administrator", email: "admin@example.edu", note: "Committee view, no teaching profile" },
                 ...(USE_MOCKS
                   ? [
-                      { label: "Faculty (observer)", email: "professor.h@example.edu", note: "Professor H — receives requests" },
+                      { label: "Faculty (observer)", email: "professor.h@example.edu", note: "Professor H — confirms one of the offered dates" },
                       { label: "Faculty (5+ candidates)", email: "professor.e@example.edu", note: "Professor E — CS 3354 has 6 eligible observers" },
                     ]
                   : []),

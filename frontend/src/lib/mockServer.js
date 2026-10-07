@@ -2,16 +2,21 @@
 // set (see api.js). State lives in localStorage so a demo survives reloads and
 // switching between accounts in the same browser.
 //
-// Routes marked [backend] exist in backend/docs/api-contract.md today.
+// Routes marked [backend] exist in backend/docs/api-contract.md or on main today.
 // Routes marked [new] are the ones the frontend needs the backend team to add —
 // their shapes are documented in frontend/docs/api-expectations.md.
-// Business rules come from docs/requirements.md §4.2–4.3.
+// Business rules come from docs/requirements.md §4.2–4.3 (corrected 2026-09-30):
+//   - the AC does NOT approve pairings; it starts observer selection after the
+//     sign-up deadline and handles insufficient pools manually
+//   - the professor picks ONE observer and offers 4-8 dates; the observer confirms one
+//   - an attempt that does not happen is never cancelled: it is logged and Postponed
 
 import { APP_SETTINGS, buildSeed, DEMO_PASSWORD } from "./mockData"
 
-const STORE_KEY = "evalhub.mock.state.v1"
+const STORE_KEY = "evalhub.mock.state.v2"
 const HOUR = 60 * 60 * 1000
-const DAY = 24 * HOUR
+const MIN_DATES = 4
+const MAX_DATES = 8
 
 // ---------------------------------------------------------------- state ----
 
@@ -21,7 +26,7 @@ function load() {
   if (state) return state
   try {
     const saved = JSON.parse(localStorage.getItem(STORE_KEY) ?? "null")
-    if (saved?.version === 1) {
+    if (saved?.version === 2) {
       state = saved
       return state
     }
@@ -92,20 +97,65 @@ function userFromToken(token) {
   }
 }
 
-// Requests that ran past their 48h window become `expired` the next time
-// anyone talks to the API (the real backend would do this lazily or on a timer).
-function expireRequests() {
+// Requests nobody answered within 48h become `expired` the next time anyone
+// talks to the API (the real backend would do this lazily or on a timer). The
+// observer who never replied is written to the attempt log.
+function expireOffers() {
   const s = load()
   const now = Date.now()
   let changed = false
-  for (const request of s.requests) {
-    if (request.status === "pending" && new Date(request.expiresAt).getTime() <= now) {
-      request.status = "expired"
+  for (const offer of s.offers) {
+    if (offer.status === "pending" && new Date(offer.expiresAt).getTime() <= now) {
+      offer.status = "expired"
+      releaseOptions(offer)
+      logAttempt(byId(s.assessments, offer.assessmentId), "no_response_expired", {
+        by: { name: "System", role: "system" },
+        attemptNo: offer.attemptNo,
+        observerId: offer.observerId,
+        reason: `No response within ${APP_SETTINGS.requestExpiryHours} hours.`,
+        at: offer.expiresAt,
+      })
       changed = true
     }
   }
   if (changed) save()
 }
+
+// ----------------------------------------------------------- attempt log ----
+
+const actorOf = (user) => {
+  const teacher = user.teacherId ? byId(load().teachers, user.teacherId) : null
+  return {
+    name: teacher ? `${teacher.firstName} ${teacher.lastName}` : user.email,
+    role: user.role,
+  }
+}
+
+// Append-only: who did what, when, and why. Nothing here is edited or removed.
+function logAttempt(assessment, type, fields) {
+  const s = load()
+  s.attemptLog.push({
+    id: s.nextId.log++,
+    assessmentId: assessment.id,
+    attemptNo: fields.attemptNo ?? currentAttemptNo(assessment.id),
+    type,
+    byName: fields.by.name,
+    byRole: fields.by.role,
+    at: fields.at ?? nowISO(),
+    reason: fields.reason?.trim() || null,
+    observerId: fields.observerId ?? null,
+    date: fields.date ?? null,
+    count: fields.count ?? null,
+  })
+}
+
+// A postponed or did-not-happen attempt closes that attempt; whatever is
+// scheduled next is a new attempt.
+const CLOSING = ["postponed", "did_not_happen"]
+const currentAttemptNo = (assessmentId) =>
+  1 +
+  load().attemptLog.filter((row) => row.assessmentId === assessmentId && CLOSING.includes(row.type))
+    .length
 
 // ----------------------------------------------------------------- views ----
 
@@ -152,57 +202,104 @@ const latestList = (assessmentId) =>
     .candidateLists.filter((list) => list.assessmentId === assessmentId)
     .sort((a, b) => b.id - a.id)[0] ?? null
 
-const ACTIVE_OBSERVATION = ["proposed", "approved"]
-
+// Only a scheduled (confirmed) attempt is "active"; there is no review step.
 const activeObservation = (assessmentId) =>
-  load().observations.find(
-    (o) => o.assessmentId === assessmentId && ACTIVE_OBSERVATION.includes(o.status),
-  ) ?? null
+  load().observations.find((o) => o.assessmentId === assessmentId && o.status === "approved") ?? null
 
 const latestObservation = (assessmentId) =>
   load()
     .observations.filter((o) => o.assessmentId === assessmentId)
     .sort((a, b) => b.attemptNo - a.attemptNo)[0] ?? null
 
-function attentionFor(assessment) {
+const pendingOffer = (assessmentId) =>
+  load().offers.find((o) => o.assessmentId === assessmentId && o.status === "pending") ?? null
+
+const unsentOptions = (assessmentId) =>
+  load().timeOptions.filter(
+    (o) =>
+      o.assessmentId === assessmentId &&
+      o.attemptNo === currentAttemptNo(assessmentId) &&
+      !o.isConfirmed &&
+      o.offeredToTeacherId === null,
+  )
+
+// Sign-up deadline is mock-only. Selection opens the day after it.
+const signupDeadline = (assessment) =>
+  byId(load().terms, assessment.dueTermId)?.signupDeadline ?? null
+const selectionOpen = (assessment) => {
+  const deadline = signupDeadline(assessment)
+  return !deadline || today() > deadline
+}
+
+// §4.2: zero eligible is urgent; fewer than a full list is a "limited pool"
+// notice. Only meaningful once the committee has generated a list, and it
+// clears as soon as an attempt is scheduled.
+function alertFor(assessment) {
   if (!["signed_up", "candidates_generated"].includes(assessment.status)) return null
   const list = latestList(assessment.id)
-  if (list && list.poolSize === 0) return "no_eligible_observers"
-  const last = latestObservation(assessment.id)
-  if (last?.status === "not_completed") return "observation_not_completed"
-  if (list) {
-    // Only requests sent after the last pairing count: an AC rejection or a
-    // missed observation hands the turn back to the professor, it isn't "unanswered".
-    const sinceId = last?.requestId ?? 0
-    const fresh = load().requests.filter((r) => r.listId === list.id && r.id > sinceId)
-    if (
-      fresh.length > 0 &&
-      fresh.every((r) => ["declined", "expired", "cancelled"].includes(r.status))
-    ) {
-      return "requests_unanswered"
-    }
-  }
+  if (!list) return null
+  if (list.poolSize === 0) return "no_eligible_observers"
+  if (list.poolSize < APP_SETTINGS.candidateListSize) return "limited_pool"
   return null
 }
 
-function requestView(request) {
+const optionView = (option) => ({
+  id: option.id,
+  assessmentId: option.assessmentId,
+  proposedDate: option.proposedDate,
+  startTime: option.startTime,
+  endTime: option.endTime,
+  offeredToTeacherId: option.offeredToTeacherId,
+  isConfirmed: option.isConfirmed,
+  attemptNo: option.attemptNo,
+})
+
+function offerView(offer) {
+  const options = load().timeOptions.filter((o) => offer.optionIds.includes(o.id))
   return {
-    id: request.id,
-    assessmentId: request.assessmentId,
-    observerId: request.observerId,
-    status: request.status,
-    requestedAt: request.requestedAt,
-    expiresAt: request.expiresAt,
-    respondedAt: request.respondedAt,
-    observer: teacherBrief(request.observerId),
+    id: offer.id,
+    assessmentId: offer.assessmentId,
+    observerId: offer.observerId,
+    attemptNo: offer.attemptNo,
+    status: offer.status,
+    sentAt: offer.sentAt,
+    expiresAt: offer.expiresAt,
+    respondedAt: offer.respondedAt,
+    reason: offer.reason,
+    observer: teacherBrief(offer.observerId),
+    options: options
+      .sort((a, b) => a.proposedDate.localeCompare(b.proposedDate))
+      .map(optionView),
   }
 }
+
+function incomingOfferView(offer) {
+  const s = load()
+  const assessment = byId(s.assessments, offer.assessmentId)
+  return {
+    ...offerView(offer),
+    observee: teacherBrief(assessment.teacherId),
+    section: sectionView(assessment.sectionId),
+    assessmentStatus: assessment.status,
+  }
+}
+
+const logView = (row) => ({
+  id: row.id,
+  assessmentId: row.assessmentId,
+  attemptNo: row.attemptNo,
+  type: row.type,
+  by: { name: row.byName, role: row.byRole },
+  at: row.at,
+  reason: row.reason,
+  observer: row.observerId ? teacherBrief(row.observerId) : null,
+  date: row.date,
+  count: row.count,
+})
 
 function observationView(observation) {
   const s = load()
   const assessment = byId(s.assessments, observation.assessmentId)
-  const reviewer = observation.acReviewedBy && byId(s.users, observation.acReviewedBy)
-  const reviewerTeacher = reviewer?.teacherId && byId(s.teachers, reviewer.teacherId)
   const list = observation.sourceListId && byId(s.candidateLists, observation.sourceListId)
   return {
     id: observation.id,
@@ -217,28 +314,19 @@ function observationView(observation) {
     observer: teacherBrief(observation.observerId),
     observee: teacherBrief(observation.observeeId),
     section: sectionView(assessment.sectionId),
-    acReviewedAt: observation.acReviewedAt,
-    acReviewedBy: reviewerTeacher
-      ? `${reviewerTeacher.firstName} ${reviewerTeacher.lastName}`
-      : reviewer
-        ? reviewer.email
-        : null,
-    acNotes: observation.acNotes,
     observerSignedOffAt: observation.observerSignedOffAt,
     observeeSignedOffAt: observation.observeeSignedOffAt,
     observeeComment: observation.observeeComment,
     retryAfter: observation.retryAfter,
-    notCompletedReason: observation.notCompletedReason,
     createdAt: observation.createdAt,
     updatedAt: observation.updatedAt,
   }
 }
 
 function assessmentView(assessment) {
-  const s = load()
   const pairing = activeObservation(assessment.id) ?? latestObservation(assessment.id)
   const list = latestList(assessment.id)
-  const requests = list ? s.requests.filter((r) => r.listId === list.id) : []
+  const offer = pendingOffer(assessment.id)
   return {
     id: assessment.id,
     teacherId: assessment.teacherId,
@@ -252,14 +340,13 @@ function assessmentView(assessment) {
     updatedAt: assessment.updatedAt,
     teacher: teacherBrief(assessment.teacherId),
     section: sectionView(assessment.sectionId),
-    attention: attentionFor(assessment),
+    signupDeadline: signupDeadline(assessment),
+    selectionOpen: selectionOpen(assessment),
+    alert: alertFor(assessment),
+    attemptNo: currentAttemptNo(assessment.id),
     pairing: pairing ? observationView(pairing) : null,
     candidateSummary: list ? { poolSize: list.poolSize, listSize: list.listSize } : null,
-    requestSummary: {
-      pending: requests.filter((r) => r.status === "pending").length,
-      accepted: requests.filter((r) => r.status === "accepted").length,
-      total: requests.length,
-    },
+    offer: offer ? offerView(offer) : null,
   }
 }
 
@@ -267,11 +354,8 @@ function assessmentView(assessment) {
 function assessmentDetail(assessment) {
   const s = load()
   const list = latestList(assessment.id)
-  const requests = list ? s.requests.filter((r) => r.listId === list.id) : []
   const rows = list
-    ? s.candidates
-        .filter((c) => c.listId === list.id)
-        .sort((a, b) => a.position - b.position)
+    ? s.candidates.filter((c) => c.listId === list.id).sort((a, b) => a.position - b.position)
     : []
   return {
     ...assessmentView(assessment),
@@ -285,32 +369,20 @@ function assessmentDetail(assessment) {
           generatedAt: list.generatedAt,
         }
       : null,
-    candidates: rows.map((candidate) => {
-      const request = requests
-        .filter((r) => r.observerId === candidate.teacherId)
-        .sort((a, b) => b.id - a.id)[0]
-      return {
-        ...teacherBrief(candidate.teacherId),
-        position: candidate.position,
-        request: request ? requestView(request) : null,
-      }
-    }),
-    requests: requests.map(requestView),
+    candidates: rows.map((candidate) => ({
+      ...teacherBrief(candidate.teacherId),
+      position: candidate.position,
+    })),
+    timeOptions: s.timeOptions
+      .filter((o) => o.assessmentId === assessment.id)
+      .sort((a, b) => a.attemptNo - b.attemptNo || a.proposedDate.localeCompare(b.proposedDate))
+      .map(optionView),
+    offers: s.offers.filter((o) => o.assessmentId === assessment.id).map(offerView),
     observations: s.observations
       .filter((o) => o.assessmentId === assessment.id)
       .sort((a, b) => a.attemptNo - b.attemptNo)
       .map(observationView),
-  }
-}
-
-function incomingRequestView(request) {
-  const s = load()
-  const assessment = byId(s.assessments, request.assessmentId)
-  return {
-    ...requestView(request),
-    observee: teacherBrief(assessment.teacherId),
-    section: sectionView(assessment.sectionId),
-    assessmentStatus: assessment.status,
+    attempts: s.attemptLog.filter((row) => row.assessmentId === assessment.id).map(logView),
   }
 }
 
@@ -332,8 +404,8 @@ function getAssessmentFor(user, id, { ownerOrAC = true } = {}) {
   return assessment
 }
 
-// The observer picks a real class date: today or later, inside the term, on a
-// day the section meets.
+// An observation date is a real class meeting: today or later, inside the
+// term, on a day the section meets.
 function checkObservationDate(section, date) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date ?? "")) {
     throw fail(400, "validation_error", "Choose a valid observation date.")
@@ -359,6 +431,8 @@ function overlaps(a, b) {
 
 // Same rules as backend/db/queries/eligible_observers.sql plus the
 // availability check from requirements §4.2 (computed from schedules).
+// Known gap shared with the backend SQL: §4.2 says the pool should be limited to
+// professors who signed up this cycle; this uses the full roster.
 function eligibleObservers(assessment) {
   const s = load()
   const target = byId(s.sections, assessment.sectionId)
@@ -403,51 +477,57 @@ function shuffle(rows) {
   return copy
 }
 
-function cancelPendingRequests(assessmentId, exceptId = null) {
-  const s = load()
-  for (const request of s.requests) {
-    if (
-      request.assessmentId === assessmentId &&
-      request.status === "pending" &&
-      request.id !== exceptId
-    ) {
-      request.status = "cancelled"
-      request.respondedAt = nowISO()
-    }
-  }
-}
-
 function touch(row) {
   row.updatedAt = nowISO()
 }
 
+// Once a request is answered, expires or is withdrawn its dates are free again,
+// so the professor can offer them (or others) to someone else.
+function releaseOptions(offer) {
+  for (const option of load().timeOptions) {
+    if (offer.optionIds.includes(option.id) && !option.isConfirmed) {
+      option.offeredToTeacherId = null
+    }
+  }
+}
+
+function closeOffer(offer, status, { reason, by, type }) {
+  const s = load()
+  offer.status = status
+  offer.respondedAt = nowISO()
+  offer.reason = reason?.trim() || null
+  releaseOptions(offer)
+  logAttempt(byId(s.assessments, offer.assessmentId), type, {
+    by,
+    attemptNo: offer.attemptNo,
+    observerId: offer.observerId,
+    reason,
+  })
+}
+
+// A scheduled (confirmed) attempt. There is no review step: the pairing is final
+// once the observer confirms a date (or the committee assigns one).
 function createObservation(assessment, fields) {
   const s = load()
-  const attemptNo = (latestObservation(assessment.id)?.attemptNo ?? 0) + 1
   const observation = {
     id: s.nextId.observation++,
     assessmentId: assessment.id,
     observeeId: assessment.teacherId,
     observerId: fields.observerId,
-    attemptNo,
-    status: "proposed",
+    attemptNo: fields.attemptNo ?? currentAttemptNo(assessment.id),
+    status: "approved", // backend key kept for compatibility; shown as "Scheduled / Confirmed"
     isAcStepin: fields.isAcStepin,
     sourceListId: fields.sourceListId ?? null,
-    requestId: fields.requestId ?? null,
-    scheduledDate: fields.scheduledDate ?? null,
-    acReviewedBy: null,
-    acReviewedAt: null,
-    acNotes: null,
+    scheduledDate: fields.scheduledDate,
     observerSignedOffAt: null,
     observeeSignedOffAt: null,
     observeeComment: null,
     retryAfter: null,
-    notCompletedReason: null,
     createdAt: nowISO(),
     updatedAt: nowISO(),
   }
   s.observations.push(observation)
-  assessment.status = "pending_ac_approval"
+  assessment.status = "approved"
   touch(assessment)
   return observation
 }
@@ -456,8 +536,7 @@ function getObservationFor(user, id) {
   const observation = byId(load().observations, id)
   if (!observation) throw fail(404, "not_found", "Observation not found")
   const isParty =
-    user.teacherId &&
-    [observation.observerId, observation.observeeId].includes(user.teacherId)
+    user.teacherId && [observation.observerId, observation.observeeId].includes(user.teacherId)
   if (!isParty && !isAC(user)) {
     throw fail(403, "forbidden", "You do not have permission to do that")
   }
@@ -467,6 +546,54 @@ function getObservationFor(user, id) {
 function assertNotCompleted(observation) {
   if (observation.status === "completed") {
     throw fail(409, "conflict", "This observation is complete and can no longer be changed.")
+  }
+}
+
+// Candidate generation: the committee starts it, never the professor.
+function generateList(assessment, user) {
+  const s = load()
+  const pool = eligibleObservers(assessment)
+  const picked = shuffle(pool).slice(0, APP_SETTINGS.candidateListSize)
+  const target = byId(s.sections, assessment.sectionId)
+  const course = byId(s.courses, target.courseId)
+  const list = {
+    id: s.nextId.candidateList++,
+    assessmentId: assessment.id,
+    targetLevel: course.courseLevel,
+    targetSchool: course.school,
+    poolSize: pool.length,
+    listSize: picked.length,
+    generatedAt: nowISO(),
+  }
+  s.candidateLists.push(list)
+  picked.forEach((teacher, index) =>
+    s.candidates.push({ listId: list.id, teacherId: teacher.id, position: index + 1 }),
+  )
+  // Zero pool: the sign-up stays `signed_up` and the committee is alerted
+  // (requirements §4.2). The 0/0 list is kept so the alert and the
+  // "unmatched faculty" / "list sufficiency" KPIs can see it.
+  if (picked.length > 0) assessment.status = "candidates_generated"
+  touch(assessment)
+  logAttempt(assessment, "selection_started", { by: actorOf(user) })
+  return list
+}
+
+function assertSelectionOpen(assessment) {
+  if (!selectionOpen(assessment)) {
+    throw fail(
+      409,
+      "conflict",
+      `Observer selection opens after the sign-up deadline (${signupDeadline(assessment)}).`,
+    )
+  }
+}
+
+function assertSchedulable(assessment) {
+  if (assessment.status === "signed_up") {
+    throw fail(409, "conflict", "The committee hasn't started observer selection for this sign-up yet.")
+  }
+  if (!["candidates_generated", "postponed"].includes(assessment.status)) {
+    throw fail(409, "conflict", "This sign-up is no longer open for scheduling.")
   }
 }
 
@@ -524,6 +651,7 @@ route("GET", "/teachers/(\\d+)", ({ user, match }) => {
   return teacher
 })
 
+// `signupDeadline` is mock-only (the backend terms have no such field).
 route("GET", "/terms", () => ({
   data: [...load().terms].sort((a, b) => b.startDate.localeCompare(a.startDate)),
 }))
@@ -605,31 +733,72 @@ route("POST", "/assessments/sign-up", ({ user, body }) => {
   return assessmentView(assessment)
 })
 
-// [new] committee dashboard feed — must be registered before /assessments/:id
-route("GET", "/assessments/queue", ({ user }) => {
+// [new] committee dashboard feed — must be registered before /assessments/:id.
+// Alerts: sign-ups whose eligible pool is empty (urgent) or short (limited).
+route("GET", "/assessments/alerts", ({ user, params }) => {
   if (!isAC(user)) throw fail(403, "forbidden", "You do not have permission to do that")
   const s = load()
-  const pendingApproval = s.observations
-    .filter((o) => o.status === "proposed")
-    .map((o) => ({
-      ...observationView(o),
-      assessment: assessmentView(byId(s.assessments, o.assessmentId)),
-    }))
-  const needsAttention = s.assessments
-    .filter((a) => attentionFor(a))
-    .map(assessmentView)
+  const termId = Number(params.get("termId") ?? 0)
+  const scoped = s.assessments.filter((a) => !termId || a.dueTermId === termId)
+  const views = scoped.map(assessmentView)
+  const rank = { no_eligible_observers: 0, limited_pool: 1 }
+  const alerts = views
+    .filter((view) => view.alert)
+    .sort((a, b) => rank[a.alert] - rank[b.alert] || a.signedUpAt.localeCompare(b.signedUpAt))
+  const postponed = views.filter((view) => view.status === "postponed")
   const awaitingSignOff = s.observations
-    .filter((o) => o.status === "approved")
+    .filter((o) => o.status === "approved" && scoped.some((a) => a.id === o.assessmentId))
     .map(observationView)
   return {
-    pendingApproval,
-    needsAttention,
+    data: alerts,
+    postponed,
     awaitingSignOff,
     counts: {
-      pendingApproval: pendingApproval.length,
-      needsAttention: needsAttention.length,
+      urgent: alerts.filter((view) => view.alert === "no_eligible_observers").length,
+      limited: alerts.filter((view) => view.alert === "limited_pool").length,
+      waitingToStart: views.filter((view) => view.status === "signed_up" && !view.candidateSummary)
+        .length,
+      postponed: postponed.length,
       awaitingSignOff: awaitingSignOff.length,
     },
+  }
+})
+
+// [new] bulk "Start Observer Selection" for a term (or a chosen set of sign-ups).
+// The per-sign-up version is the existing POST /assessments/:id/candidates.
+route("POST", "/assessments/start-selection", ({ user, body }) => {
+  if (!isAC(user)) {
+    throw fail(403, "forbidden", "Only the committee can start observer selection.")
+  }
+  const s = load()
+  const ids = body?.assessmentIds
+  if (!ids?.length && !body?.termId) {
+    throw fail(400, "validation_error", "Choose a term or the sign-ups to start.")
+  }
+  const targets = s.assessments.filter(
+    (a) =>
+      a.status === "signed_up" &&
+      !latestList(a.id) &&
+      (ids?.length ? ids.includes(a.id) : a.dueTermId === Number(body.termId)),
+  )
+  const ready = targets.filter(selectionOpen)
+  const skipped = targets.length - ready.length
+  if (ready.length === 0 && skipped > 0) {
+    throw fail(
+      409,
+      "conflict",
+      `Observer selection opens after the sign-up deadline (${signupDeadline(targets[0])}).`,
+    )
+  }
+  const lists = ready.map((assessment) => generateList(assessment, user))
+  save()
+  return {
+    started: lists.length,
+    noEligible: lists.filter((list) => list.poolSize === 0).length,
+    limited: lists.filter(
+      (list) => list.poolSize > 0 && list.poolSize < APP_SETTINGS.candidateListSize,
+    ).length,
+    skipped,
   }
 })
 
@@ -661,124 +830,43 @@ route("GET", "/assessments/(\\d+)", ({ user, match }) =>
   assessmentDetail(getAssessmentFor(user, match[1])),
 )
 
-route("POST", "/assessments/(\\d+)/cancel", ({ user, match, body }) => {
-  if (!isAC(user)) throw fail(403, "forbidden", "You do not have permission to do that")
-  const assessment = getAssessmentFor(user, match[1])
-  if (["completed", "cancelled"].includes(assessment.status)) {
-    throw fail(404, "not_found", "Cancellable assessment not found")
-  }
-  assessment.status = "cancelled"
-  assessment.notes = body?.reason ? `[${body.reason}] ${body.notes ?? ""}`.trim() : body?.notes ?? null
-  cancelPendingRequests(assessment.id)
-  for (const o of load().observations) {
-    if (o.assessmentId === assessment.id && ACTIVE_OBSERVATION.includes(o.status)) {
-      o.status = "postponed"
-      touch(o)
-    }
-  }
-  touch(assessment)
-  save()
-  return assessmentView(assessment)
-})
-
-// [backend, response extended] surface up to 5 observer candidates to the
-// requesting professor. Calling it again returns the same list (no reshuffling
-// to fish for a nicer list) unless nobody qualified last time.
+// [backend, access tightened in the mock] surface up to 5 observer candidates.
+// The real route also lets the owner call it and has no deadline; the committee
+// starts this after the sign-up deadline (requirements §4.3 step 2). Calling it
+// again returns the same list (no re-rolling) unless nobody qualified last time.
 route("POST", "/assessments/(\\d+)/candidates", ({ user, match }) => {
-  const s = load()
+  if (!isAC(user)) {
+    throw fail(403, "forbidden", "Only the committee starts observer selection.")
+  }
   const assessment = getAssessmentFor(user, match[1])
   if (!["signed_up", "candidates_generated"].includes(assessment.status)) {
-    throw fail(409, "conflict", "Observer candidates can only be generated before a pairing is proposed.")
+    throw fail(409, "conflict", "This sign-up is not open for observer selection.")
   }
+  assertSelectionOpen(assessment)
   const existing = latestList(assessment.id)
   if (existing && existing.poolSize > 0) return assessmentDetail(assessment)
-
-  const pool = eligibleObservers(assessment)
-  const picked = shuffle(pool).slice(0, APP_SETTINGS.candidateListSize)
-  const target = byId(s.sections, assessment.sectionId)
-  const course = byId(s.courses, target.courseId)
-  const list = {
-    id: s.nextId.candidateList++,
-    assessmentId: assessment.id,
-    targetLevel: course.courseLevel,
-    targetSchool: course.school,
-    poolSize: pool.length,
-    listSize: picked.length,
-    generatedAt: nowISO(),
-  }
-  s.candidateLists.push(list)
-  picked.forEach((teacher, index) =>
-    s.candidates.push({ listId: list.id, teacherId: teacher.id, position: index + 1 }),
-  )
-  // Zero pool: the sign-up stays `signed_up` and the committee is alerted
-  // through `attention: "no_eligible_observers"` (requirements §4.2).
-  if (picked.length > 0) assessment.status = "candidates_generated"
-  touch(assessment)
+  generateList(assessment, user)
   save()
   return assessmentDetail(assessment)
 })
 
-// [new] the observee sends requests (not invitations) to any of the listed candidates.
-route("POST", "/assessments/(\\d+)/requests", ({ user, match, body }) => {
-  const s = load()
-  const assessment = getAssessmentFor(user, match[1])
-  if (assessment.status !== "candidates_generated") {
-    throw fail(409, "conflict", "Requests can only be sent while you're choosing an observer.")
-  }
-  const list = latestList(assessment.id)
-  const ids = [...new Set(body?.observerIds ?? [])]
-  if (!list || ids.length === 0) {
-    throw fail(400, "validation_error", "Select at least one observer.")
-  }
-  const listed = s.candidates.filter((c) => c.listId === list.id).map((c) => c.teacherId)
-  if (ids.some((id) => !listed.includes(id))) {
-    throw fail(409, "conflict", "You can only send requests to observers on your candidate list.")
-  }
-  if (
-    s.requests.some(
-      (r) => r.assessmentId === assessment.id && r.status === "pending" && ids.includes(r.observerId),
-    )
-  ) {
-    throw fail(409, "conflict", "A request to one of those observers is already pending.")
-  }
-  const now = Date.now()
-  for (const observerId of ids) {
-    s.requests.push({
-      id: s.nextId.request++,
-      assessmentId: assessment.id,
-      listId: list.id,
-      observerId,
-      status: "pending",
-      requestedAt: new Date(now).toISOString(),
-      expiresAt: new Date(now + APP_SETTINGS.requestExpiryHours * HOUR).toISOString(),
-      respondedAt: null,
-    })
-  }
-  save()
-  return assessmentDetail(assessment)
-})
-
-// [new] committee: which committee members could step in as observer?
-route("GET", "/assessments/(\\d+)/step-in-options", ({ user, match }) => {
-  if (!isAC(user)) throw fail(403, "forbidden", "You do not have permission to do that")
-  const assessment = getAssessmentFor(user, match[1])
-  const s = load()
-  const ids = s.users
-    .filter((u) => u.role === "ac_member" && u.teacherId && u.teacherId !== assessment.teacherId)
-    .map((u) => u.teacherId)
-  return { data: ids.map(teacherBrief) }
-})
-
-// [backend, extended] the committee assigns an observer directly (step-in, or
-// pairing from the list on the professor's behalf). Still goes through review.
+// [committee] manual assignment (insufficient pool, or on the professor's behalf).
+// TODO(BLOCKED: requirements §4.3 step 6 and §8): must the AC's manual pick come
+// from the eligible pool, or may it be any faculty member? Not answered yet, so
+// this keeps the existing behaviour (a candidate-list member, or an AC member as
+// step-in) and must not be treated as the answer. The real backend currently only
+// allows an override when the pool is empty.
 route("POST", "/assessments/(\\d+)/observations", ({ user, match, body }) => {
   if (!isAC(user)) {
-    throw fail(403, "forbidden", "Send a request to a candidate instead — only the committee assigns observers directly.")
+    throw fail(403, "forbidden", "Only the committee assigns observers directly — pick one from your list instead.")
   }
   const s = load()
   const assessment = getAssessmentFor(user, match[1])
-  if (!["signed_up", "candidates_generated"].includes(assessment.status) || activeObservation(assessment.id)) {
-    throw fail(409, "conflict", "This sign-up already has an observer pairing in progress.")
+  if (
+    !["signed_up", "candidates_generated", "postponed"].includes(assessment.status) ||
+    activeObservation(assessment.id)
+  ) {
+    throw fail(409, "conflict", "This sign-up already has a scheduled observation.")
   }
   const section = byId(s.sections, assessment.sectionId)
   const observer = byId(s.teachers, body?.observerId)
@@ -795,113 +883,292 @@ route("POST", "/assessments/(\\d+)/observations", ({ user, match, body }) => {
     )
     if (!onList) throw fail(409, "conflict", "The selected observer is not on the candidate list for this assessment.")
   }
-  checkObservationDate(section, body?.scheduledDate) // an approved pairing always has a class date
-  cancelPendingRequests(assessment.id)
+  checkObservationDate(section, body?.scheduledDate)
+  const by = actorOf(user)
+  const waiting = pendingOffer(assessment.id)
+  if (waiting) {
+    closeOffer(waiting, "withdrawn", {
+      reason: "Replaced by a committee assignment.",
+      by,
+      type: "request_withdrawn",
+    })
+  }
   const observation = createObservation(assessment, {
     observerId: observer.id,
     isAcStepin: isStepin,
     sourceListId: body?.candidateListId ?? null,
     scheduledDate: body.scheduledDate,
   })
+  logAttempt(assessment, "ac_assigned", {
+    by,
+    observerId: observer.id,
+    date: body.scheduledDate,
+    attemptNo: observation.attemptNo,
+  })
   save()
   return { observation: observationView(observation), assessment: assessmentView(assessment) }
 })
 
-// [new] committee: postpone to the next semester.
+// [new] committee: which committee members could step in as observer?
+route("GET", "/assessments/(\\d+)/step-in-options", ({ user, match }) => {
+  if (!isAC(user)) throw fail(403, "forbidden", "You do not have permission to do that")
+  const assessment = getAssessmentFor(user, match[1])
+  const s = load()
+  const ids = s.users
+    .filter((u) => u.role === "ac_member" && u.teacherId && u.teacherId !== assessment.teacherId)
+    .map((u) => u.teacherId)
+  return { data: ids.map(teacherBrief) }
+})
+
+// [new] The attempt did not go ahead: record why and mark the sign-up Postponed.
+// Nothing is cancelled or deleted; a new attempt can be scheduled afterwards.
 route("POST", "/assessments/(\\d+)/postpone", ({ user, match, body }) => {
   if (!isAC(user)) throw fail(403, "forbidden", "You do not have permission to do that")
   const assessment = getAssessmentFor(user, match[1])
-  if (["completed", "cancelled", "postponed"].includes(assessment.status)) {
-    throw fail(409, "conflict", "This sign-up can no longer be postponed.")
+  if (!["signed_up", "candidates_generated", "approved"].includes(assessment.status)) {
+    throw fail(409, "conflict", "This sign-up can't be postponed.")
   }
+  if (!body?.reason?.trim()) {
+    throw fail(400, "validation_error", "Say why this is being postponed.")
+  }
+  const by = actorOf(user)
+  const waiting = pendingOffer(assessment.id)
+  if (waiting) {
+    closeOffer(waiting, "withdrawn", {
+      reason: "Sign-up postponed.",
+      by,
+      type: "request_withdrawn",
+    })
+  }
+  const attemptNo = currentAttemptNo(assessment.id)
+  const active = activeObservation(assessment.id)
+  if (active) {
+    active.status = "postponed"
+    touch(active)
+  }
+  logAttempt(assessment, "postponed", { by, attemptNo, reason: body.reason })
   assessment.status = "postponed"
-  assessment.notes = body?.notes ?? assessment.notes
-  cancelPendingRequests(assessment.id)
-  for (const o of load().observations) {
-    if (o.assessmentId === assessment.id && ACTIVE_OBSERVATION.includes(o.status)) {
-      o.status = "postponed"
-      touch(o)
-    }
-  }
   touch(assessment)
   save()
   return assessmentView(assessment)
 })
 
-// -- observer requests [new]
-route("GET", "/observer-requests/incoming", ({ user }) => {
-  const teacherId = requireTeacher(user)
-  const rank = { pending: 0, accepted: 1 }
+// -- dates and requests (backend: routes/assessments.js + routes/timeOptions.js)
+
+// [backend, rules tightened] The professor proposes dates for the NEXT request.
+// Backend accepts 1-8 options; requirements §4.3 step 4 say roughly 4-8, which the
+// mock enforces. Re-sending a date that is already proposed is a no-op.
+route("POST", "/assessments/(\\d+)/time-options", ({ user, match, body }) => {
+  const s = load()
+  const assessment = getAssessmentFor(user, match[1])
+  assertSchedulable(assessment)
+  const section = byId(s.sections, assessment.sectionId)
+  const incoming = body?.options
+  if (!Array.isArray(incoming) || incoming.length < MIN_DATES || incoming.length > MAX_DATES) {
+    throw fail(400, "validation_error", `Offer between ${MIN_DATES} and ${MAX_DATES} possible dates.`)
+  }
+  const attemptNo = currentAttemptNo(assessment.id)
+  const saved = []
+  for (const item of incoming) {
+    checkObservationDate(section, item.proposedDate)
+    const hhmm = /^([01]\d|2[0-3]):[0-5]\d$/
+    if (!hhmm.test(item.startTime ?? "") || !hhmm.test(item.endTime ?? "") || item.endTime <= item.startTime) {
+      throw fail(400, "validation_error", "Each date needs a start time before its end time.")
+    }
+    const same = unsentOptions(assessment.id).find(
+      (o) => o.proposedDate === item.proposedDate && o.startTime === item.startTime,
+    )
+    if (same) {
+      saved.push(same)
+      continue
+    }
+    const option = {
+      id: s.nextId.timeOption++,
+      assessmentId: assessment.id,
+      proposedDate: item.proposedDate,
+      startTime: item.startTime,
+      endTime: item.endTime,
+      offeredToTeacherId: null,
+      isConfirmed: false,
+      attemptNo,
+      createdAt: nowISO(),
+    }
+    s.timeOptions.push(option)
+    saved.push(option)
+  }
+  if (unsentOptions(assessment.id).length > MAX_DATES) {
+    throw fail(400, "validation_error", `Offer at most ${MAX_DATES} dates.`)
+  }
+  save()
+  return { data: saved.map(optionView) }
+})
+
+route("GET", "/assessments/(\\d+)/time-options", ({ user, match }) => {
+  const s = load()
+  const assessment = byId(s.assessments, match[1])
+  if (!assessment) throw fail(404, "not_found", "Assessment not found")
+  const offeredToMe = s.offers.some(
+    (o) => o.assessmentId === assessment.id && o.observerId === user.teacherId,
+  )
+  if (!isAC(user) && assessment.teacherId !== user.teacherId && !offeredToMe) {
+    throw fail(403, "forbidden", "You do not have permission to view these time options")
+  }
   return {
-    data: load()
-      .requests.filter((r) => r.observerId === teacherId)
-      .sort(
-        (a, b) =>
-          (rank[a.status] ?? 2) - (rank[b.status] ?? 2) || b.requestedAt.localeCompare(a.requestedAt),
-      )
-      .map(incomingRequestView),
+    data: s.timeOptions
+      .filter((o) => o.assessmentId === assessment.id)
+      .sort((a, b) => a.attemptNo - b.attemptNo || a.proposedDate.localeCompare(b.proposedDate))
+      .map(optionView),
   }
 })
 
-function getRequest(id) {
-  const request = byId(load().requests, id)
-  if (!request) throw fail(404, "not_found", "Request not found")
-  return request
-}
-
-route("POST", "/observer-requests/(\\d+)/accept", ({ user, match, body }) => {
+// [backend] one request, to ONE observer, carrying all the proposed dates.
+// Mock additions: only people on the latest list, a 48h expiry, and the request
+// is recorded so declines / no-responses stay on the record.
+route("POST", "/assessments/(\\d+)/time-options/send", ({ user, match, body }) => {
   const s = load()
-  const request = getRequest(match[1])
-  if (request.observerId !== user.teacherId) {
-    throw fail(403, "forbidden", "This request was sent to someone else.")
+  const assessment = getAssessmentFor(user, match[1])
+  assertSchedulable(assessment)
+  const waiting = pendingOffer(assessment.id)
+  if (waiting) {
+    const name = teacherBrief(waiting.observerId)
+    throw fail(
+      409,
+      "conflict",
+      `A request is already waiting for ${name.firstName} ${name.lastName}. Withdraw it before asking someone else.`,
+    )
   }
-  if (request.status !== "pending") {
-    throw fail(409, "conflict", `This request is ${request.status} and can't be accepted.`)
+  const teacherId = Number(body?.teacherId)
+  const list = latestList(assessment.id)
+  const listed = list ? s.candidates.filter((c) => c.listId === list.id).map((c) => c.teacherId) : []
+  if (!listed.includes(teacherId)) {
+    throw fail(409, "conflict", "You can only ask someone from your observer list.")
   }
-  const assessment = byId(s.assessments, request.assessmentId)
-  if (assessment.status !== "candidates_generated" || activeObservation(assessment.id)) {
-    throw fail(409, "conflict", "This observation already has an observer.")
+  const options = unsentOptions(assessment.id)
+  if (options.length < MIN_DATES || options.length > MAX_DATES) {
+    throw fail(400, "validation_error", `Offer between ${MIN_DATES} and ${MAX_DATES} dates before sending.`)
   }
-  const section = byId(s.sections, assessment.sectionId)
-  checkObservationDate(section, body?.scheduledDate)
-  request.status = "accepted"
-  request.respondedAt = nowISO()
-  cancelPendingRequests(assessment.id, request.id) // one acceptance auto-cancels the rest
-  createObservation(assessment, {
-    observerId: request.observerId,
-    isAcStepin: false,
-    sourceListId: request.listId,
-    requestId: request.id,
-    scheduledDate: body.scheduledDate,
+  const now = Date.now()
+  const attemptNo = currentAttemptNo(assessment.id)
+  s.offers.push({
+    id: s.nextId.offer++,
+    assessmentId: assessment.id,
+    observerId: teacherId,
+    attemptNo,
+    status: "pending",
+    sentAt: new Date(now).toISOString(),
+    expiresAt: new Date(now + APP_SETTINGS.requestExpiryHours * HOUR).toISOString(),
+    respondedAt: null,
+    reason: null,
+    optionIds: options.map((o) => o.id),
+  })
+  for (const option of options) option.offeredToTeacherId = teacherId
+  assessment.status = "candidates_generated" // a postponed sign-up starts a new attempt
+  touch(assessment)
+  logAttempt(assessment, "request_sent", {
+    by: actorOf(user),
+    attemptNo,
+    observerId: teacherId,
+    count: options.length,
   })
   save()
-  return incomingRequestView(request)
+  return { data: options.map(optionView) }
 })
 
-route("POST", "/observer-requests/(\\d+)/decline", ({ user, match }) => {
-  const request = getRequest(match[1])
-  if (request.observerId !== user.teacherId) {
+// [new] The professor takes the request back (to ask someone else). Logged.
+route("POST", "/assessments/(\\d+)/time-options/withdraw", ({ user, match, body }) => {
+  const assessment = getAssessmentFor(user, match[1])
+  const offer = pendingOffer(assessment.id)
+  if (!offer) throw fail(409, "conflict", "There is no request waiting for an answer.")
+  closeOffer(offer, "withdrawn", {
+    reason: body?.reason,
+    by: actorOf(user),
+    type: "request_withdrawn",
+  })
+  save()
+  return assessmentView(assessment)
+})
+
+// [new] The observer can't do any of the dates. The reason is optional but kept.
+route("POST", "/assessments/(\\d+)/time-options/decline", ({ user, match, body }) => {
+  const assessment = byId(load().assessments, match[1])
+  if (!assessment) throw fail(404, "not_found", "Assessment not found")
+  const offer = pendingOffer(assessment.id)
+  if (!offer) throw fail(409, "conflict", "This request is no longer open.")
+  if (offer.observerId !== user.teacherId) {
     throw fail(403, "forbidden", "This request was sent to someone else.")
   }
-  if (request.status !== "pending") {
-    throw fail(409, "conflict", `This request is ${request.status} and can't be declined.`)
-  }
-  request.status = "declined"
-  request.respondedAt = nowISO()
+  closeOffer(offer, "declined", {
+    reason: body?.reason,
+    by: actorOf(user),
+    type: "request_declined",
+  })
   save()
-  return incomingRequestView(request)
+  return incomingOfferView(offer)
 })
 
-route("POST", "/observer-requests/(\\d+)/cancel", ({ user, match }) => {
-  const request = getRequest(match[1])
-  getAssessmentFor(user, request.assessmentId) // owner or committee
-  if (request.status !== "pending") {
-    throw fail(409, "conflict", `This request is ${request.status} and can't be cancelled.`)
+// [new] The observer's inbox: requests sent to me, newest first (open ones on top).
+route("GET", "/time-options/incoming", ({ user }) => {
+  const teacherId = requireTeacher(user)
+  return {
+    data: load()
+      .offers.filter((o) => o.observerId === teacherId)
+      .sort(
+        (a, b) =>
+          Number(b.status === "pending") - Number(a.status === "pending") ||
+          b.sentAt.localeCompare(a.sentAt),
+      )
+      .map(incomingOfferView),
   }
-  request.status = "cancelled"
-  request.respondedAt = nowISO()
+})
+
+// [backend, extended] The observer confirms exactly one date. That is the
+// pairing: no committee step follows. The real route only flips is_confirmed;
+// the mock also records the scheduled attempt (see api-expectations.md).
+route("POST", "/time-options/(\\d+)/confirm", ({ user, match }) => {
+  const s = load()
+  const option = byId(s.timeOptions, match[1])
+  if (!option) throw fail(404, "not_found", "Time option not found")
+  if (option.offeredToTeacherId !== user.teacherId) {
+    throw fail(403, "forbidden", "This option was not offered to you")
+  }
+  if (option.isConfirmed) throw fail(409, "conflict", "This option is already confirmed")
+  const offer = s.offers.find(
+    (o) => o.status === "pending" && o.optionIds.includes(option.id) && o.observerId === user.teacherId,
+  )
+  if (!offer) throw fail(409, "conflict", "This request is no longer open.")
+  if (option.proposedDate < today()) {
+    throw fail(409, "conflict", "That date has already passed — ask for new dates.")
+  }
+  const assessment = byId(s.assessments, option.assessmentId)
+  option.isConfirmed = true
+  for (const sibling of s.timeOptions) {
+    if (
+      sibling.assessmentId === option.assessmentId &&
+      sibling.attemptNo === option.attemptNo &&
+      sibling.id !== option.id &&
+      !sibling.isConfirmed
+    ) {
+      sibling.offeredToTeacherId = null
+    }
+  }
+  offer.status = "confirmed"
+  offer.respondedAt = nowISO()
+  const list = latestList(assessment.id)
+  createObservation(assessment, {
+    observerId: user.teacherId,
+    isAcStepin: false,
+    sourceListId: list?.id ?? null,
+    scheduledDate: option.proposedDate,
+    attemptNo: option.attemptNo,
+  })
+  logAttempt(assessment, "date_confirmed", {
+    by: actorOf(user),
+    attemptNo: option.attemptNo,
+    observerId: user.teacherId,
+    date: option.proposedDate,
+  })
   save()
-  return requestView(request)
+  return optionView(option)
 })
 
 // -- observations
@@ -916,38 +1183,14 @@ route("GET", "/observations", ({ user, params }) => {
   return { data: rows.map(observationView) }
 })
 
-route("GET", "/observations/(\\d+)", ({ user, match }) =>
-  observationView(getObservationFor(user, match[1]).observation),
-)
-
-// [backend, extended] AC approval gate.
-route("POST", "/observations/(\\d+)/review", ({ user, match, body }) => {
-  if (!isAC(user)) throw fail(403, "forbidden", "Only AC/admin can review observations")
-  const s = load()
+route("GET", "/observations/(\\d+)", ({ user, match }) => {
   const { observation } = getObservationFor(user, match[1])
-  if (observation.status !== "proposed") {
-    throw fail(409, "conflict", "Only proposed observations can be reviewed")
+  return {
+    ...observationView(observation),
+    attempts: load()
+      .attemptLog.filter((row) => row.assessmentId === observation.assessmentId)
+      .map(logView),
   }
-  if (!["approved", "rejected"].includes(body?.decision)) {
-    throw fail(400, "validation_error", "Choose approve or reject.")
-  }
-  if (body.decision === "rejected" && !body.notes?.trim()) {
-    throw fail(400, "validation_error", "Add a note explaining why the pairing was rejected.")
-  }
-  // Patched rule: nobody approves a pairing they're part of.
-  if (user.teacherId && [observation.observerId, observation.observeeId].includes(user.teacherId)) {
-    throw fail(403, "forbidden", "You're part of this pairing — another committee member must review it.")
-  }
-  const assessment = byId(s.assessments, observation.assessmentId)
-  observation.status = body.decision
-  observation.acReviewedBy = user.id
-  observation.acReviewedAt = nowISO()
-  observation.acNotes = body.notes?.trim() || null
-  assessment.status = body.decision === "approved" ? "approved" : "candidates_generated"
-  touch(observation)
-  touch(assessment)
-  save()
-  return { observation: observationView(observation), assessment: assessmentView(assessment) }
 })
 
 // [new] Both observer and observee sign off. Observee sign-off confirms the
@@ -957,7 +1200,7 @@ route("POST", "/observations/(\\d+)/sign-off", ({ user, match, body }) => {
   const { observation } = getObservationFor(user, match[1])
   assertNotCompleted(observation)
   if (observation.status !== "approved") {
-    throw fail(409, "conflict", "The committee must approve this pairing before anyone can sign off.")
+    throw fail(409, "conflict", "This observation isn't scheduled, so there is nothing to sign off.")
   }
   if (observation.scheduledDate > today()) {
     throw fail(409, "conflict", "You can confirm once the observation date has arrived.")
@@ -983,40 +1226,30 @@ route("POST", "/observations/(\\d+)/sign-off", ({ user, match, body }) => {
   return observationView(observation)
 })
 
-route("POST", "/observations/(\\d+)/reschedule", ({ user, match, body }) => {
+// [new] The scheduled date can't be kept (illness, conflict, a new date…). The
+// attempt is kept and marked Postponed with who/when/why; the professor then
+// schedules a new attempt in the same semester. Replaces "reschedule" and
+// "it didn't happen"; nothing is overwritten or cancelled.
+route("POST", "/observations/(\\d+)/postpone", ({ user, match, body }) => {
   const s = load()
   const { observation } = getObservationFor(user, match[1])
   assertNotCompleted(observation)
   if (observation.status !== "approved") {
-    throw fail(409, "conflict", "Only an approved observation can be rescheduled.")
-  }
-  const assessment = byId(s.assessments, observation.assessmentId)
-  checkObservationDate(byId(s.sections, assessment.sectionId), body?.scheduledDate)
-  observation.scheduledDate = body.scheduledDate
-  // Both people confirm the new plan; earlier sign-offs no longer apply.
-  observation.observerSignedOffAt = null
-  observation.observeeSignedOffAt = null
-  touch(observation)
-  save()
-  return observationView(observation)
-})
-
-// The observation didn't happen (illness, conflict…). Retry window is 3–4 weeks.
-route("POST", "/observations/(\\d+)/not-completed", ({ user, match, body }) => {
-  const s = load()
-  const { observation } = getObservationFor(user, match[1])
-  assertNotCompleted(observation)
-  if (observation.status !== "approved") {
-    throw fail(409, "conflict", "Only an approved observation can be reported as not completed.")
+    throw fail(409, "conflict", "Only a scheduled observation can be postponed.")
   }
   if (!body?.reason?.trim()) {
-    throw fail(400, "validation_error", "Tell the committee what happened.")
+    throw fail(400, "validation_error", "Say what happened so the attempt is on the record.")
   }
   const assessment = byId(s.assessments, observation.assessmentId)
-  observation.status = "not_completed"
-  observation.notCompletedReason = body.reason.trim()
-  observation.retryAfter = isoDay(new Date(Date.now() + APP_SETTINGS.retryWindowWeeks * 7 * DAY))
-  assessment.status = "candidates_generated" // back to choosing an observer; committee is alerted
+  logAttempt(assessment, "did_not_happen", {
+    by: actorOf(user),
+    attemptNo: observation.attemptNo,
+    observerId: observation.observerId,
+    date: observation.scheduledDate,
+    reason: body.reason,
+  })
+  observation.status = "postponed"
+  assessment.status = "postponed"
   touch(observation)
   touch(assessment)
   save()
@@ -1028,7 +1261,7 @@ route("POST", "/observations/(\\d+)/not-completed", ({ user, match, body }) => {
 export async function mockRequest(path, { method = "GET", body, token } = {}) {
   await wait()
   load()
-  expireRequests()
+  expireOffers()
 
   const [pathname, search] = path.split("?")
   const params = new URLSearchParams(search)

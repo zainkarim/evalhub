@@ -1,3 +1,5 @@
+import { normalizeStatus } from "../lib/format"
+
 const TONES = {
   neutral: "bg-gray-100 text-muted",
   info: "bg-sky-50 text-sky-800",
@@ -9,7 +11,7 @@ const TONES = {
 
 // `map` is one of the status maps in lib/format.js (ASSESSMENT_STATUS, …).
 function StatusBadge({ status, map }) {
-  const entry = map[status] ?? { label: status, tone: "neutral" }
+  const entry = map[normalizeStatus(status)] ?? { label: status, tone: "neutral" }
   return (
     <span
       className={`inline-block whitespace-nowrap rounded px-2 py-1 text-xs font-medium ${TONES[entry.tone]}`}

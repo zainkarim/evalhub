@@ -37,7 +37,7 @@ function Professors() {
           empty={professors?.length === 0}
           emptyMessage="No professors on the roster yet."
         >
-          <div className="overflow-x-auto rounded border border-line bg-white">
+          <div className="relative overflow-x-auto rounded border border-line bg-white">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-line text-xs text-muted">
                 <tr>

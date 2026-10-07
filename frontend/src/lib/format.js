@@ -33,6 +33,18 @@ export function formatDate(value) {
   })
 }
 
+// A real moment in time (e.g. when someone signed up), shown as the viewer's local
+// calendar day. formatDate is for DATE columns, which must not shift with the time zone.
+export function formatLocalDate(timestamp) {
+  if (!timestamp) return "—"
+  return new Date(timestamp).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })
+}
+
 export function formatDateTime(value) {
   if (!value) return "—"
   return new Date(value).toLocaleString("en-US", {
@@ -106,39 +118,68 @@ export function meetingDates(section, { from = todayISO(), limit = 40 } = {}) {
   return dates
 }
 
-// Assessment (sign-up) status -> label + colour tone.
+// Assessment (sign-up) status -> label + colour tone. The keys are the
+// backend's; `approved` is kept for compatibility and shown as Scheduled.
 export const ASSESSMENT_STATUS = {
   signed_up: { label: "Signed up", tone: "neutral" },
   candidates_generated: { label: "Choosing observer", tone: "info" },
-  pending_ac_approval: { label: "Awaiting AC approval", tone: "warn" },
-  approved: { label: "Approved · scheduled", tone: "good" },
+  approved: { label: "Scheduled / Confirmed", tone: "good" },
   completed: { label: "Completed", tone: "done" },
   not_eligible: { label: "Not eligible", tone: "neutral" },
-  postponed: { label: "Postponed", tone: "neutral" },
-  cancelled: { label: "Cancelled", tone: "neutral" },
+  postponed: { label: "Postponed", tone: "warn" },
 }
 
+// Old backend rows can still carry statuses the workflow no longer uses. A
+// sign-up is never shown as cancelled and there is no committee approval.
+const LEGACY_STATUS = {
+  cancelled: "postponed",
+  pending_ac_approval: "candidates_generated",
+}
+export const normalizeStatus = (status) => LEGACY_STATUS[status] ?? status
+
+// One attempt (a pairing and its date).
 export const OBSERVATION_STATUS = {
-  proposed: { label: "Awaiting AC approval", tone: "warn" },
-  approved: { label: "Approved", tone: "good" },
-  rejected: { label: "Rejected by AC", tone: "bad" },
+  approved: { label: "Scheduled / Confirmed", tone: "good" },
   completed: { label: "Completed", tone: "done" },
-  not_completed: { label: "Did not happen", tone: "bad" },
-  postponed: { label: "Postponed", tone: "neutral" },
+  postponed: { label: "Postponed", tone: "warn" },
 }
 
-export const REQUEST_STATUS = {
-  pending: { label: "Pending", tone: "info" },
-  accepted: { label: "Accepted", tone: "good" },
+// A request sent to one observer with the proposed dates.
+export const OFFER_STATUS = {
+  pending: { label: "Waiting for reply", tone: "info" },
+  confirmed: { label: "Date confirmed", tone: "good" },
   declined: { label: "Declined", tone: "bad" },
-  expired: { label: "Expired", tone: "neutral" },
-  cancelled: { label: "Cancelled", tone: "neutral" },
+  expired: { label: "No response", tone: "neutral" },
+  withdrawn: { label: "Withdrawn", tone: "neutral" },
 }
 
-export const ATTENTION = {
-  no_eligible_observers: "No eligible observers found — an AC member needs to step in.",
-  observation_not_completed:
-    "The observation did not happen — reschedule, step in, or postpone.",
-  requests_unanswered:
-    "Every request was declined or expired — the professor can re-send, or an AC member can step in.",
+// Committee alerts about the eligible observer pool (requirements §4.2).
+export const ALERT = {
+  no_eligible_observers: {
+    label: "No eligible observers",
+    tone: "bad",
+    text: "Nobody qualifies as an observer. Assign one manually.",
+  },
+  limited_pool: {
+    label: "Limited pool",
+    tone: "warn",
+    text: "Fewer than five professors qualify, so the list is short.",
+  },
 }
+
+// Entries in the attempt history.
+export const ATTEMPT_EVENT = {
+  selection_started: "Observer selection started",
+  request_sent: "Request sent",
+  request_declined: "Request declined",
+  no_response_expired: "No response — request expired",
+  request_withdrawn: "Request withdrawn",
+  date_confirmed: "Date confirmed",
+  ac_assigned: "Assigned by the committee",
+  did_not_happen: "Did not happen — postponed",
+  postponed: "Postponed",
+}
+
+// "1:00 PM–2:15 PM" for a time option.
+export const formatTimeRange = (start, end) =>
+  start && end ? `${formatTime(start)}–${formatTime(end)}` : ""

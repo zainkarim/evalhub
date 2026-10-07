@@ -4,7 +4,6 @@ import ProtectedRoute from "./components/ProtectedRoute"
 import { AuthProvider } from "./context/AuthContext"
 import { useAuth } from "./context/auth-context"
 import { AC_ROLES, isAC } from "./lib/roles"
-import Approvals from "./pages/Approvals"
 import AssessmentDetail from "./pages/AssessmentDetail"
 import CourseDetail from "./pages/CourseDetail"
 import Courses from "./pages/Courses"
@@ -14,6 +13,7 @@ import ObservationSignup from "./pages/ObservationSignup"
 import Observations from "./pages/Observations"
 import ProfessorDetail from "./pages/ProfessorDetail"
 import Professors from "./pages/Professors"
+import SignupReview from "./pages/SignupReview"
 
 // Committee-only pages: anyone else gets a plain "limited to the committee"
 // message instead of the page (the navigation link is hidden for them too).
@@ -24,7 +24,7 @@ function CommitteeRoute({ children }) {
 // Each role lands on the page it works from.
 function Home() {
   const { user } = useAuth()
-  return <Navigate to={isAC(user) ? "/approvals" : "/observations"} replace />
+  return <Navigate to={isAC(user) ? "/review" : "/observations"} replace />
 }
 
 function App() {
@@ -65,10 +65,10 @@ function App() {
             <Route path="/assessments/:id" element={<AssessmentDetail />} />
             <Route path="/records/:id" element={<ObservationRecord />} />
             <Route
-              path="/approvals"
+              path="/review"
               element={
                 <CommitteeRoute>
-                  <Approvals />
+                  <SignupReview />
                 </CommitteeRoute>
               }
             />

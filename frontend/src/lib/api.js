@@ -21,7 +21,16 @@ export class ApiError extends Error {
   }
 }
 
-async function request(path, { method = "GET", body, auth = true } = {}) {
+// Fired after every successful write so shared UI (the nav counters) can refresh.
+export const CHANGED_EVENT = "evalhub:changed"
+
+async function request(path, options = {}) {
+  const result = await send(path, options)
+  if ((options.method ?? "GET") !== "GET") window.dispatchEvent(new Event(CHANGED_EVENT))
+  return result
+}
+
+async function send(path, { method = "GET", body, auth = true } = {}) {
   if (USE_MOCKS) return mockRequest(path, { method, body, token: getToken() })
 
   const headers = { "Content-Type": "application/json" }
@@ -101,33 +110,33 @@ export const api = {
   listAssessments: (params) =>
     request(`/assessments${query({ pageSize: 100, ...params })}`),
   getAssessment: (id) => request(`/assessments/${id}`),
-  cancelAssessment: (id, body) => post(`/assessments/${id}/cancel`, body ?? {}),
-  postponeAssessment: (id, notes) => post(`/assessments/${id}/postpone`, { notes }),
 
-  // ---- observer candidates + requests (professor side)
+  // ---- committee: start observer selection (after the sign-up deadline)
   generateCandidates: (id) => post(`/assessments/${id}/candidates`),
-  sendRequests: (id, observerIds) => post(`/assessments/${id}/requests`, { observerIds }),
-  cancelRequest: (requestId) => post(`/observer-requests/${requestId}/cancel`),
-  incomingRequests: () => request("/observer-requests/incoming"),
-  acceptRequest: (requestId, scheduledDate) =>
-    post(`/observer-requests/${requestId}/accept`, { scheduledDate }),
-  declineRequest: (requestId) => post(`/observer-requests/${requestId}/decline`),
-
-  // ---- committee
-  assessmentQueue: () => request("/assessments/queue"),
+  startSelection: (body) => post("/assessments/start-selection", body),
+  assessmentAlerts: (params) => request(`/assessments/alerts${query(params)}`),
   stepInOptions: (id) => request(`/assessments/${id}/step-in-options`),
   assignObserver: (id, body) => post(`/assessments/${id}/observations`, body),
-  reviewObservation: (id, decision, notes) =>
-    post(`/observations/${id}/review`, { decision, notes }),
+  postponeAssessment: (id, reason) => post(`/assessments/${id}/postpone`, { reason }),
+
+  // ---- professor: one observer, 4-8 dates, one request
+  addTimeOptions: (id, options) => post(`/assessments/${id}/time-options`, { options }),
+  sendRequest: (id, teacherId) => post(`/assessments/${id}/time-options/send`, { teacherId }),
+  withdrawRequest: (id, reason) =>
+    post(`/assessments/${id}/time-options/withdraw`, reason ? { reason } : {}),
+
+  // ---- observer: confirm one date, or decline
+  incomingRequests: () => request("/time-options/incoming"),
+  confirmTimeOption: (optionId) => post(`/time-options/${optionId}/confirm`),
+  declineRequest: (id, reason) =>
+    post(`/assessments/${id}/time-options/decline`, reason ? { reason } : {}),
 
   // ---- observations (given / received) and their confirmation
   listObservations: (params) => request(`/observations${query(params)}`),
   getObservation: (id) => request(`/observations/${id}`),
   signOffObservation: (id, comment) =>
     post(`/observations/${id}/sign-off`, comment ? { comment } : {}),
-  rescheduleObservation: (id, scheduledDate) =>
-    post(`/observations/${id}/reschedule`, { scheduledDate }),
-  reportNotCompleted: (id, reason) => post(`/observations/${id}/not-completed`, { reason }),
+  postponeObservation: (id, reason) => post(`/observations/${id}/postpone`, { reason }),
 }
 
 export { USE_MOCKS }

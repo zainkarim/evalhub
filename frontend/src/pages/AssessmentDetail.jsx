@@ -1,8 +1,11 @@
 import { useCallback } from "react"
 import { Link, useParams } from "react-router-dom"
+import AttemptHistory from "../components/AttemptHistory"
 import CandidatePanel from "../components/CandidatePanel"
 import CommitteeActions from "../components/CommitteeActions"
+import ObserverSummary from "../components/ObserverSummary"
 import PairingPanel from "../components/PairingPanel"
+import RequestPanel from "../components/RequestPanel"
 import SectionInfo from "../components/SectionInfo"
 import StateBlock from "../components/StateBlock"
 import Stepper from "../components/Stepper"
@@ -10,21 +13,21 @@ import StatusBadge from "../components/StatusBadge"
 import { useAuth } from "../context/auth-context"
 import { api } from "../lib/api"
 import {
+  ALERT,
   ASSESSMENT_STATUS,
-  ATTENTION,
   courseLabel,
   formatRank,
-  formatDate,
   fullName,
-  OBSERVATION_STATUS,
+  normalizeStatus,
 } from "../lib/format"
 import { isAC } from "../lib/roles"
 import { useApi } from "../lib/useApi"
 import { nextStep } from "../lib/workflow"
 
 // One sign-up from start to finish. Two views of the same record:
-//   the professor being observed -> picks observers and follows progress
-//   committee members            -> see the candidate list, step in, approve
+//   the professor being observed -> follows progress, picks ONE observer + dates
+//   committee members            -> see the pool and candidates, start selection,
+//                                   assign manually, postpone
 function AssessmentDetail() {
   const { id } = useParams()
   const { user } = useAuth()
@@ -37,11 +40,12 @@ function AssessmentDetail() {
   // as the committee.
   const committeeView = committee && !owner
 
-  const active = assessment?.observations.find((item) =>
-    ["proposed", "approved"].includes(item.status),
-  )
-  const shown = active ?? assessment?.pairing
-  const history = (assessment?.observations ?? []).filter((item) => item.id !== shown?.id)
+  const shown = assessment?.pairing
+  const status = assessment ? normalizeStatus(assessment.status) : null
+  const canRequest =
+    owner &&
+    ["candidates_generated", "postponed"].includes(status) &&
+    assessment.candidateList?.listSize > 0
 
   return (
     <div>
@@ -69,17 +73,22 @@ function AssessmentDetail() {
                       >
                         {fullName(assessment.teacher)}
                       </Link>
-                      <span className="text-muted"> · {formatRank(assessment.teacher.rank)}</span>
+                      <span className="text-muted">
+                        {" "}
+                        · {formatRank(assessment.teacher.rank)} · {assessment.teacher.school}
+                      </span>
                     </p>
                   )}
                 </div>
                 <StatusBadge status={assessment.status} map={ASSESSMENT_STATUS} />
               </div>
 
-              {assessment.attention && committeeView ? (
+              {assessment.alert && committeeView ? (
                 <p className="mt-5 rounded border border-utd-orange/40 bg-white px-4 py-3 text-sm">
-                  <span className="font-medium text-utd-orange">Needs committee attention. </span>
-                  {ATTENTION[assessment.attention]}
+                  <span className="font-medium text-utd-orange">
+                    {ALERT[assessment.alert].label}.{" "}
+                  </span>
+                  {ALERT[assessment.alert].text}
                 </p>
               ) : (
                 <p className="mt-5 text-sm text-muted">
@@ -98,36 +107,35 @@ function AssessmentDetail() {
 
               {shown && <PairingPanel observation={shown} viewer={user} />}
 
-              {!["cancelled", "postponed"].includes(assessment.status) && (
-                <CandidatePanel assessment={assessment} owner={owner} onChanged={reload} />
-              )}
+              <CandidatePanel
+                assessment={assessment}
+                committee={committeeView}
+                owner={owner}
+                onChanged={reload}
+              />
 
               {committeeView && (
-                <CommitteeActions assessment={assessment} user={user} onChanged={reload} />
+                <section className="mt-6 rounded border border-line bg-white p-6">
+                  <h2 className="text-sm font-semibold">Request and schedule</h2>
+                  <div className="mt-3">
+                    <ObserverSummary assessment={assessment} showCandidates={false} />
+                  </div>
+                </section>
+              )}
+
+              {canRequest && <RequestPanel assessment={assessment} onChanged={reload} />}
+
+              {committeeView && (
+                <CommitteeActions assessment={assessment} onChanged={reload} />
               )}
               {committee && owner && (
                 <p className="mt-6 rounded border border-line bg-white px-5 py-4 text-sm text-muted">
-                  This is your own sign-up, so another committee member handles approval and
-                  any step-in.
+                  This is your own sign-up, so another committee member handles any manual
+                  assignment.
                 </p>
               )}
 
-              {history.length > 0 && (
-                <section className="mt-6 rounded border border-line bg-white p-6">
-                  <h2 className="text-sm font-semibold">Earlier attempts</h2>
-                  <ul className="mt-3 divide-y divide-line text-sm">
-                    {history.map((item) => (
-                      <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
-                        <span>
-                          Attempt {item.attemptNo}: {fullName(item.observer)} ·{" "}
-                          {formatDate(item.scheduledDate)}
-                        </span>
-                        <StatusBadge status={item.status} map={OBSERVATION_STATUS} />
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
+              <AttemptHistory attempts={assessment.attempts} />
             </>
           )}
         </StateBlock>
