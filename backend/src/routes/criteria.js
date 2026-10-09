@@ -26,6 +26,7 @@ const createBody = z.object({
   name: z.string().trim().min(1).max(200),
   description: z.string().trim().max(2000).nullable().optional(),
   sortOrder: z.number().int().min(0).max(32767).optional(),
+  weight: z.number().min(0).max(999.99).multipleOf(0.01).optional(),
 }).strict();
 
 const updateBody = createBody.partial()
@@ -37,6 +38,7 @@ const COLUMNS = {
   name: 'name',
   description: 'description',
   sortOrder: 'sort_order',
+  weight: 'weight',
 };
 
 // Criteria management follows the existing AC/admin convention.
@@ -70,12 +72,13 @@ router.post('/', validate(createBody), async (req, res) => {
 
   const { rows } = await query(
     `INSERT INTO evaluation_criteria
-       (name, description, sort_order, updated_by)
-     VALUES ($1, $2, $3, $4)
-     RETURNING *`,
+      (name, description, weight, sort_order, updated_by)
+    VALUES ($1, $2, $3, $4, $5)
+    RETURNING *`,
     [
       body.name,
       body.description ?? null,
+      body.weight ?? 1,
       body.sortOrder ?? 0,
       req.user.id,
     ],
