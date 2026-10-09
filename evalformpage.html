@@ -2,133 +2,309 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>EvalHub - Observation Form</title>
+    <title>EvalHub -  Observation Form</title>
 </head>
+
 <body>
 
-    <h1>Classroom Observation Form</h1>
-    <p>Please complete this evaluation during or immediately after observing the scheduled class section.</p>
+<section>
+    <h2>AC Criteria Preview</h2>
+    <p>Log in to load active criteria from EvalHub.</p>
+
+    <form id="criteria-login">
+        <label>
+            Email:
+            <input id="ac-email" type="email"
+                   value="ac@example.edu"
+                   autocomplete="username" required>
+        </label>
+
+        <label>
+            Password:
+            <input id="ac-password" type="password"
+                   autocomplete="current-password" required>
+        </label>
+
+        <button type="submit">Log in and load criteria</button>
+    </form>
+
+    <button id="refresh-criteria" type="button" disabled>
+        Refresh criteria
+    </button>
+
+    <p id="criteria-status" role="status"></p>
+    <div id="live-criteria"></div>
+</section>
+<hr>
+
+
+    <h1>EvalHub - Classroom Observation Form</h1>
+    <p>Please evaluate the professor across the following specific dimensions. Rate each item from 1 (Poor/Strongly Disagree) to 5 (Excellent/Strongly Agree). Select N/A if you could not observe that metric.</p>
     <hr>
 
     <form action="#" method="POST">
 
         <fieldset>
             <legend><strong>Observation Details</strong></legend>
-            <br>
-            
-            <div>
-                <label for="observer-name">Observer Name:</label>
-                <input type="text" id="observer-name" name="observer_name" placeholder="Dr. Jane Smith" required>
-            </div>
-            <br>
-
-            <div>
-                <label for="professor-name">Professor Being Observed:</label>
-                <input type="text" id="professor-name" name="professor_name" placeholder="Prof. John Doe" required>
-            </div>
-            <br>
-
-            <div>
-                <label for="course-number">Course & Section:</label>
-                <input type="text" id="course-number" name="course_number" placeholder="CS 3345.001" required>
-            </div>
-            <br>
-
-            <div>
-                <label for="observation-date">Date of Observation:</label>
-                <input type="date" id="observation-date" name="observation_date" required>
-            </div>
+            <table>
+                <tr>
+                    <td><label for="observer-name">Observer Name:</label></td>
+                    <td><input type="text" id="observer-name" name="observer_name" required></td>
+                </tr>
+                <tr>
+                    <td><label for="professor-name">Professor Observed:</label></td>
+                    <td><input type="text" id="professor-name" name="professor_name" required></td>
+                </tr>
+                <tr>
+                    <td><label for="course-number">Course & Section:</label></td>
+                    <td><input type="text" id="course-number" name="course_number" required></td>
+                </tr>
+                <tr>
+                    <td><label for="observation-date">Date of Observation:</label></td>
+                    <td><input type="date" id="observation-date" name="observation_date" required></td>
+                </tr>
+            </table>
         </fieldset>
         <br>
 
         <fieldset>
-            <legend><strong>Classroom Evaluation Criteria</strong></legend>
-            <p><em>Grade each category on a scale of 1 to 5 stars (1 = Poor, 5 = Excellent).</em></p>
-
-            <fieldset>
-                <legend><strong>1. Organization & Clarity of Presentation</strong></legend>
-                <p>Structure of lecture, clear objectives, effective use of visual aids/board work.</p>
-                
-                <label>Rating:</label>
-                <label><input type="radio" name="rating_organization" value="1" required> 1 ★</label>
-                <label><input type="radio" name="rating_organization" value="2"> 2 ★★</label>
-                <label><input type="radio" name="rating_organization" value="3"> 3 ★★★</label>
-                <label><input type="radio" name="rating_organization" value="4"> 4 ★★★★</label>
-                <label><input type="radio" name="rating_organization" value="5"> 5 ★★★★★</label>
-                <br><br>
-
-                <label for="comments-organization">Specific Comments / Examples:</label><br>
-                <textarea id="comments-organization" name="comments_organization" rows="3" cols="60" placeholder="Provide examples regarding syllabus adherence, clarity, and pacing..."></textarea>
-            </fieldset>
+            <legend><strong>Category 1: Logistics, Organization & Materials</strong></legend>
+            <table border="1" cellpadding="5" cellspacing="0" width="100%">
+                <tr align="center">
+                    <th align="left" width="50%">Specific Criteria</th>
+                    <th>1 ★</th><th>2 ★★</th><th>3 ★★★</th><th>4 ★★★★</th><th>5 ★★★★★</th><th>N/A</th>
+                </tr>
+                <tr align="center">
+                    <td align="left">Professor starts class strictly on time and ends on time.</td>
+                    <td><input type="radio" name="q_punctuality" value="1"></td>
+                    <td><input type="radio" name="q_punctuality" value="2"></td>
+                    <td><input type="radio" name="q_punctuality" value="3"></td>
+                    <td><input type="radio" name="q_punctuality" value="4"></td>
+                    <td><input type="radio" name="q_punctuality" value="5"></td>
+                    <td><input type="radio" name="q_punctuality" value="na" checked></td>
+                </tr>
+                <tr align="center">
+                    <td align="left">High quality of slides and visual aids used to present material.</td>
+                    <td><input type="radio" name="q_slides" value="1"></td>
+                    <td><input type="radio" name="q_slides" value="2"></td>
+                    <td><input type="radio" name="q_slides" value="3"></td>
+                    <td><input type="radio" name="q_slides" value="4"></td>
+                    <td><input type="radio" name="q_slides" value="5"></td>
+                    <td><input type="radio" name="q_slides" value="na" checked></td>
+                </tr>
+                <tr align="center">
+                    <td align="left">Course materials help students understand concepts deeply, beyond just memorizing for the exam.</td>
+                    <td><input type="radio" name="q_beyond_exam" value="1"></td>
+                    <td><input type="radio" name="q_beyond_exam" value="2"></td>
+                    <td><input type="radio" name="q_beyond_exam" value="3"></td>
+                    <td><input type="radio" name="q_beyond_exam" value="4"></td>
+                    <td><input type="radio" name="q_beyond_exam" value="5"></td>
+                    <td><input type="radio" name="q_beyond_exam" value="na" checked></td>
+                </tr>
+                <tr align="center">
+                    <td align="left">Lecture pacing is appropriate (not rushed, not dragging).</td>
+                    <td><input type="radio" name="q_pacing" value="1"></td>
+                    <td><input type="radio" name="q_pacing" value="2"></td>
+                    <td><input type="radio" name="q_pacing" value="3"></td>
+                    <td><input type="radio" name="q_pacing" value="4"></td>
+                    <td><input type="radio" name="q_pacing" value="5"></td>
+                    <td><input type="radio" name="q_pacing" value="na" checked></td>
+                </tr>
+            </table>
             <br>
+            <label for="comments-logistics"><strong>Comments on Organization & Materials:</strong></label><br>
+            <textarea id="comments-logistics" name="comments_logistics" rows="3" style="width: 100%;" placeholder="Provide general feedback on the professor's organization..."></textarea>
+        </fieldset>
+        <br>
 
-            <fieldset>
-                <legend><strong>2. Subject Matter Expertise & Content Knowledge</strong></legend>
-                <p>Accuracy of material presented, depth of knowledge, handling of complex questions.</p>
-                
-                <label>Rating:</label>
-                <label><input type="radio" name="rating_expertise" value="1" required> 1 ★</label>
-                <label><input type="radio" name="rating_expertise" value="2"> 2 ★★</label>
-                <label><input type="radio" name="rating_expertise" value="3"> 3 ★★★</label>
-                <label><input type="radio" name="rating_expertise" value="4"> 4 ★★★★</label>
-                <label><input type="radio" name="rating_expertise" value="5"> 5 ★★★★★</label>
-                <br><br>
-
-                <label for="comments-expertise">Specific Comments / Examples:</label><br>
-                <textarea id="comments-expertise" name="comments_expertise" rows="3" cols="60" placeholder="Note accuracy of content, depth, or response to technical questions..."></textarea>
-            </fieldset>
+        <fieldset>
+            <legend><strong>Category 2: Student Engagement & Classroom Dynamics</strong></legend>
+            <table border="1" cellpadding="5" cellspacing="0" width="100%">
+                <tr align="center">
+                    <th align="left" width="50%">Specific Criteria</th>
+                    <th>1 ★</th><th>2 ★★</th><th>3 ★★★</th><th>4 ★★★★</th><th>5 ★★★★★</th><th>N/A</th>
+                </tr>
+                <tr align="center">
+                    <td align="left">Students are actively asking questions rather than just sitting passively.</td>
+                    <td><input type="radio" name="q_active_students" value="1"></td>
+                    <td><input type="radio" name="q_active_students" value="2"></td>
+                    <td><input type="radio" name="q_active_students" value="3"></td>
+                    <td><input type="radio" name="q_active_students" value="4"></td>
+                    <td><input type="radio" name="q_active_students" value="5"></td>
+                    <td><input type="radio" name="q_active_students" value="na" checked></td>
+                </tr>
+                <tr align="center">
+                    <td align="left">Professor effectively motivates students to attend class and pay attention.</td>
+                    <td><input type="radio" name="q_motivation" value="1"></td>
+                    <td><input type="radio" name="q_motivation" value="2"></td>
+                    <td><input type="radio" name="q_motivation" value="3"></td>
+                    <td><input type="radio" name="q_motivation" value="4"></td>
+                    <td><input type="radio" name="q_motivation" value="5"></td>
+                    <td><input type="radio" name="q_motivation" value="na" checked></td>
+                </tr>
+                <tr align="center">
+                    <td align="left">Professor checks for student understanding before moving to new topics.</td>
+                    <td><input type="radio" name="q_checks_understanding" value="1"></td>
+                    <td><input type="radio" name="q_checks_understanding" value="2"></td>
+                    <td><input type="radio" name="q_checks_understanding" value="3"></td>
+                    <td><input type="radio" name="q_checks_understanding" value="4"></td>
+                    <td><input type="radio" name="q_checks_understanding" value="5"></td>
+                    <td><input type="radio" name="q_checks_understanding" value="na" checked></td>
+                </tr>
+                <tr align="center">
+                    <td align="left">Professor treats student questions with respect and provides clear answers.</td>
+                    <td><input type="radio" name="q_respect" value="1"></td>
+                    <td><input type="radio" name="q_respect" value="2"></td>
+                    <td><input type="radio" name="q_respect" value="3"></td>
+                    <td><input type="radio" name="q_respect" value="4"></td>
+                    <td><input type="radio" name="q_respect" value="5"></td>
+                    <td><input type="radio" name="q_respect" value="na" checked></td>
+                </tr>
+            </table>
             <br>
+            <label for="comments-engagement"><strong>Comments on Engagement & Dynamics:</strong></label><br>
+            <textarea id="comments-engagement" name="comments_engagement" rows="3" style="width: 100%;" placeholder="Provide general feedback on how the professor interacts with the class..."></textarea>
+        </fieldset>
+        <br>
 
-            <fieldset>
-                <legend><strong>3. Student Engagement & Interaction</strong></legend>
-                <p>Encourages participation, checks for understanding, responds constructively to student questions.</p>
-                
-                <label>Rating:</label>
-                <label><input type="radio" name="rating_engagement" value="1" required> 1 ★</label>
-                <label><input type="radio" name="rating_engagement" value="2"> 2 ★★</label>
-                <label><input type="radio" name="rating_engagement" value="3"> 3 ★★★</label>
-                <label><input type="radio" name="rating_engagement" value="4"> 4 ★★★★</label>
-                <label><input type="radio" name="rating_engagement" value="5"> 5 ★★★★★</label>
-                <br><br>
-
-                <label for="comments-engagement">Specific Comments / Examples:</label><br>
-                <textarea id="comments-engagement" name="comments_engagement" rows="3" cols="60" placeholder="Note level of student participation and instructor responsiveness..."></textarea>
-            </fieldset>
+        <fieldset>
+            <legend><strong>Category 3: Communication & Accessibility</strong></legend>
+            <table border="1" cellpadding="5" cellspacing="0" width="100%">
+                <tr align="center">
+                    <th align="left" width="50%">Specific Criteria</th>
+                    <th>1 ★</th><th>2 ★★</th><th>3 ★★★</th><th>4 ★★★★</th><th>5 ★★★★★</th><th>N/A</th>
+                </tr>
+                <tr align="center">
+                    <td align="left">Professor's speed and reliability in responding to student emails/messages.</td>
+                    <td><input type="radio" name="q_emails" value="1"></td>
+                    <td><input type="radio" name="q_emails" value="2"></td>
+                    <td><input type="radio" name="q_emails" value="3"></td>
+                    <td><input type="radio" name="q_emails" value="4"></td>
+                    <td><input type="radio" name="q_emails" value="5"></td>
+                    <td><input type="radio" name="q_emails" value="na" checked></td>
+                </tr>
+                <tr align="center">
+                    <td align="left">Clarity of voice, projection, and minimization of distracting mannerisms.</td>
+                    <td><input type="radio" name="q_voice" value="1"></td>
+                    <td><input type="radio" name="q_voice" value="2"></td>
+                    <td><input type="radio" name="q_voice" value="3"></td>
+                    <td><input type="radio" name="q_voice" value="4"></td>
+                    <td><input type="radio" name="q_voice" value="5"></td>
+                    <td><input type="radio" name="q_voice" value="na" checked></td>
+                </tr>
+                <tr align="center">
+                    <td align="left">Clear communication of grading criteria and assignment expectations.</td>
+                    <td><input type="radio" name="q_expectations" value="1"></td>
+                    <td><input type="radio" name="q_expectations" value="2"></td>
+                    <td><input type="radio" name="q_expectations" value="3"></td>
+                    <td><input type="radio" name="q_expectations" value="4"></td>
+                    <td><input type="radio" name="q_expectations" value="5"></td>
+                    <td><input type="radio" name="q_expectations" value="na" checked></td>
+                </tr>
+            </table>
             <br>
-
-            <fieldset>
-                <legend><strong>4. Classroom Management & Time Utilization</strong></legend>
-                <p>Punctuality, smooth transitions, effective time allocation across course topics.</p>
-                
-                <label>Rating:</label>
-                <label><input type="radio" name="rating_time" value="1" required> 1 ★</label>
-                <label><input type="radio" name="rating_time" value="2"> 2 ★★</label>
-                <label><input type="radio" name="rating_time" value="3"> 3 ★★★</label>
-                <label><input type="radio" name="rating_time" value="4"> 4 ★★★★</label>
-                <label><input type="radio" name="rating_time" value="5"> 5 ★★★★★</label>
-                <br><br>
-
-                <label for="comments-time">Specific Comments / Examples:</label><br>
-                <textarea id="comments-time" name="comments_time" rows="3" cols="60" placeholder="Note start/end times, pace, or classroom atmosphere..."></textarea>
-            </fieldset>
+            <label for="comments-communication"><strong>Comments on Communication & Accessibility:</strong></label><br>
+            <textarea id="comments-communication" name="comments_communication" rows="3" style="width: 100%;" placeholder="Provide general feedback on how the professor communicates..."></textarea>
         </fieldset>
         <br>
 
         <fieldset>
             <legend><strong>Overall Summary & Recommendations</strong></legend>
-            <br>
-            
-            <label for="overall-summary">Strengths & Areas for Improvement:</label><br>
-            <textarea id="overall-summary" name="overall_summary" rows="5" cols="60" placeholder="Summarize key strengths and construct actionable recommendations..." required></textarea>
+            <p>Please provide a final assessment of the professor's performance during this observation.</p>
+            <textarea id="overall-summary" name="overall_summary" rows="6" style="width: 100%;" placeholder="Summarize key strengths, weaknesses, and construct actionable recommendations..." required></textarea>
         </fieldset>
         <br>
-
-        <div>
-            <button type="submit">Submit Evaluation</button>
-            <button type="reset">Reset Form</button>
+        <div style="text-align: center;">
+            <button type="submit" style="padding: 10px 20px; font-size: 16px;"><strong>Submit Completed Evaluation</strong></button>
+            <button type="reset" style="padding: 10px 20px; font-size: 16px;">Clear Form</button>
         </div>
 
     </form>
+<script>
+    const apiUrl = 'http://localhost:3000/api';
+    let acToken = '';
+
+    const loginForm = document.getElementById('criteria-login');
+    const refreshButton = document.getElementById('refresh-criteria');
+    const statusMessage = document.getElementById('criteria-status');
+    const criteriaContainer = document.getElementById('live-criteria');
+
+    async function loadCriteria() {
+        criteriaContainer.replaceChildren();
+        statusMessage.textContent = 'Loading criteria...';
+
+        const response = await fetch(`${apiUrl}/criteria?active=true`, {
+            headers: { Authorization: `Bearer ${acToken}` },
+        });
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error?.message ?? 'Could not load criteria');
+        }
+
+        for (const criterion of result.data) {
+            const item = document.createElement('article');
+
+            const heading = document.createElement('h3');
+            heading.textContent = criterion.name;
+
+            const description = document.createElement('p');
+            description.textContent = criterion.description ?? '';
+
+            const settings = document.createElement('p');
+            settings.textContent =
+                `Weight: ${criterion.weight} | Maximum score: ${criterion.maxScore}`;
+
+            item.append(heading, description, settings);
+            criteriaContainer.append(item);
+        }
+
+        statusMessage.textContent =
+            `Loaded ${result.data.length} active criteria from the API.`;
+    }
+
+    loginForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        acToken = '';
+        refreshButton.disabled = true;
+        criteriaContainer.replaceChildren();
+        statusMessage.textContent = 'Logging in...';
+
+        try {
+            const response = await fetch(`${apiUrl}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: document.getElementById('ac-email').value.trim(),
+                    password: document.getElementById('ac-password').value,
+                }),
+            });
+            const result = await response.json();
+
+            if (!response.ok || !result.token) {
+                throw new Error(result.error?.message ?? 'Login failed');
+            }
+
+            acToken = result.token;
+            document.getElementById('ac-password').value = '';
+            await loadCriteria();
+            refreshButton.disabled = false;
+        } catch (error) {
+            acToken = '';
+            statusMessage.textContent = error.message;
+        }
+    });
+
+    refreshButton.addEventListener('click', async () => {
+        try {
+            await loadCriteria();
+        } catch (error) {
+            statusMessage.textContent = error.message;
+        }
+    });
+</script>
 
 </body>
+
+
 </html>
