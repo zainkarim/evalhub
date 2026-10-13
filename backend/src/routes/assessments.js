@@ -272,12 +272,22 @@ router.post('/sign-up', validate(signUpBody), async (req, res) => {
   }));
 });
 
+// reason is now required (was optional) -- the whole point of #11/#12 is
+// capturing *why* a cancellation was requested, since the request itself no
+// longer does what its name says.
 const cancelBody = z.object({
-  reason: z.enum(['not_eligible', 'left_department', 'other']).optional(),
+  reason: z.enum(['not_eligible', 'left_department', 'other']),
   notes: z.string().trim().max(2000).optional(),
 });
 
 // POST /api/assessments/:id/cancel
+// #11 (professor feedback / 9/30 meeting): this used to actually cancel the
+// assessment (status -> 'cancelled'). Per the 9/30 decision, a sign-up is
+// never deleted or truly cancelled -- what this endpoint does now is log the
+// attempt (who, when, why -- cancellation_attempts, migration 007) and move
+// the assessment to 'postponed' instead, leaving it active so it can still
+// be picked back up (matches TIME_OPTIONS_BLOCKED_STATUSES above already
+// treating 'postponed' as reschedulable, not terminal).
 router.post(
   '/:id/cancel',
   requireRole(...AC_OR_ADMIN),
@@ -285,21 +295,35 @@ router.post(
   validate(cancelBody),
   async (req, res) => {
     const { reason, notes } = req.valid.body;
+    const assessmentId = req.valid.params.id;
+
+    const { rows: assessmentRows } = await query(
+      'SELECT * FROM assessments WHERE id = $1',
+      [assessmentId],
+    );
+
+    if (!assessmentRows[0]) throw notFound('Assessment');
+
+    const assessment = assessmentRows[0];
+
+    if (['completed', 'cancelled'].includes(assessment.status)) {
+      throw new HttpError(409, 'conflict', 'This assessment is already finished and cannot be postponed');
+    }
+
+    await query(
+      `INSERT INTO cancellation_attempts (assessment_id, requested_by, reason, notes)
+       VALUES ($1, $2, $3, $4)`,
+      [assessmentId, req.user.id, reason, notes ?? null],
+    );
 
     const { rows } = await query(
       `UPDATE assessments
-          SET status = 'cancelled',
+          SET status = 'postponed',
               notes = COALESCE($2, notes)
         WHERE id = $1
-          AND status NOT IN ('completed', 'cancelled')
         RETURNING *`,
-      [
-        req.valid.params.id,
-        reason ? `[${reason}] ${notes ?? ''}`.trim() : notes ?? null,
-      ],
+      [assessmentId, notes ?? null],
     );
-
-    if (!rows[0]) throw notFound('Cancellable assessment');
 
     res.json(toAssessment(rows[0]));
   },

@@ -8,6 +8,8 @@ import { errorHandler } from './middleware/errors.js';
 import assessmentRoutes from './routes/assessments.js';
 import authRoutes from './routes/auth.js';
 import courseRoutes from './routes/courses.js';
+import criteriaRoutes from './routes/criteria.js';
+import observationRoutes from './routes/observations.js';
 import sectionRoutes from './routes/sections.js';
 import teacherRoutes from './routes/teachers.js';
 import termRoutes from './routes/terms.js';
@@ -34,6 +36,12 @@ export function createApp() {
   app.use('/api/courses', authenticate, courseRoutes);
   app.use('/api/sections', authenticate, sectionRoutes);
   app.use('/api/time-options', authenticate, timeOptionRoutes);
+  app.use('/api/criteria', authenticate, criteriaRoutes);
+  // observations.js was never mounted before this -- its one existing route
+  // (POST /:id/review, the retired AC-review stub) was unreachable dead
+  // code. #23 adds real routes to this same file (sign-off, response
+  // submit/view), so it needs to actually be wired in.
+  app.use('/api/observations', authenticate, observationRoutes);
 
   app.use((req, res) => {
     res.status(404).json({ error: { code: 'not_found', message: `No route for ${req.method} ${req.path}` } });
