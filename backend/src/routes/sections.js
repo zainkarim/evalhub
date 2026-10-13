@@ -8,19 +8,32 @@ import { idParams, validate } from '../middleware/validate.js';
 
 const router = Router();
 
-export const toSection = (r) => ({
-  id: r.id,
-  courseId: r.course_id,
-  termId: r.term_id,
-  sectionNumber: r.section_number,
-  teacherId: r.teacher_id,
-  meetingDays: r.meeting_days,
-  startTime: r.start_time ? r.start_time.slice(0, 5) : null, // 'HH:MM:SS' -> 'HH:MM'
-  endTime: r.end_time ? r.end_time.slice(0, 5) : null,
-  location: r.location,
-  source: r.source,
-  externalId: r.external_id,
-});
+// courseCode (e.g. "CS1337") and sectionCode (e.g. "CS1337.001") only appear
+// when the query joined in courses (course_subject/course_number aliases) —
+// see GET /sections and GET /courses/:id/sections below. This is the fix for
+// the professor's "section ID and course ID are confusing" feedback: a bare
+// numeric sectionId tells you nothing about which course it belongs to, so
+// anywhere a section is shown to a person, it should carry its course code too.
+export const toSection = (r) => {
+  const courseCode = r.course_subject && r.course_number
+    ? `${r.course_subject}${r.course_number}`
+    : null;
+  return {
+    id: r.id,
+    courseId: r.course_id,
+    termId: r.term_id,
+    sectionNumber: r.section_number,
+    courseCode,
+    sectionCode: courseCode ? `${courseCode}.${r.section_number}` : null,
+    teacherId: r.teacher_id,
+    meetingDays: r.meeting_days,
+    startTime: r.start_time ? r.start_time.slice(0, 5) : null, // 'HH:MM:SS' -> 'HH:MM'
+    endTime: r.end_time ? r.end_time.slice(0, 5) : null,
+    location: r.location,
+    source: r.source,
+    externalId: r.external_id,
+  };
+};
 
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Expected HH:MM (24h)');
 
@@ -64,7 +77,8 @@ router.get('/', validate(listQuery, 'query'), async (req, res) => {
   if (level) { params.push(level); where.push(`c.course_level = $${params.length}`); }
   const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const { rows } = await query(
-    `SELECT cs.* FROM course_sections cs JOIN courses c ON c.id = cs.course_id
+    `SELECT cs.*, c.subject AS course_subject, c.course_number
+       FROM course_sections cs JOIN courses c ON c.id = cs.course_id
      ${clause} ORDER BY cs.term_id DESC, cs.course_id, cs.section_number LIMIT 500`,
     params,
   );

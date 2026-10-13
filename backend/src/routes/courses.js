@@ -113,11 +113,13 @@ const createSectionBody = z.object(sectionFields);
 router.get('/:id/sections', validate(idParams, 'params'), validate(sectionListQuery, 'query'), async (req, res) => {
   const { termId, teacherId } = req.valid.query;
   const params = [req.valid.params.id];
-  const where = ['course_id = $1'];
-  if (termId) { params.push(termId); where.push(`term_id = $${params.length}`); }
-  if (teacherId) { params.push(teacherId); where.push(`teacher_id = $${params.length}`); }
+  const where = ['cs.course_id = $1'];
+  if (termId) { params.push(termId); where.push(`cs.term_id = $${params.length}`); }
+  if (teacherId) { params.push(teacherId); where.push(`cs.teacher_id = $${params.length}`); }
   const { rows } = await query(
-    `SELECT * FROM course_sections WHERE ${where.join(' AND ')} ORDER BY term_id DESC, section_number`,
+    `SELECT cs.*, c.subject AS course_subject, c.course_number
+       FROM course_sections cs JOIN courses c ON c.id = cs.course_id
+      WHERE ${where.join(' AND ')} ORDER BY cs.term_id DESC, cs.section_number`,
     params,
   );
   res.json({ data: rows.map(toSection) });
@@ -131,7 +133,8 @@ router.post('/:id/sections', requireRole(...AC_OR_ADMIN), validate(idParams, 'pa
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
     [req.valid.params.id, b.termId, b.sectionNumber, b.teacherId ?? null, b.meetingDays ?? null, b.startTime ?? null, b.endTime ?? null, b.location ?? null],
   );
-  res.status(201).json(toSection(rows[0]));
+  const { rows: courseRows } = await query('SELECT subject, course_number FROM courses WHERE id = $1', [req.valid.params.id]);
+  res.status(201).json(toSection({ ...rows[0], course_subject: courseRows[0]?.subject, course_number: courseRows[0]?.course_number }));
 });
 
 export default router;

@@ -27,7 +27,25 @@ curl -s "localhost:3000/api/teachers?school=ECS" -H "Authorization: Bearer $TOKE
 curl -s "localhost:3000/api/courses?school=ECS&level=4" -H "Authorization: Bearer $TOKEN"
 ```
 
-Demo accounts (dev only): `admin@example.edu` · `ac@example.edu` (Professor B) · `faculty@example.edu` (Professor C); password = `SEED_PASSWORD`. Seed instructors are personas — never use real names in test data.
+Demo accounts (dev only): `admin@example.edu` · `ac@example.edu` (Professor B) · `faculty@example.edu` (Professor C); password = `SEED_PASSWORD`. Seed instructors are personas — never use real names in test data. Every other seeded teacher also has a login now, at their own `teachers.email` with the same password.
+
+## Importing real course data (Coursebook / Nebula API)
+
+```bash
+NEBULA_API_KEY=<if-required> npm run import:coursebook
+```
+
+Pulls courses, sections, and instructors from UTD Nebula Labs' API
+(`api.utdnebula.com` — the backend behind Coursebook, UT Dallas Trends, and
+Skedge) into `courses` / `course_sections` / `teachers`, as `source =
+'coursebook'`. Safe to re-run; never overwrites a `manual` or `seed` row.
+
+**This has not been run against a live response yet** — see the big comment
+at the top of `src/db/importCoursebook.js` for exactly what's unverified
+(whether an API key/header is even required, and the real shape of a
+section's `meetings` field). Run it once, and if something doesn't parse
+the way the script expects, the warnings it prints point at the file and
+field to fix.
 
 ## Layout
 
