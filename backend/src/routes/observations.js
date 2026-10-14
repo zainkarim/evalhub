@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { query } from '../db/pool.js';
 import { AC_OR_ADMIN } from '../middleware/auth.js';
 import { HttpError, notFound } from '../middleware/errors.js';
-import { idParams, validate } from '../middleware/validate.js';
+import { idParams, pagination, paged, validate } from '../middleware/validate.js';
 
 const router = Router();
 
@@ -50,6 +50,116 @@ router.post('/:id/review', validate(idParams, 'params'), async () => {
     'ac_review_removed',
     'AC approval is no longer part of the observation workflow. Select an eligible observer, or use AC override when no eligible observers exist.',
   );
+});
+
+const OBSERVATION_STATUSES = ['proposed', 'approved', 'rejected', 'completed', 'not_completed', 'postponed'];
+
+const teacherBrief = (r, prefix) => ({
+  id: r[`${prefix}_id`],
+  firstName: r[`${prefix}_first_name`],
+  lastName: r[`${prefix}_last_name`],
+  email: r[`${prefix}_email`],
+  rank: r[`${prefix}_rank`],
+  department: r[`${prefix}_department`],
+});
+
+// List rows carry names and course/section/term so a page can show them
+// without a request per row. Same shape the frontend mock server returns.
+const toObservationListItem = (r) => {
+  const courseCode = r.course_subject && r.course_number
+    ? `${r.course_subject}${r.course_number}`
+    : null;
+  return {
+    id: r.id,
+    assessmentId: r.assessment_id,
+    assessmentStatus: r.assessment_status,
+    attemptNo: r.attempt_no,
+    status: r.status,
+    isAcStepin: r.is_ac_stepin,
+    sourceListId: r.source_list_id,
+    scheduledDate: r.scheduled_date,
+    retryAfter: r.retry_after,
+    observer: teacherBrief(r, 'observer'),
+    observee: teacherBrief(r, 'observee'),
+    courseCode,
+    sectionCode: courseCode && r.section_number ? `${courseCode}.${r.section_number}` : null,
+    section: r.section_id
+      ? {
+          id: r.section_id,
+          sectionNumber: r.section_number,
+          meetingDays: r.meeting_days,
+          startTime: r.start_time,
+          endTime: r.end_time,
+          course: r.course_id
+            ? { id: r.course_id, subject: r.course_subject, courseNumber: r.course_number, title: r.course_title }
+            : null,
+          term: r.term_id ? { id: r.term_id, season: r.term_season, year: r.term_year } : null,
+        }
+      : null,
+    observerSignedOffAt: r.observer_signed_off_at,
+    observeeSignedOffAt: r.observee_signed_off_at,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+};
+
+const listQuery = z.object({
+  status: z.enum(OBSERVATION_STATUSES).optional(),
+  ...pagination,
+});
+
+// GET /api/observations?status=&page=&pageSize=
+// Faculty get the observations they give or receive; AC/admin get all of them.
+router.get('/', validate(listQuery, 'query'), async (req, res) => {
+  const { status, page, pageSize } = req.valid.query;
+  const isAcAdmin = AC_OR_ADMIN.includes(req.user.role);
+  const where = [];
+  const params = [];
+
+  const add = (sql, value) => {
+    params.push(value);
+    where.push(sql.replaceAll('?', `$${params.length}`));
+  };
+
+  if (!isAcAdmin) {
+    if (!req.user.teacherId) {
+      throw new HttpError(403, 'forbidden', 'This account is not linked to a teacher profile');
+    }
+    add('(o.observer_id = ? OR o.observee_id = ?)', req.user.teacherId);
+  }
+  if (status) add('o.status = ?', status);
+
+  const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+  const [{ rows }, { rows: count }] = await Promise.all([
+    query(
+      `SELECT o.*,
+              a.status AS assessment_status,
+              a.section_id,
+              obs.first_name AS observer_first_name, obs.last_name AS observer_last_name,
+              obs.email AS observer_email, obs.rank AS observer_rank, obs.department AS observer_department,
+              obe.first_name AS observee_first_name, obe.last_name AS observee_last_name,
+              obe.email AS observee_email, obe.rank AS observee_rank, obe.department AS observee_department,
+              cs.section_number, cs.meeting_days, cs.start_time, cs.end_time, cs.course_id, cs.term_id,
+              c.subject AS course_subject, c.course_number, c.title AS course_title,
+              t.season AS term_season, t.year AS term_year
+         FROM observations o
+         JOIN assessments a ON a.id = o.assessment_id
+         JOIN teachers obs ON obs.id = o.observer_id
+         JOIN teachers obe ON obe.id = o.observee_id
+         LEFT JOIN course_sections cs ON cs.id = a.section_id
+         LEFT JOIN courses c ON c.id = cs.course_id
+         LEFT JOIN terms t ON t.id = cs.term_id
+         ${clause}
+        ORDER BY o.id DESC
+        LIMIT $${params.length + 1}
+       OFFSET $${params.length + 2}`,
+      [...params, pageSize, (page - 1) * pageSize],
+    ),
+    query(`SELECT count(*)::int AS total FROM observations o ${clause}`, params),
+  ]);
+
+  res.json(paged(rows.map(toObservationListItem), count[0].total, page, pageSize));
 });
 
 // GET /api/observations/:id   (observer, observee, or AC/admin)
