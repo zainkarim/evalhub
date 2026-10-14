@@ -32,6 +32,9 @@ To use the real API, copy `.env.example` to `.env.local` and set `VITE_API_URL`
 switches automatically. Several workflow screens need endpoints the backend doesn't
 have yet — see [`docs/api-expectations.md`](docs/api-expectations.md).
 
+Checks without a browser: `npm run check:mock` (the observation workflow) and
+`npm run check:due` (the due-date rules and the Professors report).
+
 ## The workflow (docs/requirements.md §4.3)
 
 1. The professor signs up for a section.
@@ -65,9 +68,10 @@ src/
   components/   Layout (role-aware nav), ProtectedRoute, StateBlock, StatusBadge,
                 SectionInfo, Stepper, CandidatePanel, RequestPanel, ObserverSummary,
                 AttemptHistory, PostponeControl, PairingPanel, CommitteeActions,
-                IncomingRequest
+                IncomingRequest, ProfessorsTable
   context/      AuthProvider + useAuth (JWT in localStorage)
   lib/          api.js (fetch wrapper), useApi.js (loading/error),
+                dueStatus.js (who is due: pure, shared), professorSort.js,
                 mockServer.js + mockData.js (in-browser API),
                 roles.js, format.js, workflow.js (shared helpers)
   pages/        Login, Courses, CourseDetail, Professors, ProfessorDetail,
@@ -85,7 +89,7 @@ src/
 | Sign-up detail | waiting state, then choose one observer + dates, attempt history | pool and candidates (read-only), request and dates, manual assignment, postpone, attempt history |
 | Cycle (`/cycle`; `/review` redirects) | — (blocked) | the three cycle dates (editable), the one Start Observer Selection button (locked until the sign-up deadline has passed), alerts, and a read-only table of every sign-up (course, section, meeting, observee name + email, list of up to five observers) with Notify / Notify all ("your list is ready") |
 | Notifications | inbox (if they teach) | inbox (if they teach); in-app only, email is not implemented |
-| Professors | — (blocked) | roster + each professor's sign-ups |
+| Professors (`/professors`) | — (blocked) | every active professor: due status and next due semester, rank, department, last completed observation, current status, sign-up status; counts, filters, search, sort, semester picker; detail page with courses, observations given/received and observer load (max 3) |
 | Observation record | sign off (observer / observee only), postpone, attempt history | view-only, postpone, attempt history |
 
 See [`docs/sprint2-frontend-changes.md`](docs/sprint2-frontend-changes.md) for the

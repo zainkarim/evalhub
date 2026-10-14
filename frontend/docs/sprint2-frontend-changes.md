@@ -143,6 +143,66 @@ the sign-up date is shown in the viewer's local day; tables no longer widen the 
 now fall on each section's meeting days; the request countdown sentence reads correctly;
 the "nothing needs approval" / "not cancelled" sentences were dropped from the UI.
 
+## Professors page (issue #63, requirements §4.11)
+
+`/professors` (committee only) now lists **every active professor**, including those who
+have not signed up: name, email, department, rank, due status, the semester they are next
+due, last completed observation, current observation status and sign-up status. Summary
+tiles (Due, Overdue, Not signed up, Signed up, Completed), filters (due status, sign-up,
+rank, department), search, sortable columns and a semester picker (default: the current or
+next Spring/Fall term). **Add Professor** is unchanged. The detail page adds courses (this
+term and the last 2 years, with level and department), observations given and received,
+observer load against the 3-observation cap, and the current sign-up with its attempt
+history. Nothing is approved and nothing here sends reminders.
+
+| File | Change |
+|---|---|
+| `lib/dueStatus.js` (new) | The due rules as pure functions (`computeDue`, `describeDue`, `defaultReportTerm`, `DUE_STATUS`). No clock, React or network. |
+| `lib/professorSort.js` (new) | Column sorting for the page. |
+| `components/ProfessorsTable.jsx` (new) | The sortable table; a comment marks where a future "Send reminder" action goes. |
+| `pages/Professors.jsx`, `pages/ProfessorDetail.jsx` | Rewritten as above. |
+| `lib/mockServer.js`, `lib/mockData.js` | `GET /teachers/report`, `GET /teachers/:id/profile`; `department`; `observerCap`; mock-only history (state key bumped to `v4`, so an old demo resets itself). |
+| `lib/api.js`, `lib/format.js` | `professorReport`, `professorProfile`; current-status labels. |
+| `scripts/check-due.mjs` | `npm run check:due`. |
+
+**Mock history (mock-only, not in `dev_seed.sql`).** Six completed observations from earlier
+terms plus two past sections (Professor E, Fall 2024; Professor F, Spring 2025), so the
+Fall 2026 view shows every case:
+
+| Professor | Rank | Last observed | Fall 2026 | Sign-up |
+|---|---|---|---|---|
+| A | Associate | Fall 2024 | Due | no |
+| B | Full | never | Never observed | yes, Postponed (1 attempt) |
+| C | Assistant | Spring 2026 | Not due yet | yes (signed up but not due) |
+| D | Associate | Fall 2025 | Not due yet | no |
+| E | Assistant | Fall 2024 | Overdue | no |
+| F | Full | Spring 2025 | Not due yet | yes, Scheduled |
+| G | Associate | Spring 2024 | Overdue | no |
+| H | Assistant | Spring 2025 | Due | no |
+| I (EPPS) | Full | never | Never observed | yes, Selecting observer |
+| J (EPPS) | Associate | never | Never observed | no |
+
+**Click-through.** Sign in as `ac@example.edu` → **Professors**. Tiles read Due 5 (3 never
+observed), Overdue 2, Not signed up 6, Signed up 4, Completed 0. Filter *Overdue* → E and
+G. Sort *Next due*. Pick **Spring 2027**: Professor C and F become due, H and A overdue.
+Open Professor D: observer load 1 of 3. Then sign off the seeded observation as D and F
+(see the demo script above) and come back: F shows Completed with the date, and the
+Completed tile reads 1. Signed in as `faculty@example.edu`, `/professors` and
+`/professors/:id` show "limited to the Assessment Committee".
+
+**Due logic assumptions** (accepted): an Assistant professor is overdue from the first term
+after the due year; a never-observed professor counts as due, never overdue (no hire date);
+Summer is not a cycle term (the picker lists Spring and Fall; a Summer observation counts as
+the Spring before it); status uses observations completed before the semester starts;
+an observation's semester is its section's term.
+
+**For the faculty dashboard** (branch `jj/issue-61-faculty-dashboard`): `lib/dueStatus.js`
+is reusable. "The semester that I am due" is
+`describeDue(computeDue({ rank, lastObservedTerm, term }))` with the professor's own last
+completed observation. It does not touch the clock, so pass the term explicitly. That
+branch only adds `pages/FacultyDashboard.jsx` and a route line in `App.jsx`, so it does not
+overlap with these files.
+
 ## Not included
 
 View-only roles for Department Head / Annual Review Committee (schema has no such
