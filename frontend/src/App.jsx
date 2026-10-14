@@ -7,6 +7,7 @@ import { AC_ROLES, isAC } from "./lib/roles"
 import AssessmentDetail from "./pages/AssessmentDetail"
 import CourseDetail from "./pages/CourseDetail"
 import Courses from "./pages/Courses"
+import EvaluationCriteria from "./pages/EvaluationCriteria"
 import Login from "./pages/Login"
 import ObservationRecord from "./pages/ObservationRecord"
 import ObservationSignup from "./pages/ObservationSignup"
@@ -69,6 +70,14 @@ function App() {
               element={
                 <CommitteeRoute>
                   <SignupReview />
+                </CommitteeRoute>
+              }
+            />
+            <Route
+              path="/evaluation-criteria"
+              element={
+                <CommitteeRoute>
+                  <EvaluationCriteria />
                 </CommitteeRoute>
               }
             />

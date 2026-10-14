@@ -105,7 +105,13 @@ export function meetingDates(section, { from = todayISO(), limit = 40 } = {}) {
   const term = section?.term
   if (!term || !section.meetingDays) return []
   const start = toDateOnly(term.startDate) > from ? toDateOnly(term.startDate) : from
-  const end = toDateOnly(term.endDate)
+  // Stop at the observation deadline when the term has one; otherwise at the
+  // end of the semester (the real backend does not send a deadline yet).
+  const semesterEnd = toDateOnly(term.endDate)
+  const observationDeadline = toDateOnly(term.observationDeadline)
+  if (!semesterEnd) return []
+  const end =
+    observationDeadline && observationDeadline < semesterEnd ? observationDeadline : semesterEnd
   const codes = ["U", "M", "T", "W", "R", "F", "S"]
   const dates = []
   const cursor = new Date(`${start}T12:00:00`)

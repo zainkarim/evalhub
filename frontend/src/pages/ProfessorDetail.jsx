@@ -47,7 +47,7 @@ function ProfessorDetail() {
               </h1>
               <p className="mt-1 text-muted">{formatRank(professor.rank)}</p>
 
-              <dl className="mt-8 grid grid-cols-2 gap-x-8 gap-y-5 rounded border border-line bg-white p-6 sm:grid-cols-3">
+              <dl className="mt-8 grid grid-cols-2 gap-x-8 gap-y-5 rounded-lg border border-line bg-white p-6 sm:grid-cols-3 shadow-xs">
                 <div>
                   <dt className="text-xs text-muted">Email</dt>
                   <dd className="mt-0.5 text-sm">{professor.email}</dd>
@@ -70,8 +70,8 @@ function ProfessorDetail() {
                 </div>
               </dl>
 
-              <section className="mt-6 rounded border border-line bg-white p-6">
-                <h2 className="text-sm font-semibold">Observation sign-ups</h2>
+              <section className="mt-6 rounded-lg border border-line bg-white p-6 shadow-xs">
+                <h2 className="text-base font-semibold">Observation sign-ups</h2>
                 {data.signUps.length === 0 ? (
                   <p className="mt-3 text-sm text-muted">
                     This professor hasn&apos;t signed up for an observation.

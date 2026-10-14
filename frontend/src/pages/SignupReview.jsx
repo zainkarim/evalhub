@@ -27,7 +27,7 @@ const td = "px-4 py-3 align-top"
 function Heading({ title, count, hint }) {
   return (
     <div className="mt-10 first:mt-6">
-      <h2 className="text-sm font-semibold">
+      <h2 className="text-base font-semibold">
         {title}
         {count > 0 && (
           <span className="ml-2 rounded-full bg-utd-orange px-2 py-0.5 text-[11px] font-semibold text-white">
@@ -40,19 +40,19 @@ function Heading({ title, count, hint }) {
   )
 }
 
-const errorBox = "mt-3 rounded border border-utd-orange/40 bg-white px-3 py-2 text-sm"
+const errorBox = "mt-3 rounded-md border border-utd-orange/40 bg-white px-3 py-2 text-sm"
 
 // Observer pool alerts: nobody eligible (urgent) or a short list (limited pool).
 function Alerts({ alerts }) {
   if (alerts.length === 0) {
     return (
-      <p className="mt-3 rounded border border-line bg-white px-5 py-6 text-sm text-muted">
+      <p className="mt-3 rounded-lg border border-dashed border-line bg-white/60 px-5 py-8 text-center text-sm text-muted">
         No alerts. Every sign-up that has started observer selection has a full list.
       </p>
     )
   }
   return (
-    <ul className="mt-3 divide-y divide-line rounded border border-line bg-white">
+    <ul className="mt-3 divide-y divide-line rounded-md border border-line bg-white">
       {alerts.map((item) => (
         <li key={item.id} className="flex flex-wrap items-start justify-between gap-3 px-5 py-4 text-sm">
           <div>
@@ -258,7 +258,7 @@ function SignupReview() {
                         setOpen(null)
                         setNotice("")
                       }}
-                      className="rounded border border-line bg-white px-3 py-2 text-sm"
+                      className="rounded-md border border-line bg-white px-3 py-2 text-sm"
                     >
                       {terms.map((term) => (
                         <option key={term.id} value={term.id}>
@@ -276,20 +276,25 @@ function SignupReview() {
 
                 <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
                   {[
-                    ["Waiting to start", waiting.length],
-                    ["Choosing observer", stage("candidates_generated")],
-                    ["Scheduled", stage("approved")],
-                    ["Completed", stage("completed")],
-                    ["Postponed", stage("postponed")],
-                  ].map(([label, count]) => (
-                    <div key={label} className="rounded border border-line bg-white px-4 py-3">
-                      <dt className="text-xs text-muted">{label}</dt>
-                      <dd className="mt-0.5 text-lg font-semibold">{count}</dd>
+                    ["Waiting to start", waiting.length, "bg-gray-400"],
+                    ["Choosing observer", stage("candidates_generated"), "bg-sky-500"],
+                    ["Scheduled", stage("approved"), "bg-utd-green"],
+                    ["Completed", stage("completed"), "bg-utd-green-dark"],
+                    ["Postponed", stage("postponed"), "bg-utd-orange"],
+                  ].map(([label, count, dot]) => (
+                    <div key={label} className="rounded-lg border border-line bg-white px-4 py-3 shadow-xs">
+                      <dt className="flex items-center gap-1.5 text-xs text-muted">
+                        <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${dot}`} />
+                        {label}
+                      </dt>
+                      <dd className={`mt-1 text-2xl font-semibold tabular-nums ${count === 0 ? "text-muted" : ""}`}>
+                        {count}
+                      </dd>
                     </div>
                   ))}
                 </dl>
 
-                <div className="mt-4 rounded border border-line bg-white p-5">
+                <div className="mt-4 rounded-lg border border-line bg-white p-5 shadow-xs">
                   <h3 className="text-sm font-medium">Start Observer Selection</h3>
                   <p className="mt-1 text-sm text-muted">
                     {waiting.length === 0
@@ -304,14 +309,14 @@ function SignupReview() {
                           type="button"
                           disabled={busy !== null}
                           onClick={startAll}
-                          className="rounded bg-utd-green px-3 py-1.5 font-medium text-white hover:bg-utd-green-dark disabled:opacity-60"
+                          className="rounded-md bg-utd-green px-3 py-1.5 font-medium text-white hover:bg-utd-green-dark disabled:opacity-60"
                         >
                           {busy === "bulk" ? "Starting…" : "Yes, start"}
                         </button>
                         <button
                           type="button"
                           onClick={() => setConfirming(false)}
-                          className="rounded border border-line px-3 py-1.5 hover:border-ink"
+                          className="rounded-md border border-line px-3 py-1.5 hover:border-ink"
                         >
                           No
                         </button>
@@ -321,7 +326,7 @@ function SignupReview() {
                         type="button"
                         disabled={!selectionOpen || waiting.length === 0 || busy !== null}
                         onClick={() => setConfirming(true)}
-                        className="rounded bg-utd-green px-4 py-2 text-sm font-medium text-white hover:bg-utd-green-dark disabled:opacity-50"
+                        className="rounded-md bg-utd-green px-4 py-2 text-sm font-medium text-white hover:bg-utd-green-dark disabled:opacity-50"
                       >
                         Start for all {waiting.length} waiting
                       </button>
@@ -345,7 +350,7 @@ function SignupReview() {
                 </div>
 
                 {rows.length === 0 ? (
-                  <p className="mt-4 rounded border border-line bg-white px-5 py-6 text-sm text-muted">
+                  <p className="mt-4 rounded-lg border border-dashed border-line bg-white/60 px-5 py-8 text-center text-sm text-muted">
                     No sign-ups in {formatTerm(current)} yet.
                   </p>
                 ) : (
@@ -357,13 +362,13 @@ function SignupReview() {
                       onChange={(event) => setSearch(event.target.value)}
                       placeholder="Search by professor or course"
                       aria-label="Search sign-ups"
-                      className="w-full max-w-sm rounded border border-line bg-white px-3 py-2 text-sm"
+                      className="w-full max-w-sm rounded-md border border-line bg-white px-3 py-2 text-sm"
                     />
                     <select
                       value={statusFilter}
                       onChange={(event) => setStatusFilter(event.target.value)}
                       aria-label="Filter by status"
-                      className="rounded border border-line bg-white px-3 py-2 text-sm"
+                      className="rounded-md border border-line bg-white px-3 py-2 text-sm"
                     >
                       <option value="">All statuses</option>
                       {Object.entries(ASSESSMENT_STATUS).map(([value, entry]) => (
@@ -374,11 +379,11 @@ function SignupReview() {
                     </select>
                   </div>
                   {shown.length === 0 ? (
-                  <p className="mt-4 rounded border border-line bg-white px-5 py-6 text-sm text-muted">
+                  <p className="mt-4 rounded-lg border border-dashed border-line bg-white/60 px-5 py-8 text-center text-sm text-muted">
                     No sign-ups match these filters.
                   </p>
                   ) : (
-                  <div className="relative mt-4 overflow-x-auto rounded border border-line bg-white">
+                  <div className="relative mt-4 overflow-x-auto rounded-lg border border-line bg-white shadow-xs">
                     <table className="w-full text-left text-sm">
                       <thead className="border-b border-line text-xs text-muted">
                         <tr>
@@ -439,7 +444,7 @@ function SignupReview() {
                                           ? undefined
                                           : `Opens after ${formatDate(item.signupDeadline)}`
                                       }
-                                      className="mr-3 rounded border border-line px-3 py-1.5 text-xs font-medium hover:border-ink disabled:opacity-50"
+                                      className="mr-3 rounded-md border border-line px-3 py-1.5 text-xs font-medium hover:border-ink disabled:opacity-50"
                                     >
                                       {busy === item.id ? "Starting…" : "Start selection"}
                                     </button>
@@ -472,7 +477,7 @@ function SignupReview() {
                 )}
               </>
             ) : (
-              <p className="mt-3 rounded border border-line bg-white px-5 py-6 text-sm text-muted">
+              <p className="mt-3 rounded-lg border border-dashed border-line bg-white/60 px-5 py-8 text-center text-sm text-muted">
                 There are no terms taking sign-ups.
               </p>
             )}

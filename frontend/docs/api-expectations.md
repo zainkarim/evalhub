@@ -212,10 +212,85 @@ routes, so the backend team can see what integration needs:
 - `assessment_attempt_log(id, assessment_id, attempt_no, type, actor_user_id, actor_name, observer_id, reason, event_date, created_at)`
   — append-only (no UPDATE/DELETE).
 
+## Sprint 3 additions (Aurore: #59, #62)
+
+### #59 Observation deadline (backend: #69, not on `main` yet)
+
+The frontend reads `term.observationDeadline` (`YYYY-MM-DD`, or a timestamp
+whose first 10 characters are the date) wherever a term is returned, e.g.
+`section.term.observationDeadline`. Quick Pick and Calendar only offer class
+meetings from today through that date; when it is `null` or missing they run to
+`term.endDate`. Proposed column: `terms.observation_deadline DATE NULL`. The
+server should still reject dates past it (#69). If #69 picks another field
+name, change `meetingDates()` in `src/lib/format.js` only.
+
+### #62 In-app notifications (proposed — no backend route or table yet)
+
+| Method | Path | Who | Result |
+|---|---|---|---|
+| GET | `/notifications` | signed-in user | `{ data: Notification[] }`, own notifications only, newest first |
+| PATCH | `/notifications/:id/read` | owner | `{ data: Notification }`; already read is a no-op; someone else's is 404 |
+| POST | `/notifications/read-all` | signed-in user | `{ updated: number }` |
+
+```
+Notification {
+  id, type, message,
+  assessmentId,          // the sign-up it is about
+  observationId | null,  // set once an observation record exists
+  readAt | null, createdAt
+}
+```
+
+`type` and who receives it (created by the server inside the same workflow
+action, not by the client):
+
+| type | Recipient | Trigger |
+|---|---|---|
+| `list_ready` | observee | candidate list generated with at least one observer (requirements §4.9) |
+| `request_sent` | observer | request sent with the proposed dates |
+| `request_withdrawn` | observer | professor withdraws the request |
+| `request_declined` | observee | observer declines |
+| `date_confirmed` | observee | observer confirms a date (`observationId` set) |
+| `scheduled` | observee + observer | committee assigns an observer directly (`observationId` set) |
+| `postponed` | observee + observer | observation or sign-up postponed |
+
+Proposed table: `notifications(id, user_id → users, type, message,
+assessment_id NULL, observation_id NULL, read_at NULL, created_at)`, index on
+`(user_id, read_at)`. Clicking a notification opens `/records/:observationId`
+when set, the observer inbox (`/observations`) for request types, otherwise
+`/assessments/:assessmentId`. If `GET /notifications` fails, the bell shows
+"not available" and the rest of the header keeps working.
+
+### #33 Observation form and evaluation criteria (backend on `main`)
+
+The frontend uses `main`'s routes as they are: `GET/POST /criteria`,
+`PATCH/DELETE /criteria/:id` (committee only; a used criterion returns 409, so
+the UI offers Deactivate), `POST /observations/:id/responses` (observer only,
+until they sign off) and `GET /observations/:id/responses` (observer/observee
+after both sign off; committee any time). The observer's sign-off requires every
+active criterion to be answered, as on `main`.
+
+Gaps on `main` (proposed, not implemented there):
+
+- **Observer notes.** #33 asks for notes, but `observation_responses` stores
+  only scores. The frontend sends `notes` with `POST .../responses` and reads
+  `notes` from `GET .../responses`. Proposed: `observations.observer_notes TEXT`.
+  Today `main` silently drops the field.
+- **Draft answers.** `GET .../responses` is blocked for the observer until both
+  sign off, so an observer who reloads the page can't see what they saved. The
+  form starts empty again (saving again overwrites). Proposed: let the observer
+  read their own answers before signing off.
+- **Template snapshot.** Requirements §4.5: template changes apply to future
+  observations only. `main` keeps answered criteria (no delete once used) but
+  renames or scale changes still show on old records.
+- **Rating scale.** Each criterion has its own `maxScore` (1..n); the sample
+  rubric from Prof. Narayanasami has not been supplied, so the demo criteria
+  are placeholders from §4.4.
+
 ## Not built (outside this task)
 
 View-only roles for Department Head / Annual Review Committee (the `users.role`
 check only allows `faculty`, `ac_member`, `admin`), the observation-form and
 process-feedback forms, the rank-based eligibility engine, KPI dashboards, and
-email/notification delivery. The Sign-up review page is the AC's landing page until
+outbound email delivery (in-app notifications: see Sprint 3 additions). The Sign-up review page is the AC's landing page until
 the KPI dashboards exist.

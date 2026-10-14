@@ -26,10 +26,21 @@ function load() {
   if (state) return state
   try {
     const saved = JSON.parse(localStorage.getItem(STORE_KEY) ?? "null")
-    if (saved?.version === 2) {
-      state = saved
-      return state
-    }
+   if (saved?.version === 2) {
+  state = saved
+  state.notifications ??= []
+  // Older saved demo data has no observation form yet.
+  if (!state.criteria) {
+    const seed = buildSeed()
+    state.criteria = seed.criteria
+    state.observationResponses = []
+    state.nextId.criterion = seed.nextId.criterion
+    state.nextId.response = 1
+  }
+  state.nextId.notification ??=
+    Math.max(0, ...state.notifications.map((item) => item.id)) + 1
+  return state
+}
   } catch {
     // fall through to a fresh seed
   }
@@ -51,7 +62,33 @@ export function resetMockData() {
 }
 
 // --------------------------------------------------------------- helpers ----
+// In-app notifications (#62). The real backend has no notifications API yet;
+// the shape here is the proposed contract in docs/api-expectations.md.
+// `observationId` is set once an observation record exists, so the bell can
+// open that record directly; otherwise the link goes to the sign-up.
+function addNotification(teacherId, type, assessmentId, message, observationId = null) {
+  const s = load()
+  const recipient = s.users.find((user) => user.teacherId === teacherId)
 
+  if (!recipient) return
+
+  s.notifications.push({
+    id: s.nextId.notification++,
+    userId: recipient.id,
+    type,
+    assessmentId,
+    observationId,
+    message,
+    readAt: null,
+    createdAt: nowISO(),
+  })
+}
+
+// "CS 1337 · Section 001" for notification messages.
+function courseText(assessment) {
+  const section = sectionView(assessment.sectionId)
+  return `${section.course.subject} ${section.course.courseNumber} · Section ${section.sectionNumber}`
+}
 function fail(status, code, message) {
   const error = new Error(message)
   error.name = "ApiError"
@@ -411,6 +448,11 @@ function checkObservationDate(section, date) {
     throw fail(400, "validation_error", "Choose a valid observation date.")
   }
   const term = byId(load().terms, section.termId)
+  // Older saved demo data has no deadline; then the term end date is the limit.
+  if (term?.observationDeadline && date > String(term.observationDeadline).slice(0, 10)) {
+    throw fail(400, "validation_error", "The selected date is after the semester observation deadline.")
+  }
+
   if (date < today()) throw fail(400, "validation_error", "The observation date can't be in the past.")
   if (date < term.startDate || date > term.endDate) {
     throw fail(400, "validation_error", "The date must fall inside the term.")
@@ -572,7 +614,10 @@ function generateList(assessment, user) {
   // Zero pool: the sign-up stays `signed_up` and the committee is alerted
   // (requirements §4.2). The 0/0 list is kept so the alert and the
   // "unmatched faculty" / "list sufficiency" KPIs can see it.
-  if (picked.length > 0) assessment.status = "candidates_generated"
+  if (picked.length > 0) {
+    assessment.status = "candidates_generated"
+    addNotification(assessment.teacherId, "list_ready", assessment.id, `Your observer candidate list for ${courseText(assessment)} is ready. Choose an observer and offer dates.`)
+  }
   touch(assessment)
   logAttempt(assessment, "selection_started", { by: actorOf(user) })
   return list
@@ -905,6 +950,8 @@ route("POST", "/assessments/(\\d+)/observations", ({ user, match, body }) => {
     date: body.scheduledDate,
     attemptNo: observation.attemptNo,
   })
+  addNotification(assessment.teacherId, "scheduled", assessment.id, `The committee scheduled your observation for ${courseText(assessment)} on ${body.scheduledDate}.`, observation.id)
+  addNotification(observer.id, "scheduled", assessment.id, `You were assigned to observe ${courseText(assessment)} on ${body.scheduledDate}.`, observation.id)
   save()
   return { observation: observationView(observation), assessment: assessmentView(assessment) }
 })
@@ -949,6 +996,10 @@ route("POST", "/assessments/(\\d+)/postpone", ({ user, match, body }) => {
   logAttempt(assessment, "postponed", { by, attemptNo, reason: body.reason })
   assessment.status = "postponed"
   touch(assessment)
+  addNotification(assessment.teacherId, "postponed", assessment.id, `Your observation for ${courseText(assessment)} was postponed. A new attempt can be scheduled.`, active?.id ?? null)
+  if (active) {
+    addNotification(active.observerId, "postponed", assessment.id, `The observation you were giving for ${courseText(assessment)} was postponed.`, active.id)
+  }
   save()
   return assessmentView(assessment)
 })
@@ -1070,6 +1121,7 @@ route("POST", "/assessments/(\\d+)/time-options/send", ({ user, match, body }) =
     observerId: teacherId,
     count: options.length,
   })
+  addNotification(teacherId, "request_sent", assessment.id, `New observation request for ${courseText(assessment)}. Confirm one of the dates or decline within 48 hours.`)
   save()
   return { data: options.map(optionView) }
 })
@@ -1084,6 +1136,7 @@ route("POST", "/assessments/(\\d+)/time-options/withdraw", ({ user, match, body 
     by: actorOf(user),
     type: "request_withdrawn",
   })
+  addNotification(offer.observerId, "request_withdrawn", assessment.id, `The observation request for ${courseText(assessment)} was withdrawn. No action is needed.`)
   save()
   return assessmentView(assessment)
 })
@@ -1102,8 +1155,242 @@ route("POST", "/assessments/(\\d+)/time-options/decline", ({ user, match, body }
     by: actorOf(user),
     type: "request_declined",
   })
+  addNotification(assessment.teacherId, "request_declined", assessment.id, `Your observation request for ${courseText(assessment)} was declined. You can ask another observer.`)
   save()
   return incomingOfferView(offer)
+})
+// Return notifications belonging to the signed-in user, newest first.
+route("GET", "/notifications", ({ user }) => {
+  const s = load()
+
+  return {
+    data: s.notifications
+      .filter((notification) => notification.userId === user.id)
+      .sort((a, b) => b.id - a.id),
+  }
+})
+// Mark a notification as read.
+route("PATCH", "/notifications/(\\d+)/read", ({ user, match }) => {
+  const s = load()
+
+  const notification = s.notifications.find(
+    (item) => item.id === Number(match[1]) && item.userId === user.id
+  )
+
+  if (!notification) {
+    throw fail(404, "not_found", "Notification not found.")
+  }
+
+  if (!notification.readAt) {
+    notification.readAt = nowISO()
+    save()
+  }
+
+  return { data: notification }
+})
+// -- evaluation criteria (#33). Mirrors backend/src/routes/criteria.js on main.
+const criterionView = (c) => ({
+  id: c.id,
+  name: c.name,
+  description: c.description,
+  weight: Number(c.weight),
+  maxScore: c.maxScore,
+  sortOrder: c.sortOrder,
+  isActive: c.isActive,
+  updatedBy: c.updatedBy,
+  createdAt: c.createdAt,
+  updatedAt: c.updatedAt,
+})
+
+function requireCommittee(user) {
+  if (!isAC(user)) throw fail(403, "forbidden", "Only the committee can change the evaluation criteria.")
+}
+
+// Same limits as main's zod schema; `partial` for PATCH.
+function cleanCriterion(body, { partial = false } = {}) {
+  const out = {}
+  if (body?.name !== undefined || !partial) {
+    const name = String(body?.name ?? "").trim()
+    if (!name || name.length > 200) throw fail(400, "validation_error", "Give the criterion a name (up to 200 characters).")
+    out.name = name
+  }
+  if (body?.description !== undefined) {
+    const text = body.description === null ? null : String(body.description).trim()
+    if (text && text.length > 2000) throw fail(400, "validation_error", "Keep the description under 2000 characters.")
+    out.description = text || null
+  }
+  if (body?.weight !== undefined) {
+    if (typeof body.weight !== "number" || !(body.weight >= 0)) throw fail(400, "validation_error", "Weight must be 0 or more.")
+    out.weight = body.weight
+  }
+  if (body?.maxScore !== undefined) {
+    if (!Number.isInteger(body.maxScore) || body.maxScore < 1) throw fail(400, "validation_error", "The rating scale must be a whole number of 1 or more.")
+    out.maxScore = body.maxScore
+  }
+  if (body?.sortOrder !== undefined) {
+    if (!Number.isInteger(body.sortOrder)) throw fail(400, "validation_error", "Sort order must be a whole number.")
+    out.sortOrder = body.sortOrder
+  }
+  if (body?.isActive !== undefined) {
+    if (typeof body.isActive !== "boolean") throw fail(400, "validation_error", "isActive must be true or false.")
+    out.isActive = body.isActive
+  }
+  if (partial && Object.keys(out).length === 0) throw fail(400, "validation_error", "Provide at least one field to update")
+  return out
+}
+
+function assertUniqueName(name, exceptId) {
+  const clash = load().criteria.some(
+    (c) => c.id !== exceptId && c.name.toLowerCase() === name.toLowerCase(),
+  )
+  if (clash) throw fail(409, "conflict", `A criterion named "${name}" already exists.`)
+}
+
+const sortCriteria = (a, b) => a.sortOrder - b.sortOrder || a.id - b.id
+
+route("GET", "/criteria", ({ params }) => {
+  const includeInactive = params.get("includeInactive") === "true"
+  return {
+    data: load()
+      .criteria.filter((c) => includeInactive || c.isActive)
+      .sort(sortCriteria)
+      .map(criterionView),
+  }
+})
+
+route("GET", "/criteria/(\\d+)", ({ match }) => {
+  const criterion = byId(load().criteria, match[1])
+  if (!criterion) throw fail(404, "not_found", "Criterion not found")
+  return criterionView(criterion)
+})
+
+route("POST", "/criteria", ({ user, body }) => {
+  requireCommittee(user)
+  const s = load()
+  const fields = cleanCriterion(body)
+  assertUniqueName(fields.name)
+  const criterion = {
+    id: s.nextId.criterion++,
+    description: null,
+    weight: 1,
+    maxScore: 5,
+    sortOrder: 0,
+    isActive: true,
+    ...fields,
+    updatedBy: user.id,
+    createdAt: nowISO(),
+    updatedAt: nowISO(),
+  }
+  s.criteria.push(criterion)
+  save()
+  return criterionView(criterion)
+})
+
+route("PATCH", "/criteria/(\\d+)", ({ user, match, body }) => {
+  requireCommittee(user)
+  const criterion = byId(load().criteria, match[1])
+  if (!criterion) throw fail(404, "not_found", "Criterion not found")
+  const fields = cleanCriterion(body, { partial: true })
+  if (fields.name) assertUniqueName(fields.name, criterion.id)
+  Object.assign(criterion, fields, { updatedBy: user.id, updatedAt: nowISO() })
+  save()
+  return criterionView(criterion)
+})
+
+// Like main: a criterion that any observation has answered can't be deleted
+// (409); retire it with isActive:false instead.
+route("DELETE", "/criteria/(\\d+)", ({ user, match }) => {
+  requireCommittee(user)
+  const s = load()
+  const criterion = byId(s.criteria, match[1])
+  if (!criterion) throw fail(404, "not_found", "Criterion not found")
+  if (s.observationResponses.some((r) => r.criterionId === criterion.id)) {
+    throw fail(409, "conflict", "This question has already been answered in an observation, so it can't be deleted. Take it off the form instead.")
+  }
+  s.criteria = s.criteria.filter((c) => c.id !== criterion.id)
+  save()
+  return null
+})
+
+// -- observation form answers (#33). Mirrors main's /observations/:id/responses.
+// `notes` is a proposed addition (main has no column for it yet).
+route("POST", "/observations/(\\d+)/responses", ({ user, match, body }) => {
+  const s = load()
+  const observation = byId(s.observations, match[1])
+  if (!observation) throw fail(404, "not_found", "Observation not found")
+  if (user.teacherId !== observation.observerId) {
+    throw fail(403, "forbidden", "Only the observer on this observation can submit responses")
+  }
+  if (observation.observerSignedOffAt) {
+    throw fail(409, "conflict", "You have already signed off on this observation; responses are final")
+  }
+  const items = body?.responses
+  if (!Array.isArray(items) || items.length < 1 || items.length > 50) {
+    throw fail(400, "validation_error", "Answer at least one question.")
+  }
+  const saved = []
+  for (const item of items) {
+    const criterion = byId(s.criteria, item?.criterionId)
+    if (!criterion) throw fail(400, "validation_error", "One of the questions no longer exists. Reload the page.")
+    if (!Number.isInteger(item.score) || item.score < 1 || item.score > criterion.maxScore) {
+      throw fail(400, "validation_error", `Score for "${criterion.name}" must be between 1 and ${criterion.maxScore}.`)
+    }
+    let row = s.observationResponses.find(
+      (r) => r.observationId === observation.id && r.criterionId === criterion.id,
+    )
+    if (row) {
+      row.score = item.score
+      row.updatedAt = nowISO()
+    } else {
+      row = {
+        id: s.nextId.response++,
+        observationId: observation.id,
+        criterionId: criterion.id,
+        score: item.score,
+        updatedAt: nowISO(),
+      }
+      s.observationResponses.push(row)
+    }
+    saved.push(row)
+  }
+  if (typeof body?.notes === "string") observation.observerNotes = body.notes.trim() || null
+  touch(observation)
+  save()
+  return { data: saved }
+})
+
+// Observer and observee see the answers only once BOTH have signed off; the
+// committee can always see them (same rule as main).
+route("GET", "/observations/(\\d+)/responses", ({ user, match }) => {
+  const s = load()
+  const { observation } = getObservationFor(user, match[1])
+  const bothSigned = observation.observerSignedOffAt && observation.observeeSignedOffAt
+  if (!isAC(user) && !bothSigned) {
+    throw fail(409, "conflict", "Responses are not visible until both the observer and observee have signed off")
+  }
+  const rows = s.observationResponses
+    .filter((r) => r.observationId === observation.id)
+    .map((r) => ({ r, c: byId(s.criteria, r.criterionId) }))
+    .sort((a, b) => sortCriteria(a.c, b.c))
+  return {
+    data: rows.map(({ r, c }) => ({ ...r, criterionName: c.name, maxScore: c.maxScore })),
+    notes: observation.observerNotes ?? null,
+  }
+})
+
+// Mark every notification of the signed-in user as read.
+route("POST", "/notifications/read-all", ({ user }) => {
+  const s = load()
+  const at = nowISO()
+  let updated = 0
+  for (const notification of s.notifications) {
+    if (notification.userId === user.id && !notification.readAt) {
+      notification.readAt = at
+      updated++
+    }
+  }
+  save()
+  return { updated }
 })
 
 // [new] The observer's inbox: requests sent to me, newest first (open ones on top).
@@ -1154,7 +1441,7 @@ route("POST", "/time-options/(\\d+)/confirm", ({ user, match }) => {
   offer.status = "confirmed"
   offer.respondedAt = nowISO()
   const list = latestList(assessment.id)
-  createObservation(assessment, {
+  const observation = createObservation(assessment, {
     observerId: user.teacherId,
     isAcStepin: false,
     sourceListId: list?.id ?? null,
@@ -1167,6 +1454,7 @@ route("POST", "/time-options/(\\d+)/confirm", ({ user, match }) => {
     observerId: user.teacherId,
     date: option.proposedDate,
   })
+  addNotification(assessment.teacherId, "date_confirmed", assessment.id, `Your observer confirmed ${option.proposedDate} for ${courseText(assessment)}.`, observation.id)
   save()
   return optionView(option)
 })
@@ -1212,6 +1500,21 @@ route("POST", "/observations/(\\d+)/sign-off", ({ user, match, body }) => {
   }
   const field = isObserver ? "observerSignedOffAt" : "observeeSignedOffAt"
   if (observation[field]) throw fail(409, "conflict", "You've already signed off on this observation.")
+  if (isObserver) {
+    // Same rule as main: the observer's sign-off can't lock in a half-filled form.
+    const unanswered = s.criteria.filter(
+      (c) =>
+        c.isActive &&
+        !s.observationResponses.some((r) => r.observationId === observation.id && r.criterionId === c.id),
+    )
+    if (unanswered.length > 0) {
+      throw fail(
+        409,
+        "conflict",
+        `Save the observation form before signing off. Unanswered: ${unanswered.map((c) => c.name).join(", ")}.`,
+      )
+    }
+  }
   observation[field] = nowISO()
   if (isObservee && body?.comment?.trim()) observation.observeeComment = body.comment.trim()
   if (observation.observerSignedOffAt && observation.observeeSignedOffAt) {
@@ -1252,6 +1555,8 @@ route("POST", "/observations/(\\d+)/postpone", ({ user, match, body }) => {
   assessment.status = "postponed"
   touch(observation)
   touch(assessment)
+  addNotification(observation.observerId, "postponed", assessment.id, `The observation of ${courseText(assessment)} on ${observation.scheduledDate} was postponed.`, observation.id)
+  addNotification(observation.observeeId, "postponed", assessment.id, `Your observation for ${courseText(assessment)} on ${observation.scheduledDate} was postponed. A new attempt can be scheduled.`, observation.id)
   save()
   return observationView(observation)
 })
