@@ -26,8 +26,8 @@ import { nextStep } from "../lib/workflow"
 
 // One sign-up from start to finish. Two views of the same record:
 //   the professor being observed -> follows progress, picks ONE observer + dates
-//   committee members            -> see the pool and candidates, start selection,
-//                                   assign manually, postpone
+//   committee members            -> see the pool and candidates, assign manually
+//                                   (stretch goal), postpone
 function AssessmentDetail() {
   const { id } = useParams()
   const { user } = useAuth()
@@ -111,7 +111,6 @@ function AssessmentDetail() {
                 assessment={assessment}
                 committee={committeeView}
                 owner={owner}
-                onChanged={reload}
               />
 
               {committeeView && (

@@ -16,8 +16,8 @@ import {
 import StatusBadge from "./StatusBadge"
 
 // A colleague asked this professor to observe their class and offered several
-// dates. Confirming exactly one date makes the pairing final — there is no
-// committee approval afterwards. Declining (reason optional) is recorded.
+// dates. Confirming exactly one date is final; nothing goes to the committee.
+// Declining (reason optional) is recorded.
 function IncomingRequest({ request, onChanged }) {
   const [optionId, setOptionId] = useState("")
   const [declining, setDeclining] = useState(false)

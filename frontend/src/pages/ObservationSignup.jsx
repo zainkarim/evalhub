@@ -144,11 +144,12 @@ function ObservationSignup() {
                   {formatTerm(created.section.term)}
                 </p>
                 <p className="mt-3 text-muted">
-                  Next: after the sign-up deadline
-                  {created.signupDeadline ? ` (${formatDate(created.signupDeadline)})` : ""} the
-                  committee starts observer selection. You&apos;ll then see up to five
-                  professors from your school who have taught this course level, choose one and
-                  offer 4–8 dates. They confirm one.
+                  Next: observer selection opens after the sign-up deadline
+                  {created.signupDeadline ? ` (${formatDate(created.signupDeadline)})` : ""}. You
+                  will get a notification when your list is ready. You&apos;ll then see up to
+                  five professors from your school who have taught this course level, choose one
+                  and offer 4–8 dates, and send the request yourself. They confirm one. No
+                  approval is needed.
                 </p>
                 <div className="mt-5 flex flex-wrap gap-3">
                   <Link
@@ -274,8 +275,9 @@ function ObservationSignup() {
                     <SectionInfo section={selected.section} className="bg-canvas" />
                     {selected.section.term?.signupDeadline && (
                       <p className="mt-2 text-xs text-muted">
-                        Sign-up deadline: {formatDate(selected.section.term.signupDeadline)}. The
-                        committee starts observer selection after it.
+                        Sign-up deadline: {formatDate(selected.section.term.signupDeadline)}.
+                        Observer selection opens after it, and you will get a notification when
+                        your list is ready.
                       </p>
                     )}
                   </div>
