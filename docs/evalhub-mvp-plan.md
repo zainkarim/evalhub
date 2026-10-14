@@ -36,7 +36,7 @@ Everyone writes their own unit tests for what they build; PM/QA owns integration
 
 ### End Users
 - **Professors** — sign up for courses, view observations given/received, access evaluation forms
-- **AC (Assessment Committee) members** — review and approve observer lists, monitor dashboards, act as observers for new hires when needed
+- **AC (Assessment Committee) members** — review sign-ups and start observer selection (no approval of observer lists or pairings — corrected 2026-09-30), monitor dashboards, configure criteria and templates
 
 ### Evaluation Frequency Rules (corrected 2026-09-30 — resolved with the professor directly, overwrites 2026-09-11 understanding)
 | Professor Rank | Required Frequency |
@@ -49,7 +49,7 @@ Frequency must be configurable per professor (e.g., after a promotion or role ch
 
 ### Observer Matching — by course level, not focus area (corrected 2026-09-11, refined 2026-09-18/20)
 - Matching key is **course level** — the most-significant-digit (MSD) of the course number (1000-level, 2000-level, etc.) — not subject/focus area.
-- A valid observer must (a) be from the **same school/department** as the requester ("school" and "department" are used interchangeably here — team decision 2026-09-20) and (b) have **taught that course level** (recency window disputed — see `docs/requirements.md` §8).
+- A valid observer must (a) be from the **same department** as the requester (corrected 2026-10-07; a school such as ECS has several departments) and (b) have **taught that course level** (recency window disputed — see `docs/requirements.md` §8). Added 2026-10-07: no self-observation, no class-time conflict, and at most 3 observations per observer for the POC.
 - Professors teaching different subjects can still match if their courses share a level (e.g., an ECS 1200 instructor can observe any ECS 1000-level course); cross-department matches are invalid even at the same level (an EPPS 1000-level instructor cannot observe an ECS 1000-level course).
 - Availability is computed from course schedules, not entered manually.
 - The system shows **up to 5 candidates**: 5+ eligible → pick 5 at random; fewer than 5 → show all; zero → notify the AC via its dashboard.
@@ -63,7 +63,7 @@ This is **not** a fully automated assignment system. **Corrected 2026-09-30 (sec
 3. System surfaces up to 5 observer candidates per the course-level matching rule above. Insufficient/zero pool → AC dashboard alert, handled manually.
 4. **Corrected 2026-09-30, replaces this morning's multi-observer-confirm model:** the observee selects **one** observer and offers **multiple possible dates (roughly 4–8)** — course schedules are system-checked, personal calendars aren't — before a single request is sent.
 5. The observer confirms one date. The system records the pairing and scheduled date. **No AC approval follows.**
-6. **Open/BLOCKED (from the team's own backend Jira breakdown):** when AC manually assigns an observer (step 3's insufficient-candidate case), must it come from the eligible pool, or can AC assign anyone? Blocks the backend "assign endpoint" ticket.
+6. **AC manual assignment is a stretch goal** (updated 2026-10-07, per `process-explanation.pdf`). An interim pool-only-unless-empty rule is merged (#17); the exact scope is still unconfirmed (#26). Request model is an open conflict as of 2026-10-13 (one active request per sign-up vs. multi-observer offers on `main`); see `docs/requirements.md` §4.3 step 4.
 7. Observer attends the class and gives feedback; **both observer and observee sign off** afterward (the observee's sign-off confirms the observation occurred, not agreement with the ratings)
 8. **Never cancel/delete** a sign-up that doesn't happen — log the attempt and mark it "Postponed"; reschedule within the same semester where possible
 9. A confirmed date is "scheduled/confirmed," not "Completed" — "Completed" means observation held *and* both sign-offs submitted
@@ -97,20 +97,21 @@ This is **not** a fully automated assignment system. **Corrected 2026-09-30 (sec
 **In scope (MVP):**
 - Teacher profiles with rank, school, course levels taught, and evaluation cycle
 - Course metadata (sections, schedule, historical instructors)
-- Assessment workflow: sign-up → AC-approved observer list → confirmation → reporting
+- Assessment workflow: sign-up → AC starts observer selection → observee sends one request with 4–8 dates → observer confirms → signed observation → reporting
 - Evaluation frequency scheduling based on rank rules (see above)
 - Course-level observer matching (~5 candidates surfaced; human decision follows)
-- AC approval gate before any observer list is communicated
-- Evaluation form (built-in, in-app signed copy — see Evaluation Forms above) + document upload option
+- Semester dates and observation deadlines, enforced server-side (added 2026-10-07)
+- Evaluation form (built-in, in-app signed copy — see Evaluation Forms above) + optional observee attachment if they disagree with the ratings
 - In-app notifications at key milestones (deadlines, list-ready, request/confirmation updates, observation uploaded) — corrected 2026-09-30, this moved from stretch into MVP
 - Professor dashboard: evaluations given, evaluations received, attribution visible for both
 - AC dashboard with core KPIs (see §6)
-- POC-level UTD Course Book API integration
+- One-time import of real course data (no CourseBook API needed — confirmed 2026-09-18)
 - Dummy/sample professor accounts for testing and demo
 - Basic role-based access (AC / faculty)
 
 **Deferred to stretch (only if ahead of schedule):**
 - Desktop application wrapper
+- AC manual observer assignment (stretch per `process-explanation.pdf`)
 - Outbound email/SMTP delivery infrastructure (the in-app notification itself is MVP — see above; only the actual email-sending mechanism may be deferred)
 - Calendar integration
 - Semester-based workload analytics
@@ -119,6 +120,8 @@ This is **not** a fully automated assignment system. **Corrected 2026-09-30 (sec
 ---
 
 ## 5. Sprint Breakdown
+
+> **Superseded for scheduling (2026-10-09):** the week-by-week plan through 2026-11-18, with an owner for every task, is in the final project proposal (`submissions/Project Proposal/`, outside this repo) and on the GitHub Projects board. The sprint descriptions below are the original 2026-09-09 plan; Sprint 2's AC approval queue/UI was removed on 2026-09-30.
 
 ### Week 0 — Setup & Design (not a sprint, but critical)
 - Finalize requirements with Prof. Narayanasami (confirm weekly report day — likely Fridays)
@@ -135,10 +138,10 @@ This is **not** a fully automated assignment system. **Corrected 2026-09-30 (sec
 - **Deliverable:** Working login, professors and courses viewable/editable end-to-end
 
 ### Sprint 2 — Weeks 3–4: Assessment Workflow Core
-- Backend: Evaluation eligibility engine (rank-based frequency rules), sign-up API, observer candidate generation (~5 per course level + school), AC approval queue endpoints, observer confirmation endpoints
-- Frontend: Sign-up flow UI, observer candidate list view (surfaced to AC, not professors directly), AC approval UI, confirmation UI
+- Backend: Evaluation eligibility engine (rank-based frequency rules), sign-up API, observer candidate generation (~5 per course level + school), observer request and date confirmation endpoints
+- Frontend: Sign-up flow UI, AC sign-up review + Start Observer Selection, observer candidate list for the observee, request/confirmation UI
 - Integration: Wire real UTD Course Book data if available; otherwise continue with mocks
-- **Deliverable:** A professor can be matched to observer candidates, the list goes to AC for approval, and an observation can be confirmed — start to finish, with no auto-communication bypassing AC
+- **Deliverable:** After the AC starts observer selection, a professor can pick an observer from their candidates, send a request with 4–8 dates, and have the observer confirm one — start to finish
 
 ### Sprint 3 — Weeks 5–6: Dashboards, KPIs & Evaluation Forms
 - Backend: KPI calculation endpoints (eligibility accuracy, overdue count, participation rate, match accuracy, survey/observation completion); evaluation form submission API; document upload endpoint
@@ -192,7 +195,9 @@ Treat these as a feature checklist — every KPI must be surfaced somewhere in t
 
 ## 7. Weekly Rhythm
 
-- **Weekly faculty report:** due Fridays (confirm exact format/submission method with Prof. Narayanasami in Week 0)
+- **Weekly team report:** posted Thursday nights in the private MS Teams channel
+- **Weekly TA/professor review:** Wednesdays 7:00 PM (since 2026-09-30)
+- **Team sync (students only):** Sundays 7:00 PM (since 2026-10-04)
 - **Internal standup (2x/week, async is fine):** what's done, what's next, blockers
 - **In-person meetings:** 1–2 times for the semester per faculty schedule; otherwise virtual via MS Teams
 - **Sprint boundary (every 2 weeks):** demo to each other, re-groom backlog, adjust scope if behind
@@ -202,7 +207,7 @@ Treat these as a feature checklist — every KPI must be surfaced somewhere in t
 ## 8. Risk Watch
 
 - **UTD Course Book API access** — request credentials/docs in Week 0; if delayed, build against mocked data so it doesn't block Sprint 1–2.
-- **Matching workflow misunderstood** — the system surfaces candidates, humans decide; do not build auto-assignment. AC approval gate must exist before any list reaches professors.
-- **Evaluation form + upload scope** — both pathways (built-in form and document upload) are MVP; don't defer the upload path.
-- **Matching algorithm complexity** — keep v1 rule-based (course-level + same-school overlap, taught within last 2 years), not optimization-heavy. Don't over-engineer.
+- **Matching workflow misunderstood** — the system surfaces candidates, humans decide; do not build auto-assignment. There is no AC approval gate anywhere (corrected 2026-09-30).
+- **Evaluation form scope** — the in-app signed form is the MVP path; the only upload is the observee's optional disagreement attachment.
+- **Matching algorithm complexity** — keep v1 rule-based (course-level + same-school overlap; the 2-year recency window is still an open question), not optimization-heavy. Don't over-engineer.
 - **Scope creep from stretch goals** — hold the line until Week 8; only pull in stretch items (desktop wrapper, outbound email/SMTP delivery, exports) if MVP is done early. In-app notifications are MVP, not stretch (corrected 2026-09-30) — don't lump them in here.
