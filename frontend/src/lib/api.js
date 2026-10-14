@@ -99,6 +99,10 @@ export const api = {
   // ---- catalogue (page size is capped at 100 by the backend)
   listProfessors: (params) => request(`/teachers${query({ pageSize: 100, ...params })}`),
   getProfessor: (id) => request(`/teachers/${id}`),
+  // Committee: every active professor with due / sign-up status for a term (the server picks the
+  // current or next term without termId), and one professor's courses, observations and load.
+  professorReport: (termId) => request(`/teachers/report${query({ termId })}`),
+  professorProfile: (id, termId) => request(`/teachers/${id}/profile${query({ termId })}`),
   createProfessor: (body) => post("/teachers", body),
   updateProfessor: (id, body) => request(`/teachers/${id}`, { method: "PATCH", body }),
 

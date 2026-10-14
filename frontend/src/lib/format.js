@@ -187,3 +187,24 @@ export const ATTEMPT_EVENT = {
 // "1:00 PM–2:15 PM" for a time option.
 export const formatTimeRange = (start, end) =>
   start && end ? `${formatTime(start)}–${formatTime(end)}` : ""
+
+// Professors page (requirements §4.11): where a professor stands this semester.
+export const CURRENT_STATUS = {
+  none: { label: "None yet", tone: "neutral" },
+  selecting_observer: { label: "Selecting observer", tone: "info" },
+  request_sent: { label: "Request sent", tone: "info" },
+  scheduled: { label: "Scheduled", tone: "good" },
+  completed: { label: "Completed", tone: "done" },
+  postponed: { label: "Postponed", tone: "warn" },
+}
+
+// The extra words that go with the badge: the date, or how many attempts were postponed.
+export function currentStatusDetail(row) {
+  if (row.currentStatus === "scheduled" || row.currentStatus === "completed") {
+    return row.currentDate ? formatDate(row.currentDate) : ""
+  }
+  if (row.currentStatus === "postponed") {
+    return `${row.attempts} attempt${row.attempts === 1 ? "" : "s"}`
+  }
+  return ""
+}
