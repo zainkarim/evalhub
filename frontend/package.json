@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
+    "check:mock": "node scripts/check-mock-cycle.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
