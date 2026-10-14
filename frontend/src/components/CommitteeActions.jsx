@@ -60,7 +60,7 @@ function AssignObserver({ assessment, onChanged }) {
             id="assign-observer"
             value={observerId}
             onChange={(event) => setObserverId(event.target.value)}
-            className="mt-1 w-full rounded border border-line bg-white px-3 py-2 text-sm"
+            className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2 text-sm"
           >
             <option value="">Select observer</option>
             {assessment.candidates.length > 0 && (
@@ -91,7 +91,7 @@ function AssignObserver({ assessment, onChanged }) {
             id="assign-date"
             value={date}
             onChange={(event) => setDate(event.target.value)}
-            className="mt-1 w-full rounded border border-line bg-white px-3 py-2 text-sm"
+            className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2 text-sm"
           >
             <option value="">Select a date</option>
             {dates.map((value) => (
@@ -105,12 +105,12 @@ function AssignObserver({ assessment, onChanged }) {
       <button
         type="submit"
         disabled={!observerId || !date || busy}
-        className="mt-3 rounded bg-utd-green px-4 py-2 text-sm font-medium text-white hover:bg-utd-green-dark disabled:opacity-50"
+        className="mt-3 rounded-md bg-utd-green px-4 py-2 text-sm font-medium text-white hover:bg-utd-green-dark disabled:opacity-50"
       >
         {busy ? "Assigning…" : "Assign observer"}
       </button>
       {error && (
-        <p role="alert" className="mt-3 rounded border border-utd-orange/40 bg-white px-3 py-2 text-sm">
+        <p role="alert" className="mt-3 rounded-md border border-utd-orange/40 bg-white px-3 py-2 text-sm">
           {error}
         </p>
       )}
@@ -130,8 +130,8 @@ function CommitteeActions({ assessment, onChanged }) {
   if (!canAssign && !canPostpone) return null
 
   return (
-    <section className="mt-6 rounded border border-line bg-white p-6">
-      <h2 className="text-sm font-semibold">Committee actions</h2>
+    <section className="mt-6 rounded-lg border border-line bg-white p-6 shadow-xs">
+      <h2 className="text-base font-semibold">Committee actions</h2>
 
       {canAssign && (
         <div className="mt-4">

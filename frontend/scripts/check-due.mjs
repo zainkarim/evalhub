@@ -229,6 +229,18 @@ resetMockData()
 
 // Completed this semester: the due status still explains why they were due, the
 // current status says Completed with the date.
+// The observer must complete every active evaluation criterion before signing off.
+const activeCriteria = (await call(AC, "/criteria")).data
+assert.ok(activeCriteria.length > 0, "the evaluation form has active criteria")
+await call("professor.d@example.edu", "/observations/2/responses", {
+  method: "POST",
+  body: {
+    responses: activeCriteria.map((criterion) => ({
+      criterionId: criterion.id,
+      score: Math.min(4, criterion.maxScore),
+    })),
+  },
+})
 await call("professor.d@example.edu", "/observations/2/sign-off", { method: "POST", body: {} })
 await call("professor.f@example.edu", "/observations/2/sign-off", { method: "POST", body: {} })
 const done = await report(FALL_2026)

@@ -7,23 +7,23 @@ function Stepper({ assessment }) {
   if (current < 0) return null
 
   return (
-    <ol className="mt-6 grid grid-cols-5 gap-2" aria-label="Progress">
+    <ol className="mt-6 grid grid-cols-5 gap-3" aria-label="Progress">
       {STEPS.map((label, index) => {
         const done = index < current
         const active = index === current
         return (
           <li key={label} aria-current={active ? "step" : undefined}>
             <div
-              className={`h-1.5 rounded ${
+              className={`h-1 rounded-full ${
                 done ? "bg-utd-green" : active ? "bg-utd-orange" : "bg-line"
               }`}
             />
             <p
-              className={`mt-2 text-xs ${
-                active ? "font-semibold text-ink" : done ? "text-ink" : "text-muted"
+              className={`mt-2 flex items-center gap-1 text-xs ${
+                active ? "font-semibold text-ink" : done ? "text-utd-green-dark" : "text-muted"
               }`}
             >
-              {done ? "✓ " : ""}
+              {done && <span aria-hidden="true">✓</span>}
               {label}
             </p>
           </li>

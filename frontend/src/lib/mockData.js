@@ -173,15 +173,12 @@ export function buildSeed(now = new Date()) {
     return day(offsetDays)
   }
 
-  // Cycle dates are mock-only (the backend has no such fields). Fall 2026's
-  // sign-up deadline is already past, so the committee can start observer
-  // selection; Spring 2027 is still ahead, so Start Observer Selection shows as locked.
+  // Keep the Cycle deadlines and the calendar's observation cutoff.
   const seededTerms = terms.map((term) =>
     term.id === 10
-      ? { ...term, signupDeadline: day(-10), observationDeadline: day(40), feedbackDeadline: day(55) }
+      ? { ...term, signupDeadline: day(-10), observationDeadline: day(35), feedbackDeadline: day(55) }
       : term.id === 11
-        ? { ...term, signupDeadline: day(30), observationDeadline: day(150), feedbackDeadline: day(165) }
-        : term,
+        ? { ...term, signupDeadline: day(30), observationDeadline: "2027-04-23", feedbackDeadline: day(165) }        : term,
   )
 
   const assessments = [
@@ -301,6 +298,39 @@ export function buildSeed(now = new Date()) {
     { id: 4, assessmentId: 5, observerId: 4, attemptNo: 1, status: "confirmed", sentAt: iso(-8 * DAY), expiresAt: iso(-6 * DAY), respondedAt: iso(-7 * DAY), reason: null, optionIds: [6, 7, 8, 9, 10] },
   ]
 
+  // Evaluation criteria (#33). Demo placeholders taken from the examples in
+  // requirements §4.4 until Prof. Narayanasami's sample rubric arrives. Same
+  // shape as GET /api/criteria on main. Pacing uses a 3-point scale to show
+  // that each criterion can have its own scale.
+  const criteria = [
+    ["Clarity of communication", "Explains ideas clearly and checks for understanding.", 5],
+    ["Preparation and organization", "Class is planned; materials and transitions are ready.", 5],
+    ["Use of examples", "Uses examples that make abstract ideas concrete.", 5],
+    ["Handling of student questions", "Responds to questions patiently and accurately.", 5],
+    ["Student engagement", "Students participate and stay involved.", 5],
+    ["Pacing", "1 = too slow or too fast, 3 = well paced.", 3],
+  ].map(([name, description, maxScore], index) => ({
+    id: index + 1,
+    name,
+    description,
+    weight: 1,
+    maxScore,
+    sortOrder: index + 1,
+    isActive: true,
+    updatedBy: 2,
+    createdAt: iso(-200 * DAY),
+    updatedAt: iso(-200 * DAY),
+  }))
+
+  // The completed observation (id 1) already has a signed form.
+  const observationResponses = [4, 5, 4, 3, 4, 3].map((score, index) => ({
+    id: index + 1,
+    observationId: 1,
+    criterionId: index + 1,
+    score,
+    updatedAt: iso(-152 * DAY),
+  }))
+
   const observations = [
     {
       id: 1,
@@ -315,6 +345,8 @@ export function buildSeed(now = new Date()) {
       observerSignedOffAt: iso(-152 * DAY),
       observeeSignedOffAt: iso(-151 * DAY),
       observeeComment: null,
+      observerNotes:
+        "Well-organized lecture with clear worked examples. Consider pausing more often for questions in the second half.",
       retryAfter: null,
       createdAt: iso(-175 * DAY),
       updatedAt: iso(-151 * DAY),
@@ -407,18 +439,19 @@ export function buildSeed(now = new Date()) {
     offers,
     observations: [...observations, ...historicObservations],
     attemptLog,
-    // In-app messages (mock-only). `list_ready` is sent when a non-empty list is
-    // generated; `list_reminder` by the committee's Remind buttons. A list never
-    // depends on either being read.
+    // In-app notifications and configurable evaluation criteria.
     notifications: [],
+    criteria,
+    observationResponses,
     nextId: {
-      notification: 1,
-      assessment: 12,
-      candidateList: 4,
+      criterion: criteria.length + 1,
+      response: observationResponses.length + 1,
+      assessment: 12,      candidateList: 4,
       timeOption: 16,
       offer: 5,
       observation: 10,
       log: attemptLog.length + 1,
+      notification: 1,
     },
   }
 }

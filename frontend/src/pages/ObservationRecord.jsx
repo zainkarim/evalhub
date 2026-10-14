@@ -1,6 +1,8 @@
 import { useCallback, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import AttemptHistory from "../components/AttemptHistory"
+import ObservationFeedback from "../components/ObservationFeedback"
+import ObservationResults from "../components/ObservationResults"
 import PostponeControl from "../components/PostponeControl"
 import SectionInfo, { Field } from "../components/SectionInfo"
 import StateBlock from "../components/StateBlock"
@@ -21,7 +23,7 @@ import { useApi } from "../lib/useApi"
 
 function SignOffCard({ label, name, at }) {
   return (
-    <div className="rounded border border-line bg-canvas px-4 py-3 text-sm">
+    <div className="rounded-md border border-line bg-canvas px-4 py-3 text-sm">
       <p className="text-xs text-muted">{label}</p>
       <p className="mt-0.5 font-medium">{name}</p>
       <p className={at ? "mt-1 text-utd-green-dark" : "mt-1 text-muted"}>
@@ -74,6 +76,10 @@ function ObservationRecord() {
     ? observation?.observerSignedOffAt
     : observation?.observeeSignedOffAt
   const canAct = observation && status === "approved" && (isParty || committee)
+  // Observation form (#33): the observer fills it in until they sign off; the
+  // answers are visible to both once both have signed, and to the committee.
+  const formOpen = isObserver && status === "approved" && !observation?.observerSignedOffAt
+  const bothSigned = Boolean(observation?.observerSignedOffAt && observation?.observeeSignedOffAt)
 
   return (
     <div>
@@ -98,7 +104,7 @@ function ObservationRecord() {
               </div>
 
               {locked && (
-                <p className="mt-5 rounded border border-line bg-white px-4 py-3 text-sm">
+                <p className="mt-5 rounded-md border border-line bg-white px-4 py-3 text-sm">
                   <span className="font-medium">This record is complete and view-only.</span>{" "}
                   Once both people sign off, nobody — including the committee — can change it.
                 </p>
@@ -106,8 +112,8 @@ function ObservationRecord() {
 
               <SectionInfo section={observation.section} className="mt-6" />
 
-              <section className="mt-6 rounded border border-line bg-white p-6">
-                <h2 className="text-sm font-semibold">Who and when</h2>
+              <section className="mt-6 rounded-lg border border-line bg-white p-6 shadow-xs">
+                <h2 className="text-base font-semibold">Who and when</h2>
                 <dl className="mt-4 grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-3">
                   <Field label="Observer">
                     {fullName(observation.observer)}
@@ -121,8 +127,52 @@ function ObservationRecord() {
                 </dl>
               </section>
 
-              <section className="mt-6 rounded border border-line bg-white p-6">
-                <h2 className="text-sm font-semibold">Sign-off</h2>
+              {status !== "postponed" && (
+                <section className="mt-6 rounded-lg border border-line bg-white p-6 shadow-xs">
+                  <h2 className="text-base font-semibold">Observation form</h2>
+                  <div className="mt-4">
+                    {formOpen ? (
+                      dateArrived ? (
+                        <>
+                          <p className="mb-4 text-sm text-muted">
+                            Rate each criterion and add your notes, then save. You can change
+                            your answers until you sign off below.
+                          </p>
+                          <ObservationFeedback observationId={observation.id} />
+                        </>
+                      ) : (
+                        <p className="text-sm text-muted">
+                          The form opens on {formatDate(observation.scheduledDate)}, once the
+                          class has taken place.
+                        </p>
+                      )
+                    ) : bothSigned || committee ? (
+                      <>
+                        {!bothSigned && (
+                          <p className="mb-3 text-sm text-muted">
+                            Not final yet: the observer can change these answers until they sign
+                            off, and the observee sees them once both have signed.
+                          </p>
+                        )}
+                        <ObservationResults observationId={observation.id} />
+                      </>
+                    ) : isObserver ? (
+                      <p className="text-sm text-muted">
+                        You&apos;ve submitted the form and signed off. It becomes visible to
+                        both of you once the observee signs off too.
+                      </p>
+                    ) : (
+                      <p className="text-sm text-muted">
+                        The observer fills in the form after the class. You can read it once
+                        you have both signed off.
+                      </p>
+                    )}
+                  </div>
+                </section>
+              )}
+
+              <section className="mt-6 rounded-lg border border-line bg-white p-6 shadow-xs">
+                <h2 className="text-base font-semibold">Sign-off</h2>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <SignOffCard
                     label="Observer"
@@ -137,7 +187,7 @@ function ObservationRecord() {
                 </div>
 
                 {observation.observeeComment && (
-                  <p className="mt-4 rounded border border-line bg-canvas px-4 py-3 text-sm">
+                  <p className="mt-4 rounded-md border border-line bg-canvas px-4 py-3 text-sm">
                     <span className="font-medium">Observee&apos;s perspective:</span>{" "}
                     {observation.observeeComment}
                   </p>
@@ -186,7 +236,7 @@ function ObservationRecord() {
                           onChange={(event) => setComment(event.target.value)}
                           rows={3}
                           disabled={!dateArrived}
-                          className="mt-2 w-full rounded border border-line bg-white px-3 py-2 text-sm disabled:bg-gray-50"
+                          className="mt-2 w-full rounded-md border border-line bg-white px-3 py-2 text-sm disabled:bg-gray-50"
                           placeholder="Add context or your own view of the observation."
                         />
                       </div>
@@ -202,7 +252,7 @@ function ObservationRecord() {
                     <button
                       type="submit"
                       disabled={!confirmed || busy || !dateArrived}
-                      className="mt-4 rounded bg-utd-green px-4 py-2 text-sm font-medium text-white hover:bg-utd-green-dark disabled:opacity-50"
+                      className="mt-4 rounded-md bg-utd-green px-4 py-2 text-sm font-medium text-white hover:bg-utd-green-dark disabled:opacity-50"
                     >
                       {busy ? "Signing off…" : "Sign off"}
                     </button>
@@ -226,8 +276,8 @@ function ObservationRecord() {
               </section>
 
               {canAct && (
-                <section className="mt-6 rounded border border-line bg-white p-6">
-                  <h2 className="text-sm font-semibold">Plans changed?</h2>
+                <section className="mt-6 rounded-lg border border-line bg-white p-6 shadow-xs">
+                  <h2 className="text-base font-semibold">Plans changed?</h2>
                   <p className="mt-1 mb-3 text-sm text-muted">
                     If the class can&apos;t be observed on this date, postpone this attempt. The
                     reason is recorded, nothing is deleted, and a new attempt can be scheduled
@@ -243,7 +293,7 @@ function ObservationRecord() {
               {actionError && (
                 <p
                   role="alert"
-                  className="mt-4 rounded border border-utd-orange/40 bg-white px-3 py-2 text-sm"
+                  className="mt-4 rounded-md border border-utd-orange/40 bg-white px-3 py-2 text-sm"
                 >
                   {actionError}
                 </p>

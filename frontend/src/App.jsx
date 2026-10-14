@@ -8,6 +8,7 @@ import AssessmentDetail from "./pages/AssessmentDetail"
 import CourseDetail from "./pages/CourseDetail"
 import Courses from "./pages/Courses"
 import Cycle from "./pages/Cycle"
+import EvaluationCriteria from "./pages/EvaluationCriteria"
 import Login from "./pages/Login"
 import Notifications from "./pages/Notifications"
 import ObservationRecord from "./pages/ObservationRecord"
@@ -93,8 +94,16 @@ function App() {
                 </CommitteeRoute>
               }
             />
-            <Route path="/review" element={<Navigate to="/cycle" replace />} />
+<Route path="/review" element={<Navigate to="/cycle" replace />} />
             <Route path="/notifications" element={<Notifications />} />
+            <Route
+              path="/evaluation-criteria"
+              element={
+                <CommitteeRoute>
+                  <EvaluationCriteria />
+                </CommitteeRoute>
+              }
+            />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />
