@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { query } from '../db/pool.js';
+import { pool, query } from '../db/pool.js';
 import { AC_OR_ADMIN } from '../middleware/auth.js';
 import { HttpError, notFound } from '../middleware/errors.js';
 import { idParams, validate } from '../middleware/validate.js';
@@ -152,81 +152,128 @@ router.get('/:id/responses', validate(idParams, 'params'), async (req, res) => {
   });
 });
 
-// ---------------------------------------------------------------------
-// Sign-off. Not a numbered ticket, but #23's read-gating above is dead
-// code without a way for observer_signed_off_at / observee_signed_off_at
-// to ever actually get set (nothing in the codebase set them before this).
-// ---------------------------------------------------------------------
-
-// POST /api/observations/:id/sign-off   (the observer or the observee on
-// this observation, signing off as themselves -- not on each other's
-// behalf, and not AC/admin, since a sign-off is a personal attestation)
+// POST /api/observations/:id/sign-off
 router.post('/:id/sign-off', validate(idParams, 'params'), async (req, res) => {
-  const observation = await loadObservation(req.valid.params.id);
-  if (!observation) throw notFound('Observation');
+  const client = await pool.connect();
+  let updated;
 
-  const isObserver = req.user.teacherId === observation.observer_id;
-  const isObservee = req.user.teacherId === observation.observee_id;
+  try {
+    await client.query('BEGIN');
 
-  if (!isObserver && !isObservee) {
-    throw new HttpError(403, 'forbidden', 'Only the observer or observee on this observation can sign off on it');
-  }
-
-  if (isObserver && observation.observer_signed_off_at) {
-    throw new HttpError(409, 'conflict', 'You have already signed off on this observation');
-  }
-  if (isObservee && observation.observee_signed_off_at) {
-    throw new HttpError(409, 'conflict', 'You have already signed off on this observation');
-  }
-
-  // The observer's sign-off is their attestation that the questionnaire is
-  // complete -- require every active criterion to have an answer first, so
-  // a sign-off can't lock in a half-filled questionnaire (migration 008's
-  // design note flags exactly this risk).
-  if (isObserver) {
-    const { rows: unanswered } = await query(
-      `SELECT c.id, c.name
-         FROM evaluation_criteria c
-        WHERE c.is_active
-          AND NOT EXISTS (
-            SELECT 1 FROM observation_responses r
-             WHERE r.observation_id = $1 AND r.criterion_id = c.id
-          )`,
-      [observation.id],
+    // Lock the parent assessment before its observation.
+    const { rows: assessmentRows } = await client.query(
+      `SELECT a.* FROM assessments a
+       WHERE a.id = (
+         SELECT assessment_id FROM observations WHERE id = $1
+       )
+       FOR UPDATE OF a`,
+      [req.valid.params.id],
     );
-    if (unanswered.length > 0) {
+    const assessment = assessmentRows[0];
+    if (!assessment) throw notFound('Observation');
+
+    const { rows: observationRows } = await client.query(
+      `SELECT o.*, o.scheduled_date <= CURRENT_DATE AS date_reached
+       FROM observations o
+       WHERE o.id = $1 AND o.assessment_id = $2
+       FOR UPDATE OF o`,
+      [req.valid.params.id, assessment.id],
+    );
+    const observation = observationRows[0];
+    if (!observation) throw notFound('Observation');
+
+    const isObserver = req.user.teacherId === observation.observer_id;
+    const isObservee = req.user.teacherId === observation.observee_id;
+
+    if (!isObserver && !isObservee) {
       throw new HttpError(
-        409,
-        'conflict',
-        'All active criteria must be answered before signing off',
-        { missing: unanswered.map((c) => ({ id: c.id, name: c.name })) },
+        403, 'forbidden',
+        'Only the observer or observee on this observation can sign off on it',
       );
     }
-  }
 
-  const column = isObserver ? 'observer_signed_off_at' : 'observee_signed_off_at';
-  const { rows: updatedRows } = await query(
-    `UPDATE observations SET ${column} = now() WHERE id = $1 RETURNING *`,
-    [observation.id],
-  );
-  let updated = updatedRows[0];
+    // A completed record is returned without any writes, after authorization.
+    if (observation.status === 'completed' && assessment.status === 'completed') {
+      updated = observation;
+    } else {
+      if (observation.status !== 'approved' || assessment.status !== 'approved') {
+        throw new HttpError(
+          409, 'conflict',
+          'The observation and assessment must both be active and approved before sign-off',
+        );
+      }
 
-  // Both sides signed -- this is the one place that ever moves an
-  // observation (and its assessment) to 'completed'. Nothing else in the
-  // codebase did this before; without it, 'completed' was an unreachable
-  // status despite being the terminal state the schema's own CHECK
-  // constraints are written around.
-  if (updated.observer_signed_off_at && updated.observee_signed_off_at && updated.status !== 'completed') {
-    const { rows: completedRows } = await query(
-      `UPDATE observations SET status = 'completed' WHERE id = $1 RETURNING *`,
-      [observation.id],
-    );
-    updated = completedRows[0];
+      if (!observation.scheduled_date) {
+        throw new HttpError(
+          409, 'conflict',
+          'The observation must have a scheduled date before sign-off',
+        );
+      }
+      if (!observation.date_reached) {
+        throw new HttpError(
+          409, 'conflict',
+          'The scheduled observation date has not been reached',
+        );
+      }
 
-    await query(
-      `UPDATE assessments SET status = 'completed', completed_at = now() WHERE id = $1`,
-      [updated.assessment_id],
-    );
+      if ((isObserver && observation.observer_signed_off_at)
+          || (isObservee && observation.observee_signed_off_at)) {
+        throw new HttpError(
+          409, 'conflict',
+          'You have already signed off on this observation',
+        );
+      }
+
+      // Preserve main's requirement: every active criterion needs an answer.
+      if (isObserver) {
+        const { rows: unanswered } = await client.query(
+          `SELECT c.id, c.name
+           FROM evaluation_criteria c
+           WHERE c.is_active
+             AND NOT EXISTS (
+               SELECT 1 FROM observation_responses r
+               WHERE r.observation_id = $1 AND r.criterion_id = c.id
+             )`,
+          [observation.id],
+        );
+        if (unanswered.length > 0) {
+          throw new HttpError(
+            409, 'conflict',
+            'All active criteria must be answered before signing off',
+            { missing: unanswered.map((c) => ({ id: c.id, name: c.name })) },
+          );
+        }
+      }
+
+      const column = isObserver ? 'observer_signed_off_at' : 'observee_signed_off_at';
+      const { rows: signedRows } = await client.query(
+        `UPDATE observations SET ${column} = now() WHERE id = $1 RETURNING *`,
+        [observation.id],
+      );
+      updated = signedRows[0];
+
+      if (updated.observer_signed_off_at && updated.observee_signed_off_at) {
+        const { rows: completedRows } = await client.query(
+          `UPDATE observations SET status = 'completed' WHERE id = $1 RETURNING *`,
+          [observation.id],
+        );
+        updated = completedRows[0];
+
+        await client.query(
+          `UPDATE assessments
+           SET status = 'completed', completed_at = COALESCE(completed_at, now())
+           WHERE id = $1`,
+          [assessment.id],
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
   }
 
   res.json(toObservation(updated));
