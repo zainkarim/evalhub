@@ -53,6 +53,48 @@ const COLUMNS = {
   isActive: 'is_active',
 };
 
+// §4.1: Assistant Professor -> due again the calendar year after their last
+// completed observation, satisfied by either Spring or Fall of that year.
+// Associate/Full Professor -> due again 2 calendar years later. Summer terms
+// never satisfy the cadence for anyone, and a Summer term itself carries no
+// due/overdue status.
+function dueYearFor(rank, lastCompletedYear) {
+  if (lastCompletedYear == null) return null; // never (validly) evaluated
+  const interval = rank === 'assistant_professor' ? 1 : 2;
+  return lastCompletedYear + interval;
+}
+
+function computeDueStatus(r, term) {
+  if (term.season === 'summer') return 'not_applicable';
+
+  const countsTowardCadence = r.last_completed_season && r.last_completed_season !== 'summer';
+  const lastCompletedYear = countsTowardCadence ? r.last_completed_year : null;
+
+  const dueYear = dueYearFor(r.rank, lastCompletedYear);
+  if (dueYear === null) return 'overdue';
+  if (dueYear < term.year) return 'overdue';
+  if (dueYear === term.year) return 'due';
+  return 'not_due';
+}
+
+const toReportRow = (r, term) => ({
+  id: r.id,
+  firstName: r.first_name,
+  lastName: r.last_name,
+  email: r.email,
+  school: r.school,
+  department: r.department,
+  rank: r.rank,
+  dueStatus: computeDueStatus(r, term),
+  lastCompletedAt: r.last_completed_at,
+  signUpStatus: r.current_assessment_id ? 'signed_up' : 'not_signed_up',
+  currentObservationStatus: r.current_status ?? null,
+});
+
+const reportQuery = z.object({
+  termId: z.coerce.number().int().positive(),
+});
+
 // GET /api/teachers?q=&school=&rank=&active=&page=&pageSize=   (AC / admin)
 router.get('/', requireRole(...AC_OR_ADMIN), validate(listQuery, 'query'), async (req, res) => {
   const { q, school, rank, active, page, pageSize } = req.valid.query;
@@ -75,6 +117,88 @@ router.get('/', requireRole(...AC_OR_ADMIN), validate(listQuery, 'query'), async
     query(`SELECT count(*)::int AS total FROM teachers ${clause}`, params),
   ]);
   res.json(paged(rows.map(toTeacher), count[0].total, page, pageSize));
+});
+
+// GET /api/teachers/report?termId=   (AC / admin)
+// Must be registered before GET /:id, or Express treats "report" as :id.
+router.get(
+  '/report',
+  requireRole(...AC_OR_ADMIN),
+  validate(reportQuery, 'query'),
+  async (req, res) => {
+    const { termId } = req.valid.query;
+
+    const { rows: termRows } = await query('SELECT * FROM terms WHERE id = $1', [termId]);
+    if (!termRows[0]) throw notFound('Term');
+    const term = termRows[0];
+
+    const { rows } = await query(
+      `SELECT
+          t.*,
+          lc.completed_at AS last_completed_at,
+          lt.year         AS last_completed_year,
+          lt.season       AS last_completed_season,
+          cur.id          AS current_assessment_id,
+          cur.status      AS current_status
+        FROM teachers t
+        LEFT JOIN LATERAL (
+          SELECT a.completed_at, a.due_term_id
+            FROM assessments a
+           WHERE a.teacher_id = t.id AND a.status = 'completed'
+           ORDER BY a.completed_at DESC NULLS LAST
+           LIMIT 1
+        ) lc ON true
+        LEFT JOIN terms lt ON lt.id = lc.due_term_id
+        LEFT JOIN LATERAL (
+          SELECT a.id, a.status
+            FROM assessments a
+           WHERE a.teacher_id = t.id AND a.due_term_id = $1
+           ORDER BY a.signed_up_at DESC
+           LIMIT 1
+        ) cur ON true
+       WHERE t.is_active
+       ORDER BY t.last_name, t.first_name, t.id`,
+      [termId],
+    );
+
+    res.json({ data: rows.map((r) => toReportRow(r, term)) });
+  },
+);
+
+// GET /api/teachers/:id/profile   (AC / admin, or the teacher themself)
+router.get('/:id/profile', validate(idParams, 'params'), async (req, res) => {
+  const { id } = req.valid.params;
+  const isSelf = req.user.teacherId === id;
+  if (!isSelf && !AC_OR_ADMIN.includes(req.user.role)) {
+    throw new HttpError(403, 'forbidden', 'You do not have permission to do that');
+  }
+
+  const { rows: teacherRows } = await query('SELECT * FROM teachers WHERE id = $1', [id]);
+  if (!teacherRows[0]) throw notFound('Teacher');
+
+  const { rows: history } = await query(
+    `SELECT a.id, a.due_term_id, a.status, a.signed_up_at, a.completed_at,
+            tm.season, tm.year
+       FROM assessments a
+       JOIN terms tm ON tm.id = a.due_term_id
+      WHERE a.teacher_id = $1
+      ORDER BY a.signed_up_at DESC`,
+    [id],
+  );
+
+  res.json({
+    ...toTeacher(teacherRows[0]),
+    department: teacherRows[0].department,
+    history: history.map((h) => ({
+      assessmentId: h.id,
+      termId: h.due_term_id,
+      season: h.season,
+      year: h.year,
+      status: h.status,
+      signedUpAt: h.signed_up_at,
+      completedAt: h.completed_at,
+    })),
+  });
 });
 
 // GET /api/teachers/:id   (AC / admin, or the teacher themself)
