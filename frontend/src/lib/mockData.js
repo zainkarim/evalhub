@@ -12,6 +12,8 @@ export const APP_SETTINGS = {
   candidateListSize: 5,
   observerLookbackYears: 2,
   requestExpiryHours: 48,
+  // Requirements §4.2: at most 3 observations per cycle as an observer (POC).
+  observerCap: 3,
 }
 
 const terms = [
@@ -58,6 +60,9 @@ const teachers = [
   lastName: letter,
   email: `professor.${letter.toLowerCase()}@example.edu`,
   school,
+  // teachers.department (backend migration 005): free text, NOT NULL, the
+  // department-level course prefix ("CS", "EPPS"), same values as dev_seed.sql.
+  department: school === "ECS" ? "CS" : school,
   rank,
   isActive: true,
 }))
@@ -111,6 +116,10 @@ const sections = [
   [23, 2, 10, "001", 3, "TR", "11:30", "12:45", "ECSW 1.365"], // mock-only: gives Professor C a second sign-up
   [24, 9, 10, "001", 9, "TR", "09:00", "10:15", "GR 3.302"], // mock-only: level with no other instructor -> zero eligible observers
   [25, 4, 11, "001", 5, "MW", "10:00", "11:15", "ECSS 2.412"], // mock-only: Spring 2027 section, its sign-up deadline is still ahead
+  // mock-only history for the Professors page: same course level as each teacher's
+  // current sections, so the eligible-observer pools do not change.
+  [26, 4, 4, "002", 5, "TR", "10:00", "11:15", "ECSS 2.412"], // Professor E, Fall 2024
+  [27, 6, 5, "002", 6, "F", "13:00", "15:45", "ECSS 3.100"], // Professor F, Spring 2025
 ].map(
   ([id, courseId, termId, sectionNumber, teacherId, meetingDays, startTime, endTime, location]) => ({
     id,
@@ -192,6 +201,49 @@ export function buildSeed(now = new Date()) {
     signedUpAt: iso(-(20 - index * 3) * DAY),
     createdAt: iso(-(20 - index * 3) * DAY),
     updatedAt: iso(-index * DAY),
+  }))
+
+  // mock-only: completed observations from earlier terms, so the Professors page has
+  // due, overdue, not-due and never-observed professors to show. Fixed dates (not
+  // relative to today) because the terms they belong to are fixed. Professors B, I
+  // and J are deliberately never observed.
+  const history = [
+    // [assessmentId, observee, observer, sectionId, termId, scheduledDate]
+    [6, 1, 4, 1, 4, "2024-10-16"], // A, Fall 2024
+    [7, 4, 1, 7, 7, "2025-10-14"], // D, Fall 2025
+    [8, 5, 7, 26, 4, "2024-11-05"], // E, Fall 2024
+    [9, 6, 2, 27, 5, "2025-03-07"], // F, Spring 2025
+    [10, 7, 6, 5, 2, "2024-03-12"], // G, Spring 2024
+    [11, 8, 5, 4, 5, "2025-02-10"], // H, Spring 2025
+  ]
+  const historicAssessments = history.map(([id, teacherId, , sectionId, dueTermId, date]) => ({
+    id,
+    teacherId,
+    sectionId,
+    dueTermId,
+    status: "completed",
+    completedAt: `${date}T18:00:00.000Z`,
+    notes: null,
+    signedUpAt: `${date}T09:00:00.000Z`,
+    createdAt: `${date}T09:00:00.000Z`,
+    updatedAt: `${date}T18:00:00.000Z`,
+  }))
+  const historicObservations = history.map(([assessmentId, observeeId, observerId, , , date], index) => ({
+    id: 4 + index,
+    assessmentId,
+    observeeId,
+    observerId,
+    attemptNo: 1,
+    status: "completed",
+    isAcStepin: false,
+    sourceListId: null,
+    scheduledDate: date,
+    observerSignedOffAt: `${date}T18:00:00.000Z`,
+    observeeSignedOffAt: `${date}T19:00:00.000Z`,
+    observeeComment: null,
+    retryAfter: null,
+    createdAt: `${date}T09:00:00.000Z`,
+    updatedAt: `${date}T19:00:00.000Z`,
   }))
 
   const candidateLists = [
@@ -348,12 +400,12 @@ export function buildSeed(now = new Date()) {
     courses,
     sections,
     users,
-    assessments,
+    assessments: [...assessments, ...historicAssessments],
     candidateLists,
     candidates,
     timeOptions,
     offers,
-    observations,
+    observations: [...observations, ...historicObservations],
     attemptLog,
     // In-app messages (mock-only). `list_ready` is sent when a non-empty list is
     // generated; `list_reminder` by the committee's Remind buttons. A list never
@@ -361,11 +413,11 @@ export function buildSeed(now = new Date()) {
     notifications: [],
     nextId: {
       notification: 1,
-      assessment: 6,
+      assessment: 12,
       candidateList: 4,
       timeOption: 16,
       offer: 5,
-      observation: 4,
+      observation: 10,
       log: attemptLog.length + 1,
     },
   }

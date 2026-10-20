@@ -30,6 +30,9 @@ but the frontend needs more · **mock** = mock-only today, needs to be built.
 |---|---|---|---|
 | exists | `POST /auth/login`, `GET /auth/me` | any | sign-in, role + `teacherId` + name |
 | exists | `GET /teachers`, `GET /teachers/:id` | AC/admin (`:id` also self) | roster, sign-up on behalf |
+| extend | `GET /teachers`, `GET /teachers/:id` | AC/admin | also return `department` (see "Professors report") |
+| mock | `GET /teachers/report` (`?termId=`) | AC/admin | the Professors page: every professor (active and inactive, flagged `isActive`) with due and sign-up status; counts cover active professors only; **register before `GET /teachers/:id`** |
+| mock | `GET /teachers/:id/profile` (`?termId=`) | AC/admin | the professor detail page: courses, observations, observer load, current sign-up |
 | extend | `GET /terms` | any | needs `signupDeadline` (mock-only today) |
 | exists | `GET /courses`, `GET /sections` | any | pickers (frontend sends `pageSize=100`) |
 | exists | `POST /assessments/sign-up` | faculty (self), AC/admin | sign-up form |
@@ -267,11 +270,120 @@ Suggested backend additions: `terms.signup_deadline`, `terms.observation_deadlin
 (`recipient_teacher_id`, `type`, `term_id`, `assessment_id`, `subject`, `body`,
 `created_at`, `read_at`, `sent_by`).
 
+## Professors report (issue #63, requirements §4.11; mock-only)
+
+`GET /teachers/report?termId=` backs the AC's `/professors` page and
+`GET /teachers/:id/profile?termId=` its detail page. Both are AC/admin only (403 for
+faculty). Without `termId` the server uses the semester in progress, else the next
+Spring/Fall term. "Today" for that choice and for the 2-year look-back below is the
+server's date (the mock lets its checks pin it, `setMockToday`). The frontend never computes anything the backend should own except
+through `src/lib/dueStatus.js`, which is pure, so it can be moved to the server unchanged.
+
+> **Route order (backend team):** register `GET /teachers/report` **before**
+> `GET /teachers/:id` in `routes/teachers.js`. Express matches routes in order, so
+> `/:id` first would read "report" as an id and fail the `idParams` check (400/404).
+> `GET /teachers/:id/profile` has no such clash.
+
+```jsonc
+// GET /teachers/report?termId=10
+{ "term": { "id": 10, "season": "fall", "year": 2026 },
+  "counts": { "due": 5,            // ACTIVE professors only; dueStatus due OR never_observed
+              "overdue": 2, "neverObserved": 3,   // neverObserved is a sub-count of due
+              "signedUp": 4, "notSignedUp": 6, "completed": 0 },
+  "data": [{                       // every teacher, signed up or not, active or not
+    "id": 5, "firstName": "Professor", "lastName": "E", "email": "professor.e@example.edu",
+    "school": "ECS", "department": "CS", "isActive": true,
+    "rank": "assistant_professor", "rankLabel": "Assistant Professor",
+    "dueStatus": "due | overdue | not_due | never_observed",
+    "dueTerm": { "season": "spring", "year": 2025 } | null,   // first semester they are/were due
+    "dueWindow": [ { "season", "year" } ],                    // every semester that counts as due (two for an Assistant)
+    "lastCompleted": { "observationId": 9, "date": "2024-11-05", "term": { "id", "season", "year" } } | null,
+    "currentStatus": "none | selecting_observer | request_sent | scheduled | completed | postponed",
+    "currentDate": "YYYY-MM-DD" | null,     // scheduled or completed date
+    "attempts": 0,                          // postponed attempts (currentStatus postponed)
+    "signUp": { "assessmentId": 1, "course": "CS 1337", "section": "001" } | null
+  }] }
+
+// GET /teachers/:id/profile?termId=10
+{ "teacher": TeacherBrief & { "department", "isActive" }, "term": { "id", "season", "year" },
+  "summary": <one row of the report above>,
+  "courses": [{ "sectionId", "sectionNumber", "term", "thisTerm": true, "course": "CS 1337",
+                "title", "level": 1, "department": "CS", "school": "ECS" }],   // this term + the last 2 years back from today (same cutoff as the observer pool)
+  "observations": [{ "id", "assessmentId", "role": "observer | observee", "date", "status": "approved | completed | postponed",
+                     "partner": TeacherBrief, "course": "CS 1337", "term": { "id", "season", "year" } }],
+  "observerLoad": { "count": 1, "cap": 3 },          // requirements §4.2; postponed attempts not counted
+  "signUp": { "assessmentId", "status", "section": SectionView, "attempts": [ AttemptLogEntry ] } | null }
+```
+
+**Inactive professors.** Requirements §4.11 makes the default view the active
+professors, so the Professors page hides `isActive: false` rows unless "Show inactive" is
+ticked. They stay in `data` (with an Inactive badge and an Edit link, so the AC can
+reactivate them) but are **not counted**: `counts` is computed over active professors only
+and does not change with the toggle. A real backend can return the same shape, or add an
+`?includeInactive=` filter; the page only needs `isActive` on each row.
+
+**Status definitions**
+
+| Field | Value | Meaning |
+|---|---|---|
+| `dueStatus` | `due` | the semester is inside the professor's due window |
+| | `overdue` | the window has passed with no completed observation |
+| | `not_due` | the window has not started |
+| | `never_observed` | no completed observation as observee; counted as due (§4.1 has no first-semester exemption) |
+| `isActive` | `true / false` | on the active roster; inactive rows are listed only on request and are not counted |
+| `currentStatus` | `none` | no sign-up for the semester (shown "None yet") |
+| | `selecting_observer` | signed up; no request waiting for a reply |
+| | `request_sent` | a request to one observer is waiting (wins over `postponed`: a postponed sign-up that has sent a new request reads "Request sent") |
+| | `scheduled` | a date is confirmed (assessment status `approved`; **not** Completed) |
+| | `completed` | observed and both sign-offs done |
+| | `postponed` | an attempt did not happen; `attempts` says how many (never cancelled) |
+
+Nothing here is an approval state: the AC approves nothing.
+
+**Due rules** (`docs/resources/process-explanation.pdf`, requirements §4.1; `lib/dueStatus.js`)
+
+- Assistant professor, once in every calendar year: last observed Spring 2025 → due
+  Spring or Fall 2026, overdue from Spring 2027.
+- Associate / Full, every 2 years with Summer terms not counted: last observed Spring
+  2025 → due Spring 2027, overdue from Fall 2027.
+- Never observed → due.
+- Status is judged on observations **completed before the semester starts**, so a
+  professor observed this semester still shows why they were due; their `currentStatus`
+  says `completed`. `lastCompleted` is the latest completed observation up to the end of
+  the semester.
+- The semester an observation counts for is the **section's term**, not the sign-off
+  date. An observation held in Summer counts as the Spring before it.
+- Frequency is meant to be configurable per professor (§4.1). `computeDue` takes an
+  optional `frequencyYears`; nothing sets it yet, so the backend needs a column
+  (e.g. `teachers.evaluation_frequency_years`) before the UI can.
+
+**`teachers.department` (backend migration 005, commit `e2ff681`).** The column is
+`TEXT NOT NULL`, free text with no CHECK or enum: the department-level course prefix
+(`CS`, `EPPS`, …, the same value as `courses.subject`; `dev_seed.sql` uses `CS` for the
+ECS professors and `EPPS` for Professors I and J). The mock, the report and the
+department filter use that field with those values. Gaps on `main` the backend team
+should know about:
+
+- `routes/teachers.js` never selects or returns `department` (`toTeacher`), and the
+  create/update bodies (`teacherFields`) do not accept it, so `POST /teachers` inserts no
+  department and fails against the `NOT NULL` column. Fix: add `department` to
+  `toTeacher`, to `teacherFields` (required on create, like `school`) and to `COLUMNS`.
+- `PATCH /teachers/:id` should re-derive `department` when `school` changes and the body
+  carries no department (the mock falls back to the new school, like create), otherwise
+  an edit leaves the old department behind.
+- Because the body does not take it yet, **the Add Professor / Edit form was left
+  unchanged**. Once the body accepts `department`, add a text field to
+  `pages/ProfessorManagement.jsx`. Until then the mock fills `department` from `school`,
+  as the migration's own backfill does.
+- The mock's observer matching (`eligibleObservers` in `lib/mockServer.js`) still
+  compares `school`; the backend now matches on department. Not changed here.
+
 ## Not built (outside this task)
 
 View-only roles for Department Head / Annual Review Committee (the `users.role`
 check only allows `faculty`, `ac_member`, `admin`), the observation-form and
 process-feedback forms, the rank-based eligibility engine, KPI dashboards, and
-email delivery. The AC reminders (due/overdue, deadlines), the end-of-process survey
-request, the Professors page with due logic, and the criteria editor are later phases.
+email delivery. The AC reminders (due/overdue, deadlines; the Professors page has a marked
+place for a future "Send reminder" action), the end-of-process survey request, and the
+criteria editor are later phases.
 The Cycle page is the AC's landing page until the KPI dashboards exist.

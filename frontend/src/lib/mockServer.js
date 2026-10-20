@@ -11,7 +11,8 @@
 //   - the professor picks ONE observer and offers 4-8 dates; the observer confirms one
 //   - an attempt that does not happen is never cancelled: it is logged and Postponed
 
-import { courseLabel } from "./format"
+import { computeDue, defaultReportTerm } from "./dueStatus"
+import { courseLabel, formatRank, normalizeStatus } from "./format"
 import { APP_SETTINGS, buildSeed, DEMO_PASSWORD } from "./mockData"
 
 const STORE_KEY = "evalhub.mock.state.v4"
@@ -68,7 +69,20 @@ const isoDay = (date) => {
   const day = String(date.getDate()).padStart(2, "0")
   return `${date.getFullYear()}-${month}-${day}`
 }
-const today = () => isoDay(new Date())
+// "Today" for every date rule in the mock. Tests pin it (setMockToday) so they do not
+// depend on when they run; the app never does.
+let todayOverride = null
+export const setMockToday = (day) => {
+  todayOverride = day
+}
+const today = () => todayOverride ?? isoDay(new Date())
+// Sections taught on or after this day count towards observer eligibility and the
+// Professors profile; one date so the two cannot disagree.
+function lookbackCutoff() {
+  const lookback = new Date(`${today()}T12:00:00`)
+  lookback.setFullYear(lookback.getFullYear() - APP_SETTINGS.observerLookbackYears)
+  return isoDay(lookback)
+}
 const nowISO = () => new Date().toISOString()
 const isAC = (user) => user.role === "ac_member" || user.role === "admin"
 
@@ -470,9 +484,7 @@ function eligibleObservers(assessment) {
   const s = load()
   const target = byId(s.sections, assessment.sectionId)
   const course = byId(s.courses, target.courseId)
-  const lookback = new Date()
-  lookback.setFullYear(lookback.getFullYear() - APP_SETTINGS.observerLookbackYears)
-  const cutoff = isoDay(lookback)
+  const cutoff = lookbackCutoff()
 
   return s.teachers.filter((teacher) => {
     if (!teacher.isActive || teacher.id === assessment.teacherId) return false
@@ -697,6 +709,199 @@ route("GET", "/teachers", ({ user, params }) => {
   return paged(rows, params)
 })
 
+// -- AC Professors page (requirements §4.11, issue #63) [new]
+// Register BEFORE "/teachers/:id" on the real backend, or Express reads "report" as an id.
+const SIGNUP_PRIORITY = { completed: 5, approved: 4, candidates_generated: 3, signed_up: 2, postponed: 1 }
+
+const sectionTerm = (sectionId) => byId(load().terms, byId(load().sections, sectionId).termId)
+const courseOfSection = (sectionId) => byId(load().courses, byId(load().sections, sectionId).courseId)
+
+function reportTerm(params) {
+  const s = load()
+  const termId = params.get("termId")
+  const term = termId ? byId(s.terms, termId) : defaultReportTerm(s.terms, today())
+  if (!term) throw fail(404, "not_found", "Term not found")
+  return term
+}
+
+// The professor's completed observations as observee, each with the semester it was held in
+// (the section's term, not the sign-off date).
+function completedAsObservee(teacherId) {
+  return load()
+    .observations.filter((o) => o.observeeId === teacherId && o.status === "completed")
+    .map((o) => ({ observation: o, term: sectionTerm(byId(load().assessments, o.assessmentId).sectionId) }))
+    .sort((a, b) => a.observation.scheduledDate.localeCompare(b.observation.scheduledDate))
+}
+
+// The sign-up that stands for this professor in the term (the furthest along if several).
+function termSignUp(teacherId, term) {
+  return (
+    load()
+      .assessments.filter(
+        (a) => a.teacherId === teacherId && a.dueTermId === term.id && a.status !== "not_eligible",
+      )
+      .sort((a, b) => (SIGNUP_PRIORITY[b.status] ?? 0) - (SIGNUP_PRIORITY[a.status] ?? 0))[0] ?? null
+  )
+}
+
+function currentStatusOf(assessment) {
+  if (!assessment) return { currentStatus: "none", currentDate: null, attempts: 0 }
+  const status = normalizeStatus(assessment.status)
+  if (status === "completed") {
+    const done = load()
+      .observations.filter((o) => o.assessmentId === assessment.id && o.status === "completed")
+      .map((o) => o.scheduledDate)
+      .sort()
+      .at(-1)
+    return { currentStatus: "completed", currentDate: done ?? null, attempts: 0 }
+  }
+  if (status === "approved") {
+    return { currentStatus: "scheduled", currentDate: activeObservation(assessment.id)?.scheduledDate ?? null, attempts: 0 }
+  }
+  // A postponed sign-up that has sent a new request is waiting on that request again.
+  if (pendingOffer(assessment.id)) return { currentStatus: "request_sent", currentDate: null, attempts: 0 }
+  if (status === "postponed") {
+    return { currentStatus: "postponed", currentDate: null, attempts: Math.max(currentAttemptNo(assessment.id) - 1, 1) }
+  }
+  return { currentStatus: "selecting_observer", currentDate: null, attempts: 0 }
+}
+
+const termBrief = (term) => ({ id: term.id, season: term.season, year: term.year })
+
+function reportRow(teacher, term) {
+  // Due status looks at observations finished BEFORE the term starts, so a professor
+  // observed this term still shows why they were due; their current status says Completed.
+  const history = completedAsObservee(teacher.id)
+  const baseline = history.filter((item) => item.term.startDate < term.startDate)
+  const last = baseline.at(-1)
+  const lastShown = history.filter((item) => item.term.startDate <= term.endDate).at(-1)
+  const due = computeDue({ rank: teacher.rank, lastObservedTerm: last?.term ?? null, term })
+  const signUpRow = termSignUp(teacher.id, term)
+  return {
+    id: teacher.id,
+    firstName: teacher.firstName,
+    lastName: teacher.lastName,
+    email: teacher.email,
+    school: teacher.school,
+    department: teacher.department ?? teacher.school,
+    isActive: teacher.isActive,
+    rank: teacher.rank,
+    rankLabel: formatRank(teacher.rank),
+    dueStatus: due.status,
+    dueTerm: due.dueTerm,
+    dueWindow: due.dueWindow,
+    lastCompleted: lastShown
+      ? { observationId: lastShown.observation.id, date: lastShown.observation.scheduledDate, term: termBrief(lastShown.term) }
+      : null,
+    ...currentStatusOf(signUpRow),
+    signUp: signUpRow
+      ? {
+          assessmentId: signUpRow.id,
+          course: courseLabel(courseOfSection(signUpRow.sectionId)),
+          section: byId(load().sections, signUpRow.sectionId).sectionNumber,
+        }
+      : null,
+  }
+}
+
+// GET /teachers/report?termId=  (AC / admin) -> every professor, signed up or not, each with
+// `isActive`. The page shows active ones by default (§4.11); inactive ones stay in the
+// rows so the AC can find and reactivate them, but the counts only cover active professors.
+route("GET", "/teachers/report", ({ user, params }) => {
+  if (!isAC(user)) throw fail(403, "forbidden", "You do not have permission to do that")
+  const term = reportTerm(params)
+  const data = load()
+    .teachers.map((teacher) => reportRow(teacher, term))
+    .sort((a, b) => a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName))
+  const active = data.filter((row) => row.isActive)
+  const count = (test) => active.filter(test).length
+  return {
+    term: termBrief(term),
+    counts: {
+      // `due` includes professors never observed; `neverObserved` says how many of them.
+      due: count((row) => row.dueStatus === "due" || row.dueStatus === "never_observed"),
+      overdue: count((row) => row.dueStatus === "overdue"),
+      neverObserved: count((row) => row.dueStatus === "never_observed"),
+      signedUp: count((row) => row.signUp),
+      notSignedUp: count((row) => !row.signUp),
+      completed: count((row) => row.currentStatus === "completed"),
+    },
+    data,
+  }
+})
+
+// GET /teachers/:id/profile?termId=  (AC / admin) -> what the committee needs to pick candidates.
+route("GET", "/teachers/(\\d+)/profile", ({ user, match, params }) => {
+  if (!isAC(user)) throw fail(403, "forbidden", "You do not have permission to do that")
+  const s = load()
+  const teacher = byId(s.teachers, match[1])
+  if (!teacher) throw fail(404, "not_found", "Teacher not found")
+  const term = reportTerm(params)
+
+  const cutoff = lookbackCutoff()
+  const courses = s.sections
+    .filter((section) => section.teacherId === teacher.id)
+    .map((section) => ({ section, taughtIn: byId(s.terms, section.termId) }))
+    .filter(({ taughtIn }) => taughtIn.id === term.id || (taughtIn.startDate <= today() && taughtIn.endDate >= cutoff))
+    .sort((a, b) => b.taughtIn.startDate.localeCompare(a.taughtIn.startDate))
+    .map(({ section, taughtIn }) => {
+      const course = byId(s.courses, section.courseId)
+      return {
+        sectionId: section.id,
+        sectionNumber: section.sectionNumber,
+        term: termBrief(taughtIn),
+        thisTerm: taughtIn.id === term.id,
+        course: courseLabel(course),
+        title: course.title,
+        level: course.courseLevel,
+        department: course.subject,
+        school: course.school,
+      }
+    })
+
+  const observations = s.observations
+    .filter((o) => o.observerId === teacher.id || o.observeeId === teacher.id)
+    .map((o) => {
+      const assessment = byId(s.assessments, o.assessmentId)
+      const given = o.observerId === teacher.id
+      return {
+        id: o.id,
+        assessmentId: o.assessmentId,
+        role: given ? "observer" : "observee",
+        date: o.scheduledDate,
+        status: o.status,
+        partner: teacherBrief(given ? o.observeeId : o.observerId),
+        course: courseLabel(courseOfSection(assessment.sectionId)),
+        term: termBrief(sectionTerm(assessment.sectionId)),
+      }
+    })
+    .sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""))
+
+  // Requirements §4.2: an observer takes at most 3 observations per cycle. Postponed
+  // attempts are not counted.
+  const observerCount = observations.filter(
+    (o) => o.role === "observer" && o.term.id === term.id && o.status !== "postponed",
+  ).length
+
+  const signUpRow = termSignUp(teacher.id, term)
+  return {
+    teacher: { ...teacherBrief(teacher.id), department: teacher.department ?? teacher.school, isActive: teacher.isActive },
+    term: termBrief(term),
+    summary: reportRow(teacher, term),
+    courses,
+    observations,
+    observerLoad: { count: observerCount, cap: APP_SETTINGS.observerCap },
+    signUp: signUpRow
+      ? {
+          assessmentId: signUpRow.id,
+          status: signUpRow.status,
+          section: sectionView(signUpRow.sectionId),
+          attempts: s.attemptLog.filter((row) => row.assessmentId === signUpRow.id).map(logView),
+        }
+      : null,
+  }
+})
+
 route("GET", "/teachers/(\\d+)", ({ user, match }) => {
   const teacher = byId(load().teachers, match[1])
   if (!teacher) throw fail(404, "not_found", "Teacher not found")
@@ -714,6 +919,9 @@ route("POST", "/teachers", ({ user, body }) => {
   const s = load()
   const teacher = {
     ...body,
+    // The real column is NOT NULL (migration 005) but the Add Professor form does not
+    // send it yet, so fall back to the school code like the migration's own backfill.
+    department: body.department || body.school,
     id: Math.max(...s.teachers.map((teacher) => teacher.id), 0) + 1,
   }
 
@@ -734,7 +942,11 @@ route("PATCH", "/teachers/(\\d+)", ({ user, match, body }) => {
     throw fail(404, "not_found", "Profesor not found")
   }
 
+  // The edit form sends the school but no department, so a school change would leave the
+  // old department behind; fall back to the new school like POST does.
+  const schoolChanged = body.school && body.school !== teacher.school
   Object.assign(teacher, body)
+  if (schoolChanged && !body.department) teacher.department = body.school
   teacher.id = Number(match[1])
 
   save()
