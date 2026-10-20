@@ -33,7 +33,12 @@ const terms = [
   startDate,
   endDate,
   isLongTerm: season !== "summer",
-  signupDeadline: null, // mock-only; buildSeed() sets it for the open terms
+  // Mock-only cycle dates (the backend terms have no such columns); buildSeed()
+  // sets them for the open terms.
+  signupDeadline: null,
+  observationDeadline: null,
+  feedbackDeadline: null,
+  selectionStartedAt: null, // set once the committee has clicked Start Observer Selection
 }))
 
 const teachers = [
@@ -159,20 +164,20 @@ export function buildSeed(now = new Date()) {
     return day(offsetDays)
   }
 
-  // Sign-up deadlines are mock-only (the backend has no such field). Fall 2026
-  // is already past, so the committee can start observer selection; Spring 2027
-  // is still ahead, so Start Observer Selection shows as locked.
+  // Cycle dates are mock-only (the backend has no such fields). Fall 2026's
+  // sign-up deadline is already past, so the committee can start observer
+  // selection; Spring 2027 is still ahead, so Start Observer Selection shows as locked.
   const seededTerms = terms.map((term) =>
     term.id === 10
-      ? { ...term, signupDeadline: day(-10) }
+      ? { ...term, signupDeadline: day(-10), observationDeadline: day(40), feedbackDeadline: day(55) }
       : term.id === 11
-        ? { ...term, signupDeadline: day(30) }
+        ? { ...term, signupDeadline: day(30), observationDeadline: day(150), feedbackDeadline: day(165) }
         : term,
   )
 
   const assessments = [
     // Same two rows as the real seed.
-    // Waiting for the committee to start observer selection.
+    // Signed up; observer selection has not run yet, so no list.
     { id: 1, teacherId: 3, sectionId: 21, dueTermId: 10, status: "signed_up", completedAt: null },
     { id: 2, teacherId: 3, sectionId: 17, dueTermId: 8, status: "completed", completedAt: iso(-150 * DAY) },
     // mock-only: Professor F has a confirmed date that has now passed -> sign-off is open.
@@ -313,7 +318,7 @@ export function buildSeed(now = new Date()) {
     ...extra,
   })
   const attemptLog = [
-    entry(3, 1, "selection_started", "Professor B", "ac_member", -5),
+    entry(3, 1, "list_generated", "System", "system", -5),
     entry(3, 1, "request_sent", "Professor F", "faculty", -4.5, { observerId: 2, count: 5 }),
     entry(3, 1, "request_declined", "Professor B", "ac_member", -4.2, {
       observerId: 2,
@@ -321,8 +326,8 @@ export function buildSeed(now = new Date()) {
     }),
     entry(3, 1, "request_sent", "Professor F", "faculty", -4, { observerId: 4, count: 5 }),
     entry(3, 1, "date_confirmed", "Professor D", "faculty", -3.5, { observerId: 4, date: classDay("F", -1, 0, -1) }),
-    entry(4, 1, "selection_started", "Administrator", "admin", -3),
-    entry(5, 1, "selection_started", "Administrator", "admin", -14),
+    entry(4, 1, "list_generated", "System", "system", -3),
+    entry(5, 1, "list_generated", "System", "system", -14),
     entry(5, 1, "request_sent", "Professor B", "ac_member", -10, { observerId: 5, count: 5 }),
     entry(5, 1, "no_response_expired", "System", "system", -8, {
       observerId: 5,
@@ -337,7 +342,7 @@ export function buildSeed(now = new Date()) {
   ].map((row, index) => ({ id: index + 1, ...row }))
 
   return {
-    version: 2,
+    version: 4,
     terms: seededTerms,
     teachers,
     courses,
@@ -350,7 +355,12 @@ export function buildSeed(now = new Date()) {
     offers,
     observations,
     attemptLog,
+    // In-app messages (mock-only). `list_ready` is sent when a non-empty list is
+    // generated; `list_reminder` by the committee's Remind buttons. A list never
+    // depends on either being read.
+    notifications: [],
     nextId: {
+      notification: 1,
       assessment: 6,
       candidateList: 4,
       timeOption: 16,

@@ -10,8 +10,8 @@ Nothing in `backend/` was changed. The workflow follows `docs/requirements.md`
 §4.3 as corrected on 2026-09-30:
 
 1. the professor signs up for a section;
-2. **after the sign-up deadline the AC reviews sign-ups and starts observer selection**
-   (per sign-up, or in bulk for a term);
+2. **after the sign-up deadline the AC clicks Start Observer Selection once** for the
+   whole term (not per sign-up, and not an approval);
 3. the system lists up to five candidates; an empty or short pool is an AC alert;
 4. the professor picks **one** observer and offers **4–8 dates** — nothing is sent
    until the dates are chosen; then **one** request goes to that observer;
@@ -35,8 +35,10 @@ but the frontend needs more · **mock** = mock-only today, needs to be built.
 | exists | `POST /assessments/sign-up` | faculty (self), AC/admin | sign-up form |
 | extend | `GET /assessments`, `GET /assessments/mine` | AC/admin · faculty | return **AssessmentView** |
 | extend | `GET /assessments/:id` | owner, AC/admin | return **AssessmentDetail** |
-| extend | `POST /assessments/:id/candidates` | **AC/admin only**, after the deadline | per-sign-up "Start Observer Selection"; see notes |
-| mock | `POST /assessments/start-selection` `{ termId?, assessmentIds? }` | AC/admin | bulk "Start Observer Selection" → `{ started, noEligible, limited, skipped }` |
+| mock | `POST /terms/:termId/start-observer-selection` | AC/admin | THE one cycle-wide "Start Observer Selection"; idempotent; see "Cycle and notifications" |
+| mock | `PATCH /terms/:id/dates` `{ signupDeadline, observationDeadline, feedbackDeadline }` | AC/admin | edit the cycle dates |
+| mock | `GET /notifications/inbox`, `POST /notifications/:id/read`, `POST /notifications/read-all` | professor | in-app messages |
+| mock | `POST /notifications/list-reminder` `{ termId, assessmentIds? }` | AC/admin | reminders (Remind / Remind all) to sign-ups still choosing; the first "list is ready" message is sent automatically |
 | mock | `GET /assessments/alerts` (`?termId=`) | AC/admin | alerts panel + nav counter |
 | exists | `GET /assessments/:id/time-options` | owner, offered observer, AC/admin | return `attemptNo` too |
 | extend | `POST /assessments/:id/time-options` `{ options: [{ proposedDate, startTime, endTime }] }` | owner, AC/admin | **4–8** options (backend accepts 1–8) |
@@ -83,11 +85,14 @@ sign-up), `POST /observations/:id/review` (no AC approval), the old
 
 // AssessmentView (list rows) — existing assessment fields plus:
 { "teacher": TeacherBrief, "section": SectionView,
-  "signupDeadline": "2026-09-26" | null, "selectionOpen": true,
+  "signupDeadline": "2026-09-26" | null,           // mock-only, from the term
+  "selectionStartedAt": "2026-10-13T…" | null,     // mock-only: when the committee clicked Start Observer Selection for the term
   "alert": null | "no_eligible_observers" | "limited_pool",
   "attemptNo": 1,                                  // the attempt that is current / next
   "pairing": ObservationView | null,               // scheduled attempt, else the latest
   "candidateSummary": { "poolSize": 1, "listSize": 1 } | null,   // null = selection not started
+  "observerList": [ TeacherBrief ],                // the up-to-five names; [] before selection (mock-only)
+  "listReadyNotifiedAt": "2026-10-13T…" | null,    // when "your list is ready" was sent (mock-only)
   "offer": OfferView | null }                      // the request still waiting for a reply
 // status: signed_up | candidates_generated | approved | completed | postponed | not_eligible
 // `approved` is the backend's key and means "Scheduled / Confirmed" (not Completed).
@@ -102,7 +107,7 @@ sign-up), `POST /observations/:id/review` (no AC approval), the old
 
 // AttemptLogEntry — append-only, never edited or removed (mock-only)
 { "id", "assessmentId", "attemptNo",
-  "type": "selection_started|request_sent|request_declined|no_response_expired|request_withdrawn|date_confirmed|ac_assigned|did_not_happen|postponed",
+  "type": "list_generated|request_sent|request_declined|no_response_expired|request_withdrawn|date_confirmed|ac_assigned|did_not_happen|postponed",
   "by": { "name": "Professor D", "role": "faculty|ac_member|admin|system" }, "at",
   "reason": string | null, "observer": TeacherBrief | null, "date": "YYYY-MM-DD" | null, "count": 5 | null }
 
@@ -117,7 +122,7 @@ sign-up), `POST /observations/:id/review` (no AC approval), the old
 // GET /assessments/alerts
 { "data": [ AssessmentView ],        // alert != null, urgent first
   "postponed": [ AssessmentView ], "awaitingSignOff": [ ObservationView ],
-  "counts": { "urgent", "limited", "waitingToStart", "postponed", "awaitingSignOff" } }
+  "counts": { "urgent", "limited", "postponed", "awaitingSignOff" } }
 ```
 
 Faculty are allowed to see names of candidates, of the observer they asked and of
@@ -129,18 +134,32 @@ their observer/observee, so these views carry `TeacherBrief` even though
 From `docs/requirements.md` §4.2–4.3 unless marked **added**.
 
 1. **Sign-up**: instructor of the section only; one per section (409); **added** –
-   only current/upcoming Spring/Fall terms. Sign-up stays open after the deadline
-   (the docs are silent); a late sign-up is picked up by the next Start run.
+   only current/upcoming Spring/Fall terms. **Added:** a faculty sign-up is refused
+   (409, "Sign-ups closed on <date>.") once the term's sign-up deadline has passed (the
+   deadline day itself is open), not when Start is clicked. The committee can still sign a
+   professor up; if selection has started, that sign-up gets its list (and, when the list
+   is non-empty, its "list is ready" message) at once. Other lists are not re-rolled.
 2. **Sign-up deadline** (**mock-only**, `terms.signupDeadline`): selection opens the
-   day after it. Before that the per-sign-up and bulk Start return 409 and the UI
-   shows "Opens after <date>". The professor sees "Waiting for the committee to
-   start observer selection".
-3. **Start Observer Selection**: AC/admin only (the mock; see the notes below). Same
-   pool rules as `db/queries/eligible_observers.sql` plus availability from schedules;
-   up to 5 chosen at random; calling it again returns the same list unless nobody
-   qualified. Zero eligible keeps the sign-up `signed_up` and still **persists the
-   0/0 list** so the alert and the "unmatched faculty" / "list sufficiency" KPIs can
-   see it (the reference route currently returns without saving one).
+   day after it. Before that Start returns 409 and the UI shows "Opens after <date>".
+   The professor sees "Observer selection opens after the sign-up deadline (<date>).
+   You will get a notification when your list is ready."
+3. **Start Observer Selection**: ONE cycle-wide action per term, AC/admin only, via
+   `POST /terms/:termId/start-observer-selection` (mock). It builds the list for every
+   sign-up in the term that has none, using the same pool rules as
+   `db/queries/eligible_observers.sql` plus availability from schedules; up to 5 chosen
+   at random. It is **idempotent** for sign-ups that already have a non-empty list: a
+   later call (`alreadyStarted: true`) never re-rolls them and sends nothing twice.
+   Sign-ups whose list is **empty** are re-evaluated on every call ("Re-check empty
+   lists" in the UI, shown while any exist after selection started): if an observer is
+   eligible now, the list is generated and `list_ready` is sent; if nobody is, nothing
+   changes (no new list, no history row) and the call reports it in `stillEmpty`. It approves nothing, and there is no
+   per-sign-up start. The professor can use the list as soon as it exists. Generating a
+   non-empty list (Start, re-check or a late committee sign-up) sends one `list_ready`
+   message per list; an empty list sends none. Zero eligible keeps the sign-up `signed_up` and
+   still **persists the 0/0 list** so the alert and the "unmatched faculty" / "list
+   sufficiency" KPIs can see it (the reference route currently returns without saving
+   one). The list is recorded in the attempt history as `list_generated` by "System".
+   The backend's `POST /assessments/:id/candidates` is not used by the frontend.
 4. **Insufficient pool**: `poolSize = 0` → `no_eligible_observers` (urgent);
    `1–4` → `limited_pool` (notice). Both feed the dashboard alerts and the nav
    counter. The requirements define only the zero case; **1–4 is our proposal**
@@ -212,10 +231,47 @@ routes, so the backend team can see what integration needs:
 - `assessment_attempt_log(id, assessment_id, attempt_no, type, actor_user_id, actor_name, observer_id, reason, event_date, created_at)`
   — append-only (no UPDATE/DELETE).
 
+## Cycle and notifications (all mock-only; the backend has none of this)
+
+```jsonc
+// Term, with the cycle dates added
+{ "id": 10, "season": "fall", "year": 2026, "startDate": "...", "endDate": "...", "isLongTerm": true,
+  "signupDeadline": "2026-10-03", "observationDeadline": "2026-11-22", "feedbackDeadline": "2026-12-07",
+  "selectionStartedAt": null | "2026-10-13T…" }
+
+// POST /terms/:termId/start-observer-selection  (AC/admin; 409 before the day after signupDeadline)
+{ "termId": 10, "alreadyStarted": false, "startedAt": "…", "started": 5, "noEligible": 1, "limited": 1, "full": 3 }
+// "stillEmpty": empty-list sign-ups re-checked that still have nobody eligible.
+// second call: { "alreadyStarted": true, "started": 0, "stillEmpty": n, … }; non-empty lists are untouched
+
+// PATCH /terms/:id/dates  { signupDeadline, observationDeadline, feedbackDeadline }  (AC/admin)
+// -> the term. 400 unless sign-up < observation < feedback; 409 to move the sign-up deadline after selection started.
+
+// Notification (what a professor sees)
+{ "id": 1, "type": "list_ready" | "list_reminder", "termId": 10, "subject": "Your observer list is ready", "body": "…",
+  "link": "/assessments/1" | null, "createdAt": "…", "readAt": null | "…", "sentBy": { "name": "Professor B" }, "channel": "in_app" }
+// GET  /notifications/inbox        -> { "data": [ Notification ], "unread": 1 }       (needs a teacher profile)
+// POST /notifications/:id/read     -> Notification;   POST /notifications/read-all -> { "unread": 0 }
+
+// POST /notifications/list-reminder  { termId, assessmentIds? }   (AC/admin; 409 before selection has run)
+// -> { "sent": 4, "skipped": 3 }  — a type "list_reminder" message for each sign-up still choosing
+//    (status candidates_generated with a non-empty list); approved, completed, postponed and
+//    empty-list sign-ups are skipped. Reminders are optional: nothing depends on them.
+```
+
+Notifications are in-app only; **email delivery is not implemented**. No step waits
+for a notification (requirements §5): the list is usable as soon as it exists.
+
+Suggested backend additions: `terms.signup_deadline`, `terms.observation_deadline`,
+`terms.feedback_deadline`, `terms.selection_started_at`, and a `notifications` table
+(`recipient_teacher_id`, `type`, `term_id`, `assessment_id`, `subject`, `body`,
+`created_at`, `read_at`, `sent_by`).
+
 ## Not built (outside this task)
 
 View-only roles for Department Head / Annual Review Committee (the `users.role`
 check only allows `faculty`, `ac_member`, `admin`), the observation-form and
 process-feedback forms, the rank-based eligibility engine, KPI dashboards, and
-email/notification delivery. The Sign-up review page is the AC's landing page until
-the KPI dashboards exist.
+email delivery. The AC reminders (due/overdue, deadlines), the end-of-process survey
+request, the Professors page with due logic, and the criteria editor are later phases.
+The Cycle page is the AC's landing page until the KPI dashboards exist.

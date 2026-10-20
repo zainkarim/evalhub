@@ -13,6 +13,10 @@ import { useApi } from "../lib/useApi"
 const canSignUp = (term) =>
   term && term.season !== "summer" && toDateOnly(term.endDate) >= todayISO()
 
+// Faculty sign-ups close with the sign-up deadline; the committee can still sign someone up.
+const closedOn = (term) =>
+  term?.signupDeadline && todayISO() > toDateOnly(term.signupDeadline) ? term.signupDeadline : null
+
 const selectClass =
   "w-full rounded border border-line bg-white px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-muted"
 
@@ -99,7 +103,7 @@ function ObservationSignup() {
 
   const handleSubmit = async (event) => {
     event.preventDefault()
-    if (!selected || selected.signUp) return
+    if (!selected || selected.signUp || (!committee && closedOn(selected.section.term))) return
     setSubmitting(true)
     setSubmitError("")
     try {
@@ -144,11 +148,13 @@ function ObservationSignup() {
                   {formatTerm(created.section.term)}
                 </p>
                 <p className="mt-3 text-muted">
-                  Next: after the sign-up deadline
-                  {created.signupDeadline ? ` (${formatDate(created.signupDeadline)})` : ""} the
-                  committee starts observer selection. You&apos;ll then see up to five
-                  professors from your school who have taught this course level, choose one and
-                  offer 4–8 dates. They confirm one.
+                  {created.selectionStartedAt
+                    ? "Observer selection has already started, so the list is built now. "
+                    : `Next: observer selection opens after the sign-up deadline${created.signupDeadline ? ` (${formatDate(created.signupDeadline)})` : ""}. `}
+                  You will get a notification when your list is ready (none if no one is eligible
+                  yet; the committee is alerted). You&apos;ll then see up to five professors from
+                  your school who have taught this course level, choose one and offer 4–8 dates,
+                  and send the request yourself. They confirm one. No approval is needed.
                 </p>
                 <div className="mt-5 flex flex-wrap gap-3">
                   <Link
@@ -272,10 +278,20 @@ function ObservationSignup() {
                   <div>
                     <p className="mb-2 text-sm font-medium">Section details</p>
                     <SectionInfo section={selected.section} className="bg-canvas" />
-                    {selected.section.term?.signupDeadline && (
+                    {!committee && closedOn(selected.section.term) && (
+                      <p
+                        role="alert"
+                        className="mt-2 rounded border border-utd-orange/40 bg-white px-3 py-2 text-sm"
+                      >
+                        Sign-ups closed on {formatDate(closedOn(selected.section.term))}. Ask the
+                        committee to sign you up.
+                      </p>
+                    )}
+                    {selected.section.term?.signupDeadline && !closedOn(selected.section.term) && (
                       <p className="mt-2 text-xs text-muted">
-                        Sign-up deadline: {formatDate(selected.section.term.signupDeadline)}. The
-                        committee starts observer selection after it.
+                        Sign-up deadline: {formatDate(selected.section.term.signupDeadline)}.
+                        Observer selection opens after it, and you will get a notification when
+                        your list is ready.
                       </p>
                     )}
                   </div>
@@ -313,7 +329,12 @@ function ObservationSignup() {
 
                 <button
                   type="submit"
-                  disabled={!selected || Boolean(selected.signUp) || submitting}
+                  disabled={
+                    !selected ||
+                    Boolean(selected.signUp) ||
+                    (!committee && Boolean(closedOn(selected.section.term))) ||
+                    submitting
+                  }
                   className="rounded bg-utd-green px-4 py-2 text-sm font-medium text-white hover:bg-utd-green-dark disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting ? "Submitting…" : "Submit Observation Request"}

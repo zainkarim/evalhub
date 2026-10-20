@@ -41,10 +41,15 @@ function AssignObserver({ assessment, onChanged }) {
 
   return (
     <form onSubmit={submit}>
-      <h3 className="text-sm font-medium">Assign an observer manually</h3>
+      <h3 className="text-sm font-medium">
+        Assign an observer manually{" "}
+        <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-normal text-muted">
+          stretch goal
+        </span>
+      </h3>
       <p className="mt-1 text-sm text-muted">
-        Use this when no candidate is eligible or the professor&apos;s requests didn&apos;t work
-        out. The observation is scheduled straight away.
+        For an empty or short pool, or when the professor&apos;s requests didn&apos;t work out.
+        The observation is scheduled straight away.
       </p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <div>

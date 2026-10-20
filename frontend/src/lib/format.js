@@ -173,7 +173,7 @@ export const ALERT = {
 
 // Entries in the attempt history.
 export const ATTEMPT_EVENT = {
-  selection_started: "Observer selection started",
+  list_generated: "Observer list generated",
   request_sent: "Request sent",
   request_declined: "Request declined",
   no_response_expired: "No response — request expired",

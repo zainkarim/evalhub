@@ -6,14 +6,15 @@
 // Routes marked [new] are the ones the frontend needs the backend team to add —
 // their shapes are documented in frontend/docs/api-expectations.md.
 // Business rules come from docs/requirements.md §4.2–4.3 (corrected 2026-09-30):
-//   - the AC does NOT approve pairings; it starts observer selection after the
-//     sign-up deadline and handles insufficient pools manually
+//   - the AC does NOT approve anything; one cycle-wide action opens observer
+//     selection after the sign-up deadline, and the AC handles insufficient pools
 //   - the professor picks ONE observer and offers 4-8 dates; the observer confirms one
 //   - an attempt that does not happen is never cancelled: it is logged and Postponed
 
+import { courseLabel } from "./format"
 import { APP_SETTINGS, buildSeed, DEMO_PASSWORD } from "./mockData"
 
-const STORE_KEY = "evalhub.mock.state.v2"
+const STORE_KEY = "evalhub.mock.state.v4"
 const HOUR = 60 * 60 * 1000
 const MIN_DATES = 4
 const MAX_DATES = 8
@@ -26,7 +27,7 @@ function load() {
   if (state) return state
   try {
     const saved = JSON.parse(localStorage.getItem(STORE_KEY) ?? "null")
-    if (saved?.version === 2) {
+    if (saved?.version === 4) {
       state = saved
       return state
     }
@@ -202,7 +203,7 @@ const latestList = (assessmentId) =>
     .candidateLists.filter((list) => list.assessmentId === assessmentId)
     .sort((a, b) => b.id - a.id)[0] ?? null
 
-// Only a scheduled (confirmed) attempt is "active"; there is no review step.
+// Only a scheduled (confirmed) attempt is "active".
 const activeObservation = (assessmentId) =>
   load().observations.find((o) => o.assessmentId === assessmentId && o.status === "approved") ?? null
 
@@ -223,20 +224,17 @@ const unsentOptions = (assessmentId) =>
       o.offeredToTeacherId === null,
   )
 
-// Sign-up deadline is mock-only. Selection opens the day after it.
-const signupDeadline = (assessment) =>
-  byId(load().terms, assessment.dueTermId)?.signupDeadline ?? null
-const selectionOpen = (assessment) => {
-  const deadline = signupDeadline(assessment)
-  return !deadline || today() > deadline
-}
+// Cycle dates are mock-only. Observer selection is one action for the whole term
+// and opens the day after the sign-up deadline.
+const termOf = (assessment) => byId(load().terms, assessment.dueTermId)
+const signupDeadline = (assessment) => termOf(assessment)?.signupDeadline ?? null
+const selectionOpenFor = (term) => !term.signupDeadline || today() > term.signupDeadline
 
 // §4.2: zero eligible is urgent; fewer than a full list is a "limited pool"
 // notice. Only meaningful once the committee has generated a list, and it
 // clears as soon as an attempt is scheduled.
-function alertFor(assessment) {
+function alertFor(assessment, list) {
   if (!["signed_up", "candidates_generated"].includes(assessment.status)) return null
-  const list = latestList(assessment.id)
   if (!list) return null
   if (list.poolSize === 0) return "no_eligible_observers"
   if (list.poolSize < APP_SETTINGS.candidateListSize) return "limited_pool"
@@ -323,9 +321,37 @@ function observationView(observation) {
   }
 }
 
-function assessmentView(assessment) {
+// Lookups for the assessment views, built once per request so a list of rows
+// does not rescan the lists, candidates and notifications for every row.
+function viewLookups() {
+  const s = load()
+  const lists = new Map()
+  for (const list of s.candidateLists) {
+    const seen = lists.get(list.assessmentId)
+    if (!seen || list.id > seen.id) lists.set(list.assessmentId, list)
+  }
+  const candidates = new Map()
+  for (const c of s.candidates) {
+    if (!candidates.has(c.listId)) candidates.set(c.listId, [])
+    candidates.get(c.listId).push(c)
+  }
+  const notified = new Map() // assessmentId -> when the first "list is ready" message went out
+  for (const n of s.notifications) {
+    if (n.type === "list_ready" && !notified.has(n.assessmentId)) notified.set(n.assessmentId, n.createdAt)
+  }
+  return { lists, candidates, notified }
+}
+
+// The up-to-five observers on a list, in list order.
+const listedTeachers = (listId, lookups) =>
+  (lookups.candidates.get(listId) ?? [])
+    .slice()
+    .sort((a, b) => a.position - b.position)
+    .map((c) => teacherBrief(c.teacherId))
+
+function assessmentView(assessment, lookups = viewLookups()) {
   const pairing = activeObservation(assessment.id) ?? latestObservation(assessment.id)
-  const list = latestList(assessment.id)
+  const list = lookups.lists.get(assessment.id) ?? null
   const offer = pendingOffer(assessment.id)
   return {
     id: assessment.id,
@@ -341,13 +367,20 @@ function assessmentView(assessment) {
     teacher: teacherBrief(assessment.teacherId),
     section: sectionView(assessment.sectionId),
     signupDeadline: signupDeadline(assessment),
-    selectionOpen: selectionOpen(assessment),
-    alert: alertFor(assessment),
+    selectionStartedAt: termOf(assessment)?.selectionStartedAt ?? null,
+    alert: alertFor(assessment, list),
     attemptNo: currentAttemptNo(assessment.id),
     pairing: pairing ? observationView(pairing) : null,
     candidateSummary: list ? { poolSize: list.poolSize, listSize: list.listSize } : null,
+    observerList: list ? listedTeachers(list.id, lookups) : [],
+    listReadyNotifiedAt: lookups.notified.get(assessment.id) ?? null,
     offer: offer ? offerView(offer) : null,
   }
+}
+
+const assessmentViews = (assessments) => {
+  const lookups = viewLookups()
+  return assessments.map((assessment) => assessmentView(assessment, lookups))
 }
 
 // GET /assessments/:id and POST /assessments/:id/candidates share this shape.
@@ -505,7 +538,7 @@ function closeOffer(offer, status, { reason, by, type }) {
   })
 }
 
-// A scheduled (confirmed) attempt. There is no review step: the pairing is final
+// A scheduled (confirmed) attempt. The pairing is final
 // once the observer confirms a date (or the committee assigns one).
 function createObservation(assessment, fields) {
   const s = load()
@@ -549,8 +582,37 @@ function assertNotCompleted(observation) {
   }
 }
 
-// Candidate generation: the committee starts it, never the professor.
-function generateList(assessment, user) {
+const courseLabelOf = (assessment) => {
+  const section = byId(load().sections, assessment.sectionId)
+  return section ? courseLabel(sectionView(section.id).course) : "your course"
+}
+
+function pushNotification(assessment, type, subject, body, sentByName) {
+  const s = load()
+  s.notifications.push({
+    id: s.nextId.notification++,
+    recipientTeacherId: assessment.teacherId,
+    type,
+    termId: assessment.dueTermId,
+    assessmentId: assessment.id,
+    subject,
+    body,
+    link: `/assessments/${assessment.id}`,
+    createdAt: nowISO(),
+    readAt: null,
+    sentByName,
+  })
+}
+
+const listBody = (assessment, list) =>
+  `Your list of ${list.listSize} possible observer${list.listSize === 1 ? "" : "s"} for ${courseLabelOf(assessment)} is ready. Choose one observer, offer 4–8 dates and send the request yourself.`
+
+// Builds one sign-up's list (up to five observers). Only runs as part of the
+// cycle-wide Start Observer Selection (or its re-check), or when the committee
+// signs someone up after selection has started. A non-empty list sends the
+// professor its one "list is ready" message right here, so every route to a
+// list produces it; an empty list sends nothing.
+function generateList(assessment) {
   const s = load()
   const pool = eligibleObservers(assessment)
   const picked = shuffle(pool).slice(0, APP_SETTINGS.candidateListSize)
@@ -574,23 +636,16 @@ function generateList(assessment, user) {
   // "unmatched faculty" / "list sufficiency" KPIs can see it.
   if (picked.length > 0) assessment.status = "candidates_generated"
   touch(assessment)
-  logAttempt(assessment, "selection_started", { by: actorOf(user) })
-  return list
-}
-
-function assertSelectionOpen(assessment) {
-  if (!selectionOpen(assessment)) {
-    throw fail(
-      409,
-      "conflict",
-      `Observer selection opens after the sign-up deadline (${signupDeadline(assessment)}).`,
-    )
+  logAttempt(assessment, "list_generated", { by: { name: "System", role: "system" } })
+  if (picked.length > 0) {
+    pushNotification(assessment, "list_ready", "Your observer list is ready", listBody(assessment, list), "System")
   }
+  return list
 }
 
 function assertSchedulable(assessment) {
   if (assessment.status === "signed_up") {
-    throw fail(409, "conflict", "The committee hasn't started observer selection for this sign-up yet.")
+    throw fail(409, "conflict", "There is no observer list for this sign-up yet, so there is nobody to choose from.")
   }
   if (!["candidates_generated", "postponed"].includes(assessment.status)) {
     throw fail(409, "conflict", "This sign-up is no longer open for scheduling.")
@@ -751,6 +806,16 @@ route("POST", "/assessments/sign-up", ({ user, body }) => {
   if (s.assessments.some((a) => a.sectionId === section.id)) {
     throw fail(409, "conflict", "This section already has an observation sign-up.")
   }
+  // Faculty sign-ups close with the configured deadline (the deadline day itself
+  // is still open). The committee can sign someone up afterwards; once selection
+  // has started that sign-up gets its list at once.
+  if (term.signupDeadline && today() > term.signupDeadline && !isAC(user)) {
+    throw fail(
+      409,
+      "conflict",
+      `Sign-ups closed on ${term.signupDeadline}. Ask the committee to sign you up.`,
+    )
+  }
   const assessment = {
     id: s.nextId.assessment++,
     teacherId,
@@ -764,6 +829,7 @@ route("POST", "/assessments/sign-up", ({ user, body }) => {
     updatedAt: nowISO(),
   }
   s.assessments.push(assessment)
+  if (term.selectionStartedAt) generateList(assessment)
   save()
   return assessmentView(assessment)
 })
@@ -775,7 +841,7 @@ route("GET", "/assessments/alerts", ({ user, params }) => {
   const s = load()
   const termId = Number(params.get("termId") ?? 0)
   const scoped = s.assessments.filter((a) => !termId || a.dueTermId === termId)
-  const views = scoped.map(assessmentView)
+  const views = assessmentViews(scoped)
   const rank = { no_eligible_observers: 0, limited_pool: 1 }
   const alerts = views
     .filter((view) => view.alert)
@@ -791,59 +857,101 @@ route("GET", "/assessments/alerts", ({ user, params }) => {
     counts: {
       urgent: alerts.filter((view) => view.alert === "no_eligible_observers").length,
       limited: alerts.filter((view) => view.alert === "limited_pool").length,
-      waitingToStart: views.filter((view) => view.status === "signed_up" && !view.candidateSummary)
-        .length,
       postponed: postponed.length,
       awaitingSignOff: awaitingSignOff.length,
     },
   }
 })
 
-// [new] bulk "Start Observer Selection" for a term (or a chosen set of sign-ups).
-// The per-sign-up version is the existing POST /assessments/:id/candidates.
-route("POST", "/assessments/start-selection", ({ user, body }) => {
+// [new] THE one cycle-wide "Start Observer Selection" (process doc: after the
+// sign-up deadline the AC clicks one button). Builds the list for every sign-up
+// in the term that has none. Idempotent: a second click never re-rolls a
+// non-empty list and sends nothing twice. A sign-up whose list is EMPTY is
+// re-evaluated on every click ("Re-check empty lists"): if an observer has become
+// eligible, its list is generated and the "list is ready" message goes out.
+// Not an approval of anything.
+route("POST", "/terms/(\\d+)/start-observer-selection", ({ user, match }) => {
   if (!isAC(user)) {
     throw fail(403, "forbidden", "Only the committee can start observer selection.")
   }
   const s = load()
-  const ids = body?.assessmentIds
-  if (!ids?.length && !body?.termId) {
-    throw fail(400, "validation_error", "Choose a term or the sign-ups to start.")
-  }
-  const targets = s.assessments.filter(
-    (a) =>
-      a.status === "signed_up" &&
-      !latestList(a.id) &&
-      (ids?.length ? ids.includes(a.id) : a.dueTermId === Number(body.termId)),
-  )
-  const ready = targets.filter(selectionOpen)
-  const skipped = targets.length - ready.length
-  if (ready.length === 0 && skipped > 0) {
+  const term = byId(s.terms, match[1])
+  if (!term) throw fail(404, "not_found", "Term not found")
+  const alreadyStarted = Boolean(term.selectionStartedAt)
+  if (!alreadyStarted && !selectionOpenFor(term)) {
     throw fail(
       409,
       "conflict",
-      `Observer selection opens after the sign-up deadline (${signupDeadline(targets[0])}).`,
+      `Observer selection opens the day after the sign-up deadline (${term.signupDeadline}).`,
     )
   }
-  const lists = ready.map((assessment) => generateList(assessment, user))
+  const lists = []
+  let stillEmpty = 0
+  for (const assessment of s.assessments) {
+    if (assessment.dueTermId !== term.id || assessment.status !== "signed_up") continue
+    const existing = latestList(assessment.id)
+    if (existing && existing.listSize > 0) continue
+    // Empty list: only replace it when somebody is eligible now.
+    if (existing && eligibleObservers(assessment).length === 0) {
+      stillEmpty += 1
+      continue
+    }
+    lists.push(generateList(assessment))
+  }
+  term.selectionStartedAt ??= nowISO()
   save()
   return {
+    termId: term.id,
+    alreadyStarted,
+    startedAt: term.selectionStartedAt,
     started: lists.length,
     noEligible: lists.filter((list) => list.poolSize === 0).length,
     limited: lists.filter(
       (list) => list.poolSize > 0 && list.poolSize < APP_SETTINGS.candidateListSize,
     ).length,
-    skipped,
+    full: lists.filter((list) => list.poolSize >= APP_SETTINGS.candidateListSize).length,
+    stillEmpty,
   }
+})
+
+// [new] The committee edits the cycle dates. In order: sign-up, then the
+// observation period, then the feedback/survey deadline.
+route("PATCH", "/terms/(\\d+)/dates", ({ user, match, body }) => {
+  if (!isAC(user)) throw fail(403, "forbidden", "You do not have permission to do that")
+  const term = byId(load().terms, match[1])
+  if (!term) throw fail(404, "not_found", "Term not found")
+  const next = {
+    signupDeadline: body?.signupDeadline ?? term.signupDeadline,
+    observationDeadline: body?.observationDeadline ?? term.observationDeadline,
+    feedbackDeadline: body?.feedbackDeadline ?? term.feedbackDeadline,
+  }
+  const isDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value ?? "")
+  if (!Object.values(next).every(isDate)) {
+    throw fail(400, "validation_error", "Enter all three dates.")
+  }
+  if (next.signupDeadline >= next.observationDeadline || next.observationDeadline >= next.feedbackDeadline) {
+    throw fail(
+      400,
+      "validation_error",
+      "The dates must run in order: sign-up deadline, observation-period deadline, feedback deadline.",
+    )
+  }
+  if (term.selectionStartedAt && next.signupDeadline !== term.signupDeadline) {
+    throw fail(409, "conflict", "Observer selection has already started, so the sign-up deadline can't change.")
+  }
+  Object.assign(term, next)
+  save()
+  return term
 })
 
 route("GET", "/assessments/mine", ({ user }) => {
   const teacherId = requireTeacher(user)
   return {
-    data: load()
-      .assessments.filter((a) => a.teacherId === teacherId)
-      .sort((a, b) => b.signedUpAt.localeCompare(a.signedUpAt))
-      .map(assessmentView),
+    data: assessmentViews(
+      load()
+        .assessments.filter((a) => a.teacherId === teacherId)
+        .sort((a, b) => b.signedUpAt.localeCompare(a.signedUpAt)),
+    ),
   }
 })
 
@@ -858,32 +966,12 @@ route("GET", "/assessments", ({ user, params }) => {
     )
     .sort((a, b) => b.signedUpAt.localeCompare(a.signedUpAt))
   const result = paged(rows, params)
-  return { ...result, data: result.data.map(assessmentView) }
+  return { ...result, data: assessmentViews(result.data) }
 })
 
 route("GET", "/assessments/(\\d+)", ({ user, match }) =>
   assessmentDetail(getAssessmentFor(user, match[1])),
 )
-
-// [backend, access tightened in the mock] surface up to 5 observer candidates.
-// The real route also lets the owner call it and has no deadline; the committee
-// starts this after the sign-up deadline (requirements §4.3 step 2). Calling it
-// again returns the same list (no re-rolling) unless nobody qualified last time.
-route("POST", "/assessments/(\\d+)/candidates", ({ user, match }) => {
-  if (!isAC(user)) {
-    throw fail(403, "forbidden", "Only the committee starts observer selection.")
-  }
-  const assessment = getAssessmentFor(user, match[1])
-  if (!["signed_up", "candidates_generated"].includes(assessment.status)) {
-    throw fail(409, "conflict", "This sign-up is not open for observer selection.")
-  }
-  assertSelectionOpen(assessment)
-  const existing = latestList(assessment.id)
-  if (existing && existing.poolSize > 0) return assessmentDetail(assessment)
-  generateList(assessment, user)
-  save()
-  return assessmentDetail(assessment)
-})
 
 // [committee] manual assignment (insufficient pool, or on the professor's behalf).
 // TODO(BLOCKED: requirements §4.3 step 6 and §8): must the AC's manual pick come
@@ -1289,6 +1377,86 @@ route("POST", "/observations/(\\d+)/postpone", ({ user, match, body }) => {
   touch(assessment)
   save()
   return observationView(observation)
+})
+
+// -- notifications [new, mock-only]. In-app messages only; email is not implemented.
+// A notification is just a message: nothing in the workflow waits for one.
+const notificationView = (n) => ({
+  id: n.id,
+  type: n.type,
+  termId: n.termId,
+  subject: n.subject,
+  body: n.body,
+  link: n.link,
+  createdAt: n.createdAt,
+  readAt: n.readAt,
+  sentBy: { name: n.sentByName },
+  channel: "in_app",
+})
+
+route("GET", "/notifications/inbox", ({ user }) => {
+  const teacherId = requireTeacher(user)
+  const rows = load()
+    .notifications.filter((n) => n.recipientTeacherId === teacherId)
+    .sort((a, b) => b.id - a.id)
+  return { data: rows.map(notificationView), unread: rows.filter((n) => !n.readAt).length }
+})
+
+route("POST", "/notifications/read-all", ({ user }) => {
+  const teacherId = requireTeacher(user)
+  for (const n of load().notifications) {
+    if (n.recipientTeacherId === teacherId && !n.readAt) n.readAt = nowISO()
+  }
+  save()
+  return { unread: 0 }
+})
+
+route("POST", "/notifications/(\\d+)/read", ({ user, match }) => {
+  const teacherId = requireTeacher(user)
+  const n = byId(load().notifications, match[1])
+  if (!n || n.recipientTeacherId !== teacherId) throw fail(404, "not_found", "Notification not found")
+  n.readAt ??= nowISO()
+  save()
+  return notificationView(n)
+})
+
+// The committee's Remind / Remind all. The first "list is ready" message is
+// sent automatically when a list is generated; this only nudges sign-ups that
+// are still choosing an observer (status candidates_generated, non-empty list).
+// Approved, completed and postponed sign-ups are never reminded. Nothing waits
+// for it.
+route("POST", "/notifications/list-reminder", ({ user, body }) => {
+  if (!isAC(user)) throw fail(403, "forbidden", "You do not have permission to do that")
+  const s = load()
+  const term = byId(s.terms, body?.termId)
+  if (!term) throw fail(400, "validation_error", "Choose a term.")
+  if (!term.selectionStartedAt) {
+    throw fail(409, "conflict", "Start Observer Selection first; there are no lists to remind anyone about yet.")
+  }
+  const ids = body?.assessmentIds
+  const targets = s.assessments.filter(
+    (a) => a.dueTermId === term.id && (!ids?.length || ids.includes(a.id)),
+  )
+  const by = actorOf(user)
+  let sent = 0
+  let skipped = 0
+  for (const assessment of targets) {
+    const list = latestList(assessment.id)
+    if (assessment.status !== "candidates_generated" || !list || list.listSize === 0) {
+      skipped += 1
+      continue
+    }
+    pushNotification(
+      assessment,
+      "list_reminder",
+      "Reminder: choose your observer",
+      `${listBody(assessment, list)} This is a reminder from the committee.`,
+      by.name,
+    )
+    sent += 1
+  }
+  save()
+  return { sent, skipped }
 })
 
 // ---------------------------------------------------------------- entry ----

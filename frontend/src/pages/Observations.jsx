@@ -361,7 +361,7 @@ function Observations() {
           </h1>
           <p className="mt-1 text-sm text-muted">
             {committee
-              ? "Every faculty sign-up, its observer and its status. Start observer selection and review alerts on the Sign-up review page."
+              ? "Every faculty sign-up, its observer and its status. Start observer selection and see alerts on the Cycle page."
               : "Your sign-ups, requests from colleagues, and the observations you give and receive."}
           </p>
         </div>

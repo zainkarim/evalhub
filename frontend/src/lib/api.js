@@ -119,9 +119,9 @@ export const api = {
     request(`/assessments${query({ pageSize: 100, ...params })}`),
   getAssessment: (id) => request(`/assessments/${id}`),
 
-  // ---- committee: start observer selection (after the sign-up deadline)
-  generateCandidates: (id) => post(`/assessments/${id}/candidates`),
-  startSelection: (body) => post("/assessments/start-selection", body),
+  // ---- committee: the cycle (one Start Observer Selection for the whole term)
+  startObserverSelection: (termId) => post(`/terms/${termId}/start-observer-selection`),
+  updateTermDates: (termId, body) => request(`/terms/${termId}/dates`, { method: "PATCH", body }),
   assessmentAlerts: (params) => request(`/assessments/alerts${query(params)}`),
   stepInOptions: (id) => request(`/assessments/${id}/step-in-options`),
   assignObserver: (id, body) => post(`/assessments/${id}/observations`, body),
@@ -132,6 +132,13 @@ export const api = {
   sendRequest: (id, teacherId) => post(`/assessments/${id}/time-options/send`, { teacherId }),
   withdrawRequest: (id, reason) =>
     post(`/assessments/${id}/time-options/withdraw`, reason ? { reason } : {}),
+
+  // ---- notifications (in-app only; email is not implemented)
+  inbox: () => request("/notifications/inbox"),
+  markNotificationRead: (id) => post(`/notifications/${id}/read`),
+  markAllNotificationsRead: () => post("/notifications/read-all"),
+  remindListReady: (termId, assessmentIds) =>
+    post("/notifications/list-reminder", assessmentIds ? { termId, assessmentIds } : { termId }),
 
   // ---- observer: confirm one date, or decline
   incomingRequests: () => request("/time-options/incoming"),

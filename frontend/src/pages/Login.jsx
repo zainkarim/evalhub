@@ -39,9 +39,9 @@ function Login() {
             Peer teaching evaluations for ECS faculty.
           </h1>
           <p className="mt-5 text-sm leading-relaxed text-white/80">
-            Sign in to see who is due for evaluation, review observer lists
-            before they go out, and keep a record of every observation given and
-            received.
+            Sign in to see who is due for evaluation, choose your own observer
+            when your list is ready, and keep a record of every observation
+            given and received.
           </p>
         </div>
         <p className="text-xs text-white/70">
@@ -113,7 +113,7 @@ function Login() {
             <div className="mt-4 space-y-3">
               {[
                 { label: "Faculty", email: "faculty@example.edu", note: "Professor C — signs up, then picks one observer and dates" },
-                { label: "Assessment Committee", email: "ac@example.edu", note: "Professor B — sign-up review, starts observer selection" },
+                { label: "Assessment Committee", email: "ac@example.edu", note: "Professor B — the cycle, starts observer selection, sends reminders" },
                 { label: "Administrator", email: "admin@example.edu", note: "Committee view, no teaching profile" },
                 ...(USE_MOCKS
                   ? [
