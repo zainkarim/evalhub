@@ -5,11 +5,13 @@ import {
     courseLabel,
     formatDate,
     fullName,
+    toDateOnly,
 } from "../lib/format"
 import { useCallback, useState } from "react"
 import { api } from "../lib/api"
 import { useApi } from "../lib/useApi"
 import { useAuth } from "../context/auth-context"
+import { hasTeacherProfile } from "../lib/roles"
 
 
 function ObservationRows({ rows, view }) {
@@ -74,8 +76,17 @@ function ObservationRows({ rows, view }) {
 export default function FacultyDashboard() {
     const [view, setView] = useState("observee")
     const { user } = useAuth()
+    const hasProfile = hasTeacherProfile(user)
 
     const loadDashboard = useCallback(async () => {
+        if (!hasProfile) {
+            return {
+                observations: [],
+                assessments: [],
+                incoming: [],
+            }
+        }
+
         const [observations, assessments, incoming] = await Promise.all([
             api.listObservations(),
             api.myAssessments(),
@@ -87,7 +98,7 @@ export default function FacultyDashboard() {
             assessments: assessments.data ?? [],
             incoming: incoming.data ?? [],
         }
-    }, [])
+    }, [hasProfile])
 
     const { data, error, loading } = useApi(loadDashboard)
 
@@ -100,25 +111,47 @@ export default function FacultyDashboard() {
                 (item) => item.offer?.status === "pending"
             )
 
-    const mine = observations.filter((item) =>
-        view === "observer"
-            ? item.observer.id === user.teacherId
-            : item.observee.id === user.teacherId
-    )
 
-    const today = new Date().toLocaleDateString("en-CA")
+    const mine = hasProfile
+        ? observations.filter((item) =>
+            view === "observer"
+                ? item.observer?.id === user.teacherId
+                : item.observee?.id === user.teacherId
+        )
+        : []
+
+    const today = toDateOnly(new Date().toLocaleDateString("en-CA"))
 
     const upcoming = mine.filter(
-        (item) => item.status === "approved" && item.scheduledDate >= today
+        (item) =>
+            item.status === "approved" &&
+            toDateOnly(item.scheduledDate) >= today
     )
 
     const completed = mine.filter((item) => item.status === "completed")
+
+    const postponed = mine.filter(
+        (item) => item.status === "postponed"
+    )
+
+    const needsSignOff = mine.filter(
+        (item) =>
+            item.status === "approved" &&
+            toDateOnly(item.scheduledDate) < today
+    )
 
     return (
         <div>
             <h1 className="text-2xl font-semibold">
                 Faculty Observation Dashboard
             </h1>
+            {!hasProfile && (
+                <p role="alert" className="mt-4 text-sm text-muted">
+                    A teacher profile is required to view faculty observations.
+                </p>
+            )}
+
+
 
             <div className="mt-6 flex gap-2">
                 <button
@@ -144,6 +177,7 @@ export default function FacultyDashboard() {
                 </button>
             </div>
 
+
             <section className="mt-8">
                 <h2 className="mb-4 text-lg font-semibold">
                     Upcoming Confirmed Observations
@@ -154,6 +188,35 @@ export default function FacultyDashboard() {
                     <p role="alert" className="text-red-600">{error.message}</p>
                 ) : (
                     <ObservationRows rows={upcoming} view={view} />
+                )}
+            </section>
+            <section className="mt-8">
+                <h2 className="mb-4 text-lg font-semibold">
+                    Needs Sign-off
+                </h2>
+                {loading ? (
+                    <p>Loading observations...</p>
+                ) : error ? (
+                    <p role="alert" className="text-red-600">
+                        {error.message}
+                    </p>
+                ) : (
+                    <ObservationRows rows={needsSignOff} view={view} />
+                )}
+            </section>
+
+            <section className="mt-8">
+                <h2 className="mb-4 text-lg font-semibold">
+                    Postponed Observations
+                </h2>
+                {loading ? (
+                    <p>Loading observations...</p>
+                ) : error ? (
+                    <p role="alert" className="text-red-600">
+                        {error.message}
+                    </p>
+                ) : (
+                    <ObservationRows rows={postponed} view={view} />
                 )}
             </section>
 

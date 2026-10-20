@@ -7,6 +7,7 @@ import { displayName, hasTeacherProfile, isAC, roleLabel } from "../lib/roles"
 // Faculty and committee members see different navigation. `badge` names the
 // live counter shown next to the link.
 const links = [
+  { to: "/dashboard", label: "Dashboard" },
   { to: "/professors", label: "Professors", committeeOnly: true },
   { to: "/courses", label: "Courses" },
   { to: "/observations", label: "Observations", badge: "requests" },
