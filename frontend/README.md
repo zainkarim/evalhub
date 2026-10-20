@@ -42,8 +42,10 @@ Checks without a browser: `npm run check:mock` (the observation workflow) and
    once on the **Cycle** page. One click builds the list for every sign-up in the term; a
    second click changes nothing. Until then the professor sees "Observer selection opens
    after the sign-up deadline (date). You will get a notification when your list is ready."
-   The committee can also notify each professor that their list is ready; that is only a
-   message, the professor can already use the list without it. Nothing is approved.
+   Each professor with a non-empty list is told automatically; the committee can send
+   reminders (Remind / Remind all) to those still choosing, but nothing waits for them.
+   Faculty sign-ups close at the sign-up deadline; the committee can still sign someone up.
+   A sign-up with no eligible observer keeps the button as "Re-check empty lists". Nothing is approved.
 3. The system lists up to five candidates. An empty or short pool raises an alert on
    the committee dashboard (0 eligible = urgent, 1–4 = limited pool).
 4. The professor picks **one** observer and **4–8 dates**; nothing is sent until the
@@ -87,7 +89,7 @@ src/
 | Observations | my sign-ups, requests to observe (dates to confirm), given / received | all sign-ups (filterable); "My observations" tab if they teach |
 | Sign-up form | own sections | any professor (sign up on their behalf) |
 | Sign-up detail | waiting state, then choose one observer + dates, attempt history | pool and candidates (read-only), request and dates, manual assignment, postpone, attempt history |
-| Cycle (`/cycle`; `/review` redirects) | — (blocked) | the three cycle dates (editable), the one Start Observer Selection button (locked until the sign-up deadline has passed), alerts, and a read-only table of every sign-up (course, section, meeting, observee name + email, list of up to five observers) with Notify / Notify all ("your list is ready") |
+| Cycle (`/cycle`; `/review` redirects) | — (blocked) | the three cycle dates (editable), the one Start Observer Selection button (locked until the sign-up deadline has passed), alerts, and a read-only table of every sign-up (course, section, meeting, observee name + email, list of up to five observers) with Remind / Remind all (the "list is ready" message is automatic) |
 | Notifications | inbox (if they teach) | inbox (if they teach); in-app only, email is not implemented |
 | Professors (`/professors`) | — (blocked) | active professors (a "Show inactive" toggle adds the inactive ones, with an Edit link to reactivate them): due status and next due semester, rank, department, last completed observation, current status, sign-up status; counts (active professors only), filters, search, sort, semester picker (kept in the URL, so Back from a professor returns to the same semester); detail page with courses, observations given/received and observer load (max 3) |
 | Observation record | sign off (observer / observee only), postpone, attempt history | view-only, postpone, attempt history |

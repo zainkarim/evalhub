@@ -26,22 +26,23 @@ function Layout() {
     let active = true
     async function refresh() {
       const next = { requests: 0, alerts: 0, unread: 0 }
-      try {
-        if (committee) {
-          // Insufficient pools: nobody eligible (urgent) plus short lists (limited).
-          const alerts = await api.assessmentAlerts()
-          next.alerts = alerts.counts.urgent + alerts.counts.limited
-        }
-        if (hasTeacherProfile(user)) {
-          const incoming = await api.incomingRequests()
-          next.requests = (incoming.data ?? []).filter(
-            (request) => request.status === "pending",
-          ).length
-          next.unread = (await api.inbox()).unread
-        }
-      } catch {
-        // counters are a convenience; pages show their own errors
+      // Counters are a convenience and pages show their own errors, so one
+      // failing call must not drop the other badges.
+      const [alerts, incoming, inbox] = await Promise.allSettled([
+        committee ? api.assessmentAlerts() : null,
+        hasTeacherProfile(user) ? api.incomingRequests() : null,
+        hasTeacherProfile(user) ? api.inbox() : null,
+      ])
+      // Insufficient pools: nobody eligible (urgent) plus short lists (limited).
+      if (alerts.status === "fulfilled" && alerts.value) {
+        next.alerts = alerts.value.counts.urgent + alerts.value.counts.limited
       }
+      if (incoming.status === "fulfilled" && incoming.value) {
+        next.requests = (incoming.value.data ?? []).filter(
+          (request) => request.status === "pending",
+        ).length
+      }
+      if (inbox.status === "fulfilled" && inbox.value) next.unread = inbox.value.unread
       if (active) setCounts(next)
     }
     refresh()
