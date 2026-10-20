@@ -69,6 +69,19 @@ function Layout() {
           </span>
 
           <nav className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+            {hasTeacherProfile(user) && (
+              <NavLink
+                to={`/professors/${user.teacherId}/edit`}
+                className={({ isActive }) =>
+                  `border-b-2 pb-1 ${isActive
+                    ? "border-utd-green text-ink"
+                    : "border-transparent text-muted hover:text-ink"
+                  }`
+                }
+              >
+                My Profile
+              </NavLink>
+            )}
             {links
               .filter((link) => committee || !link.committeeOnly)
               .filter((link) => !link.profileOnly || hasTeacherProfile(user))
@@ -79,10 +92,9 @@ function Layout() {
                     key={link.to}
                     to={link.to}
                     className={({ isActive }) =>
-                      `border-b-2 pb-1 ${
-                        isActive
-                          ? "border-utd-green text-ink"
-                          : "border-transparent text-muted hover:text-ink"
+                      `border-b-2 pb-1 ${isActive
+                        ? "border-utd-green text-ink"
+                        : "border-transparent text-muted hover:text-ink"
                       }`
                     }
                   >

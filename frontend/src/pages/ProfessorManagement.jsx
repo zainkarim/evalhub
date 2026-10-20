@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { api } from "../lib/api"
 import { useApi } from "../lib/useApi"
+import { useAuth } from "../context/auth-context"
+import { isAC } from "../lib/roles"
 
 const EMPTY_FORM = {
   firstName: "",
@@ -16,6 +18,8 @@ function ProfessorForm() {
   const { id } = useParams()
   const navigate = useNavigate()
   const isEditing = Boolean(id)
+  const { user } = useAuth()
+  const committee = isAC(user)
 
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
@@ -67,8 +71,12 @@ function ProfessorForm() {
 
     try {
       if (isEditing) {
-        await api.updateProfessor(id, form)
-        navigate(`/professors/${id}`)
+        const updates = committee
+          ? form
+          : { rank: form.rank, isActive: form.isActive }
+
+        await api.updateProfessor(id, updates)
+        navigate(committee ? `/professors/${id}` : "/observations")
       } else {
         const professor = await api.createProfessor(form)
         navigate(`/professors/${professor.id}`)
@@ -86,7 +94,7 @@ function ProfessorForm() {
   if (isEditing && loadError) {
     return (
       <div>
-        <Link to="/professors" className="text-sm text-muted hover:text-ink">
+        <Link to={committee ? "/professors" : "/observations"} className="text-sm text-muted hover:text-ink">
           Back
         </Link>
 
@@ -100,7 +108,7 @@ function ProfessorForm() {
   return (
     <div className="max-w-2xl">
       <Link
-        to={isEditing ? `/professors/${id}` : "/professors"}
+        to={committee ? (isEditing ? `/professors/${id}` : "/professors") : "/observations"}
         className="text-sm text-muted hover:text-ink"
       >
         Back
@@ -135,6 +143,7 @@ function ProfessorForm() {
               value={form.firstName}
               onChange={handleChange}
               required
+              disabled={!committee}
               className="mt-1 w-full rounded border border-line px-3 py-2"
             />
           </label>
@@ -147,6 +156,7 @@ function ProfessorForm() {
               value={form.lastName}
               onChange={handleChange}
               required
+              disabled={!committee}
               className="mt-1 w-full rounded border border-line px-3 py-2"
             />
           </label>
@@ -160,6 +170,7 @@ function ProfessorForm() {
             value={form.email}
             onChange={handleChange}
             required
+            disabled={!committee}
             className="mt-1 w-full rounded border border-line px-3 py-2"
           />
         </label>
@@ -172,6 +183,7 @@ function ProfessorForm() {
             value={form.school}
             onChange={handleChange}
             required
+            disabled={!committee}
             className="mt-1 w-full rounded border border-line px-3 py-2"
           />
         </label>
@@ -216,7 +228,7 @@ function ProfessorForm() {
           </button>
 
           <Link
-            to={isEditing ? `/professors/${id}` : "/professors"}
+            to={committee ? (isEditing ? `/professors/${id}` : "/professors") : "/observations"}
             className="rounded border border-line px-4 py-2 text-sm"
           >
             Cancel
