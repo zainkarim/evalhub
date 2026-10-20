@@ -10,14 +10,11 @@
 -- (migration 005) is now the matching key on the teacher side; courses.subject
 -- (e.g. 'CS') already served this purpose on the course side and is unchanged.
 --
--- FIXED 2026-10-06: placeholders renumbered to match how assessments.js
--- actually calls this (6 positional args, not 7 -- the original version of
--- this file had a leftover unused $1 and referenced $7, which meant every
--- real call to this query failed with "bind message supplies 6 parameters,
--- but prepared statement requires 7"). Both call sites in assessments.js
--- pass [observee_id, department, course_level, date, limit, lookbackYears]
--- in that order -- this file matches that exactly (the 2nd parameter moved
--- from "school" to "department" in meaning, same position).
+-- Both callers pass:
+-- [observee_id, department, course_level, date, limit, lookbackYears,
+--  due_term_id, observerCapacity]
+-- The commitments CTE is supplied from observerCapacity.js so candidate
+-- filtering and offer acceptance use the same reservation rules.
 --
 -- Rules, per Q&A 8 and 15, department correction 10/13:
 --   - match by course level (first digit of course number), not focus area
@@ -40,24 +37,37 @@
 -- than spec -- worth fixing, just not urgent tonight.
 --
 -- $1 observee teacher id (to exclude self)
--- $2 target department (department of the section being observed, e.g. 'CS')
+-- $2 target department
 -- $3 target course level
--- $4 as-of date (usually CURRENT_DATE)
--- $5 list size / limit (app_settings.candidate_list_size)
--- $6 lookback years (app_settings.observer_lookback_years)
-WITH pool AS (
+-- $4 as-of date
+-- $5 list size / limit
+-- $6 lookback years
+-- $7 assessment due_term_id (working definition of cycle)
+-- $8 maximum assignments per observer per cycle
+WITH commitments AS (
+  /* OBSERVER_COMMITMENTS_SQL */
+),
+capacity AS (
+  SELECT observer_id, COUNT(*)::int AS used
+  FROM commitments
+  WHERE due_term_id = $7::int
+  GROUP BY observer_id
+),
+pool AS (
   SELECT DISTINCT t.id, t.first_name, t.last_name, t.email
   FROM teachers t
   JOIN course_sections cs ON cs.teacher_id = t.id
   JOIN courses c          ON c.id = cs.course_id
   JOIN terms tm           ON tm.id = cs.term_id
+  LEFT JOIN capacity cap ON cap.observer_id = t.id
   WHERE t.is_active
     AND t.id <> $1
     AND t.department = $2
     AND c.subject = $2
     AND c.course_level = $3
     AND tm.start_date <= $4::date
-    AND tm.end_date   >= ($4::date - make_interval(years => $6::int))
+    AND tm.end_date >= ($4::date - make_interval(years => $6::int))
+    AND COALESCE(cap.used, 0) < $8::int
 )
 SELECT p.id, p.first_name, p.last_name, p.email,
        (SELECT count(*) FROM pool)::int AS pool_size
