@@ -137,8 +137,8 @@ export const api = {
   inbox: () => request("/notifications/inbox"),
   markNotificationRead: (id) => post(`/notifications/${id}/read`),
   markAllNotificationsRead: () => post("/notifications/read-all"),
-  notifyListReady: (termId, assessmentIds) =>
-    post("/notifications/list-ready", assessmentIds ? { termId, assessmentIds } : { termId }),
+  remindListReady: (termId, assessmentIds) =>
+    post("/notifications/list-reminder", assessmentIds ? { termId, assessmentIds } : { termId }),
 
   // ---- observer: confirm one date, or decline
   incomingRequests: () => request("/time-options/incoming"),

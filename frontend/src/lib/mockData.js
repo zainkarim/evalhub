@@ -342,7 +342,7 @@ export function buildSeed(now = new Date()) {
   ].map((row, index) => ({ id: index + 1, ...row }))
 
   return {
-    version: 3,
+    version: 4,
     terms: seededTerms,
     teachers,
     courses,
@@ -355,8 +355,9 @@ export function buildSeed(now = new Date()) {
     offers,
     observations,
     attemptLog,
-    // In-app messages (mock-only). `list_ready` ones are sent by the committee's
-    // Notify buttons; a list never depends on one being sent.
+    // In-app messages (mock-only). `list_ready` is sent when a non-empty list is
+    // generated; `list_reminder` by the committee's Remind buttons. A list never
+    // depends on either being read.
     notifications: [],
     nextId: {
       notification: 1,

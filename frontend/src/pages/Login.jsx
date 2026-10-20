@@ -113,7 +113,7 @@ function Login() {
             <div className="mt-4 space-y-3">
               {[
                 { label: "Faculty", email: "faculty@example.edu", note: "Professor C — signs up, then picks one observer and dates" },
-                { label: "Assessment Committee", email: "ac@example.edu", note: "Professor B — the cycle, starts observer selection, sends notifications" },
+                { label: "Assessment Committee", email: "ac@example.edu", note: "Professor B — the cycle, starts observer selection, sends reminders" },
                 { label: "Administrator", email: "admin@example.edu", note: "Committee view, no teaching profile" },
                 ...(USE_MOCKS
                   ? [

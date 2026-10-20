@@ -38,7 +38,7 @@ but the frontend needs more · **mock** = mock-only today, needs to be built.
 | mock | `POST /terms/:termId/start-observer-selection` | AC/admin | THE one cycle-wide "Start Observer Selection"; idempotent; see "Cycle and notifications" |
 | mock | `PATCH /terms/:id/dates` `{ signupDeadline, observationDeadline, feedbackDeadline }` | AC/admin | edit the cycle dates |
 | mock | `GET /notifications/inbox`, `POST /notifications/:id/read`, `POST /notifications/read-all` | professor | in-app messages |
-| mock | `POST /notifications/list-ready` `{ termId, assessmentIds? }` | AC/admin | "your list is ready" messages (Notify / Notify all) |
+| mock | `POST /notifications/list-reminder` `{ termId, assessmentIds? }` | AC/admin | reminders (Remind / Remind all) to sign-ups still choosing; the first "list is ready" message is sent automatically |
 | mock | `GET /assessments/alerts` (`?termId=`) | AC/admin | alerts panel + nav counter |
 | exists | `GET /assessments/:id/time-options` | owner, offered observer, AC/admin | return `attemptNo` too |
 | extend | `POST /assessments/:id/time-options` `{ options: [{ proposedDate, startTime, endTime }] }` | owner, AC/admin | **4–8** options (backend accepts 1–8) |
@@ -135,9 +135,10 @@ From `docs/requirements.md` §4.2–4.3 unless marked **added**.
 
 1. **Sign-up**: instructor of the section only; one per section (409); **added** –
    only current/upcoming Spring/Fall terms. **Added:** a faculty sign-up is refused
-   (409) once Start Observer Selection has run for the term, because selection is a
-   single cycle-wide run; the committee can still sign a professor up, and that sign-up
-   gets its list at once (other lists are not re-rolled).
+   (409, "Sign-ups closed on <date>.") once the term's sign-up deadline has passed (the
+   deadline day itself is open), not when Start is clicked. The committee can still sign a
+   professor up; if selection has started, that sign-up gets its list (and, when the list
+   is non-empty, its "list is ready" message) at once. Other lists are not re-rolled.
 2. **Sign-up deadline** (**mock-only**, `terms.signupDeadline`): selection opens the
    day after it. Before that Start returns 409 and the UI shows "Opens after <date>".
    The professor sees "Observer selection opens after the sign-up deadline (<date>).
@@ -146,11 +147,15 @@ From `docs/requirements.md` §4.2–4.3 unless marked **added**.
    `POST /terms/:termId/start-observer-selection` (mock). It builds the list for every
    sign-up in the term that has none, using the same pool rules as
    `db/queries/eligible_observers.sql` plus availability from schedules; up to 5 chosen
-   at random. It is **idempotent**: once `terms.selectionStartedAt` is set, another call
-   returns `alreadyStarted: true` and changes nothing (no new lists, log rows or
-   messages); existing lists are never re-rolled. It approves nothing, and there is no
-   per-sign-up start. The professor can use the list as soon as it exists; the "list is
-   ready" message is only a message. Zero eligible keeps the sign-up `signed_up` and
+   at random. It is **idempotent** for sign-ups that already have a non-empty list: a
+   later call (`alreadyStarted: true`) never re-rolls them and sends nothing twice.
+   Sign-ups whose list is **empty** are re-evaluated on every call ("Re-check empty
+   lists" in the UI, shown while any exist after selection started): if an observer is
+   eligible now, the list is generated and `list_ready` is sent; if nobody is, nothing
+   changes (no new list, no history row) and the call reports it in `stillEmpty`. It approves nothing, and there is no
+   per-sign-up start. The professor can use the list as soon as it exists. Generating a
+   non-empty list (Start, re-check or a late committee sign-up) sends one `list_ready`
+   message per list; an empty list sends none. Zero eligible keeps the sign-up `signed_up` and
    still **persists the 0/0 list** so the alert and the "unmatched faculty" / "list
    sufficiency" KPIs can see it (the reference route currently returns without saving
    one). The list is recorded in the attempt history as `list_generated` by "System".
@@ -236,19 +241,22 @@ routes, so the backend team can see what integration needs:
 
 // POST /terms/:termId/start-observer-selection  (AC/admin; 409 before the day after signupDeadline)
 { "termId": 10, "alreadyStarted": false, "startedAt": "…", "started": 5, "noEligible": 1, "limited": 1, "full": 3 }
-// second call: { "alreadyStarted": true, "started": 0, … } and nothing changes
+// "stillEmpty": empty-list sign-ups re-checked that still have nobody eligible.
+// second call: { "alreadyStarted": true, "started": 0, "stillEmpty": n, … }; non-empty lists are untouched
 
 // PATCH /terms/:id/dates  { signupDeadline, observationDeadline, feedbackDeadline }  (AC/admin)
 // -> the term. 400 unless sign-up < observation < feedback; 409 to move the sign-up deadline after selection started.
 
 // Notification (what a professor sees)
-{ "id": 1, "type": "list_ready", "termId": 10, "subject": "Your observer list is ready", "body": "…",
+{ "id": 1, "type": "list_ready" | "list_reminder", "termId": 10, "subject": "Your observer list is ready", "body": "…",
   "link": "/assessments/1" | null, "createdAt": "…", "readAt": null | "…", "sentBy": { "name": "Professor B" }, "channel": "in_app" }
 // GET  /notifications/inbox        -> { "data": [ Notification ], "unread": 1 }       (needs a teacher profile)
 // POST /notifications/:id/read     -> Notification;   POST /notifications/read-all -> { "unread": 0 }
 
-// POST /notifications/list-ready  { termId, assessmentIds? }   (AC/admin; 409 before selection has run)
-// -> { "sent": 4, "alreadyNotified": 0, "noList": 1 }  — one message per observee whose list has at least one observer
+// POST /notifications/list-reminder  { termId, assessmentIds? }   (AC/admin; 409 before selection has run)
+// -> { "sent": 4, "skipped": 3 }  — a type "list_reminder" message for each sign-up still choosing
+//    (status candidates_generated with a non-empty list); approved, completed, postponed and
+//    empty-list sign-ups are skipped. Reminders are optional: nothing depends on them.
 ```
 
 Notifications are in-app only; **email delivery is not implemented**. No step waits
