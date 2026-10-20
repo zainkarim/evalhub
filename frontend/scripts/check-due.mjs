@@ -1,6 +1,8 @@
 // Checks the due-date rules (lib/dueStatus.js) and the Professors report that the
 // in-browser mock builds from them (GET /teachers/report, /teachers/:id/profile).
-// No browser, no clock: terms are explicit. Fails loudly on any problem.
+// No browser. Terms are explicit, and wherever a result depends on "today" (the default
+// semester, the 2-year course look-back) the mock's today is pinned with setMockToday,
+// so the result is the same on any day. Fails loudly on any problem.
 // Run: npm run check:due
 import assert from "node:assert/strict"
 import { register } from "node:module"
@@ -24,7 +26,8 @@ globalThis.localStorage = {
   removeItem: (key) => store.delete(key),
 }
 
-const { computeDue, defaultReportTerm, describeWindow, termLabel } = await import("../src/lib/dueStatus.js")
+const { computeDue, defaultReportTerm, describeWindow } = await import("../src/lib/dueStatus.js")
+const { formatTerm } = await import("../src/lib/format.js")
 
 const spring = (year) => ({ season: "spring", year })
 const summer = (year) => ({ season: "summer", year })
@@ -55,7 +58,7 @@ for (const rank of ["associate_professor", "full_professor"]) {
   assert.equal(status(rank, spring(2025), fall(2027)), "overdue")
   assert.equal(status(rank, spring(2025), spring(2028)), "overdue")
   const result = computeDue({ rank, lastObservedTerm: spring(2025), term: spring(2027) })
-  assert.equal(termLabel(result.dueTerm), "Spring 2027")
+  assert.equal(formatTerm(result.dueTerm), "Spring 2027")
   assert.equal(result.dueWindow.length, 1)
 }
 // Fall observation: due the Fall two years later.
@@ -97,7 +100,8 @@ assert.equal(defaultReportTerm(terms, "2026-12-20").id, 11, "between terms, the 
 assert.equal(defaultReportTerm(terms, "2030-01-01").id, 11, "after the last term, the last one")
 
 // ---- the mock report
-const { mockRequest, resetMockData } = await import("../src/lib/mockServer.js")
+const { mockRequest, resetMockData, setMockToday } = await import("../src/lib/mockServer.js")
+const TODAY = "2026-10-14" // inside Fall 2026
 resetMockData()
 
 const PASSWORD = "ChangeMe-Dev-123!"
@@ -125,9 +129,14 @@ assert.equal(await statusOf(call(FACULTY, "/teachers/report")), 403)
 assert.equal(await statusOf(call(FACULTY, "/teachers/3/profile")), 403)
 
 const fall26 = await report(FALL_2026)
-assert.equal((await report()).term.id, fall26.term.id, "without termId the page opens on the current or next term")
+setMockToday(TODAY)
+assert.equal((await report()).term.id, FALL_2026, "without termId the page opens on the term in progress")
+setMockToday("2026-12-20")
+assert.equal((await report()).term.id, SPRING_2027, "between terms it opens on the next one")
+setMockToday(null) // the sign-off step below uses seed dates that are relative to the real clock
 const rows = byLetter(fall26)
-assert.equal(fall26.data.length, 10, "every active professor is a row, signed up or not")
+assert.equal(fall26.data.length, 10, "every professor is a row, signed up or not")
+assert.ok(fall26.data.every((row) => row.isActive))
 assert.deepEqual(
   Object.fromEntries(Object.entries(rows).map(([letter, row]) => [letter, row.dueStatus])),
   {
@@ -151,8 +160,8 @@ assert.deepEqual(fall26.counts, {
   notSignedUp: 6,
   completed: 0,
 })
-assert.equal(termLabel(rows.D.dueTerm), "Fall 2027")
-assert.equal(termLabel(rows.A.dueTerm), "Fall 2026")
+assert.equal(formatTerm(rows.D.dueTerm), "Fall 2027")
+assert.equal(formatTerm(rows.A.dueTerm), "Fall 2026")
 assert.equal(describeWindow(rows.H.dueWindow), "Spring 2026 or Fall 2026")
 assert.equal(rows.A.rankLabel, "Associate Professor")
 assert.equal(rows.A.department, "CS")
@@ -181,12 +190,30 @@ assert.equal(rows27.F.dueStatus, "due", "full, last Spring 2025 -> due Spring 20
 assert.equal(rows27.A.dueStatus, "overdue")
 assert.equal(rows27.F.currentStatus, "none", "sign-ups belong to their own term")
 
-// Inactive professors drop out of the rows and the counts.
+// Inactive professors stay in the rows (flagged, so the page can offer "Show inactive" and
+// an edit link to reactivate them) but drop out of the counts.
 await call(AC, "/teachers/7", { method: "PATCH", body: { isActive: false } })
 const withoutG = await report(FALL_2026)
-assert.equal(withoutG.data.length, 9)
-assert.ok(!withoutG.data.some((row) => row.lastName === "G"))
-assert.equal(withoutG.counts.overdue, 1)
+assert.equal(withoutG.data.length, 10)
+assert.equal(byLetter(withoutG).G.isActive, false)
+assert.equal(withoutG.data.filter((row) => row.isActive).length, 9)
+assert.deepEqual(
+  withoutG.counts,
+  { ...fall26.counts, overdue: 1, notSignedUp: fall26.counts.notSignedUp - 1 },
+  "counts cover active professors only (G was overdue and not signed up)",
+)
+await call(AC, "/teachers/7", { method: "PATCH", body: { isActive: true } })
+assert.deepEqual((await report(FALL_2026)).counts, fall26.counts, "reactivating brings G back into the counts")
+resetMockData()
+
+// Changing a professor's school re-derives the department; an explicit department wins.
+const moved = await call(AC, "/teachers/1", { method: "PATCH", body: { school: "EPPS" } })
+assert.equal(moved.department, "EPPS")
+assert.equal(byLetter(await report(FALL_2026)).A.department, "EPPS")
+const renamed = await call(AC, "/teachers/1", { method: "PATCH", body: { school: "ECS", department: "SE" } })
+assert.equal(renamed.department, "SE")
+const samedept = await call(AC, "/teachers/1", { method: "PATCH", body: { school: "ECS", rank: "full_professor" } })
+assert.equal(samedept.department, "SE", "school unchanged -> department untouched")
 resetMockData()
 
 // A new professor who has never signed up appears straight away as Never observed.
@@ -214,7 +241,20 @@ assert.equal(done.counts.completed, 1)
 assert.equal(byLetter(await report(SPRING_2027)).F.dueStatus, "not_due", "observed Fall 2026 -> next due Fall 2028")
 resetMockData()
 
+// A request sent for a postponed sign-up reads "Request sent", not "Postponed".
+setMockToday(TODAY)
+const sendDates = ["2026-10-19", "2026-10-21", "2026-10-26", "2026-10-28"] // Professor B's MW class
+await call(AC, "/assessments/5/time-options", {
+  method: "POST",
+  body: { options: sendDates.map((proposedDate) => ({ proposedDate, startTime: "10:00", endTime: "11:15" })) },
+})
+await call(AC, "/assessments/5/time-options/send", { method: "POST", body: { teacherId: 4 } })
+assert.equal(byLetter(await report(FALL_2026)).B.currentStatus, "request_sent")
+setMockToday(null)
+resetMockData()
+
 // ---- the detail page's profile
+setMockToday(TODAY)
 const profileC = await call(AC, `/teachers/3/profile?termId=${FALL_2026}`)
 assert.equal(profileC.teacher.department, "CS")
 assert.equal(profileC.summary.dueStatus, "not_due")
@@ -245,5 +285,18 @@ const profileB = await call(AC, `/teachers/2/profile?termId=${FALL_2026}`)
 assert.equal(profileB.signUp.status, "postponed")
 assert.ok(profileB.signUp.attempts.some((entry) => entry.type === "did_not_happen"), "attempt history is shown")
 assert.equal(await statusOf(call(AC, "/teachers/99/profile")), 404)
+
+// "Last 2 years" is counted back from the mock's today, the same date the observer pool uses.
+setMockToday("2028-01-15") // cutoff 2026-01-15: Spring 2026 is in, Fall 2025 is out
+const later = await call(AC, `/teachers/3/profile?termId=${FALL_2026}`)
+assert.deepEqual(
+  later.courses.map((course) => [course.course, formatTerm(course.term)]),
+  [
+    ["CS 1337", "Fall 2026"],
+    ["CS 2305", "Fall 2026"],
+    ["CS 2305", "Spring 2026"],
+  ],
+)
+setMockToday(null)
 
 console.log("due checks passed")

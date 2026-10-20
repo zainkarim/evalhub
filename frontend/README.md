@@ -33,7 +33,7 @@ switches automatically. Several workflow screens need endpoints the backend does
 have yet — see [`docs/api-expectations.md`](docs/api-expectations.md).
 
 Checks without a browser: `npm run check:mock` (the observation workflow) and
-`npm run check:due` (the due-date rules and the Professors report).
+`npm run check:due` (the due-date rules and the Professors report; independent of the date it runs on).
 
 ## The workflow (docs/requirements.md §4.3)
 
@@ -89,7 +89,7 @@ src/
 | Sign-up detail | waiting state, then choose one observer + dates, attempt history | pool and candidates (read-only), request and dates, manual assignment, postpone, attempt history |
 | Cycle (`/cycle`; `/review` redirects) | — (blocked) | the three cycle dates (editable), the one Start Observer Selection button (locked until the sign-up deadline has passed), alerts, and a read-only table of every sign-up (course, section, meeting, observee name + email, list of up to five observers) with Notify / Notify all ("your list is ready") |
 | Notifications | inbox (if they teach) | inbox (if they teach); in-app only, email is not implemented |
-| Professors (`/professors`) | — (blocked) | every active professor: due status and next due semester, rank, department, last completed observation, current status, sign-up status; counts, filters, search, sort, semester picker; detail page with courses, observations given/received and observer load (max 3) |
+| Professors (`/professors`) | — (blocked) | active professors (a "Show inactive" toggle adds the inactive ones, with an Edit link to reactivate them): due status and next due semester, rank, department, last completed observation, current status, sign-up status; counts (active professors only), filters, search, sort, semester picker (kept in the URL, so Back from a professor returns to the same semester); detail page with courses, observations given/received and observer load (max 3) |
 | Observation record | sign off (observer / observee only), postpone, attempt history | view-only, postpone, attempt history |
 
 See [`docs/sprint2-frontend-changes.md`](docs/sprint2-frontend-changes.md) for the

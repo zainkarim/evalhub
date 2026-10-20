@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import ProfessorsTable from "../components/ProfessorsTable"
 import StateBlock from "../components/StateBlock"
 import { api } from "../lib/api"
@@ -22,26 +22,46 @@ function Tile({ label, value, note }) {
   )
 }
 
-// Committee only (requirements §4.11): every active professor, signed up or not, with
-// where they stand for the chosen semester.
+// The semester list never changes while the page is open, so it is loaded once.
+// Spring and Fall only: Summer is not a cycle term.
+const loadCycleTerms = async () => {
+  const terms = await api.listTerms({})
+  return (terms.data ?? [])
+    .filter((term) => term.season !== "summer")
+    .sort((a, b) => a.startDate.localeCompare(b.startDate))
+}
+
+// Committee only (requirements §4.11): the active professors, signed up or not, with
+// where they stand for the chosen semester. "Show inactive" adds the inactive ones (with
+// a link to edit them); the tiles only ever count active professors.
 function Professors() {
-  const [termId, setTermId] = useState(null) // null = the server's current-or-next term
+  // The chosen semester lives in the URL (?termId=) so the detail page can link back to it.
+  // No termId = the server's current-or-next term.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const termId = searchParams.get("termId")
   const [filters, setFilters] = useState(NO_FILTERS)
+  const [showInactive, setShowInactive] = useState(false)
   const [sort, setSort] = useState({ key: "due", direction: "asc" })
 
-  const call = useCallback(async () => {
-    const [report, terms] = await Promise.all([api.professorReport(termId), api.listTerms({})])
-    // Spring and Fall only: Summer is not a cycle term.
-    const cycleTerms = (terms.data ?? [])
-      .filter((term) => term.season !== "summer")
-      .sort((a, b) => a.startDate.localeCompare(b.startDate))
-    return { report, terms: cycleTerms }
-  }, [termId])
-  const { data, error, loading, reload } = useApi(call)
+  const call = useCallback(() => api.professorReport(termId), [termId])
+  const { data: report, error: reportError, loading: reportLoading, reload } = useApi(call)
+  const { data: terms, error: termsError, loading: termsLoading, reload: reloadTerms } = useApi(loadCycleTerms)
+  const data = report && terms ? { report, terms } : null
+  const error = reportError ?? termsError
+  const loading = reportLoading || termsLoading
+  const retry = () => {
+    if (reportError) reload()
+    if (termsError) reloadTerms()
+  }
+
+  const roster = useMemo(
+    () => (report?.data ?? []).filter((row) => showInactive || row.isActive),
+    [report, showInactive],
+  )
 
   const rows = useMemo(() => {
     const q = filters.q.trim().toLowerCase()
-    const matching = (data?.report.data ?? []).filter(
+    const matching = roster.filter(
       (row) =>
         (!q || `${row.firstName} ${row.lastName} ${row.email}`.toLowerCase().includes(q)) &&
         (!filters.due || row.dueStatus === filters.due) &&
@@ -50,12 +70,9 @@ function Professors() {
         (!filters.department || row.department === filters.department),
     )
     return sortRows(matching, sort)
-  }, [data, filters, sort])
+  }, [roster, filters, sort])
 
-  const departments = useMemo(
-    () => [...new Set((data?.report.data ?? []).map((row) => row.department))].sort(),
-    [data],
-  )
+  const departments = useMemo(() => [...new Set(roster.map((row) => row.department))].sort(), [roster])
 
   const setFilter = (key) => (event) => setFilters((current) => ({ ...current, [key]: event.target.value }))
   const sortBy = (key) =>
@@ -74,7 +91,7 @@ function Professors() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Professors</h1>
           <p className="mt-1 text-sm text-muted">
-            Every active professor: who is due, who has signed up, and where their observation stands.
+            Active professors: who is due, who has signed up, and where their observation stands.
           </p>
         </div>
 
@@ -87,7 +104,7 @@ function Professors() {
       </div>
 
       <div className="mt-6">
-        <StateBlock loading={loading} error={error} onRetry={reload}>
+        <StateBlock loading={loading} error={error} onRetry={retry}>
           {data && (
             <>
               <div className="flex flex-wrap items-end gap-4">
@@ -95,7 +112,7 @@ function Professors() {
                   <span className="font-medium">Semester</span>
                   <select
                     value={data.report.term.id}
-                    onChange={(event) => setTermId(Number(event.target.value))}
+                    onChange={(event) => setSearchParams({ termId: event.target.value }, { replace: true })}
                     className={`${fieldClass} min-w-40`}
                   >
                     {data.terms.map((term) => (
@@ -107,7 +124,7 @@ function Professors() {
                 </label>
                 <p className="pb-2 text-xs text-muted">
                   Due status is worked out from each professor&apos;s observations finished before
-                  this semester starts.
+                  this semester starts. The tiles count active professors only.
                 </p>
               </div>
 
@@ -179,8 +196,16 @@ function Professors() {
 
               <div className="mt-3 flex items-center justify-between gap-3 text-sm text-muted">
                 <p>
-                  Showing {rows.length} of {data.report.data.length}
+                  Showing {rows.length} of {roster.length}
                 </p>
+                <label className="ml-auto flex items-center gap-2 text-ink">
+                  <input
+                    type="checkbox"
+                    checked={showInactive}
+                    onChange={(event) => setShowInactive(event.target.checked)}
+                  />
+                  Show inactive
+                </label>
                 {filtered && (
                   <button
                     type="button"
@@ -195,7 +220,7 @@ function Professors() {
               <div className="mt-3">
                 {rows.length === 0 ? (
                   <p className="rounded border border-line bg-white px-5 py-8 text-sm text-muted">
-                    {data.report.data.length === 0
+                    {roster.length === 0
                       ? "No active professors on the roster yet."
                       : "No professors match these filters."}
                   </p>

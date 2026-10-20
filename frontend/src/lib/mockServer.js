@@ -12,7 +12,7 @@
 //   - an attempt that does not happen is never cancelled: it is logged and Postponed
 
 import { computeDue, defaultReportTerm } from "./dueStatus"
-import { formatRank, normalizeStatus } from "./format"
+import { courseLabel, formatRank, normalizeStatus } from "./format"
 import { APP_SETTINGS, buildSeed, DEMO_PASSWORD } from "./mockData"
 
 const STORE_KEY = "evalhub.mock.state.v4"
@@ -69,7 +69,20 @@ const isoDay = (date) => {
   const day = String(date.getDate()).padStart(2, "0")
   return `${date.getFullYear()}-${month}-${day}`
 }
-const today = () => isoDay(new Date())
+// "Today" for every date rule in the mock. Tests pin it (setMockToday) so they do not
+// depend on when they run; the app never does.
+let todayOverride = null
+export const setMockToday = (day) => {
+  todayOverride = day
+}
+const today = () => todayOverride ?? isoDay(new Date())
+// Sections taught on or after this day count towards observer eligibility and the
+// Professors profile; one date so the two cannot disagree.
+function lookbackCutoff() {
+  const lookback = new Date(`${today()}T12:00:00`)
+  lookback.setFullYear(lookback.getFullYear() - APP_SETTINGS.observerLookbackYears)
+  return isoDay(lookback)
+}
 const nowISO = () => new Date().toISOString()
 const isAC = (user) => user.role === "ac_member" || user.role === "admin"
 
@@ -449,9 +462,7 @@ function eligibleObservers(assessment) {
   const s = load()
   const target = byId(s.sections, assessment.sectionId)
   const course = byId(s.courses, target.courseId)
-  const lookback = new Date()
-  lookback.setFullYear(lookback.getFullYear() - APP_SETTINGS.observerLookbackYears)
-  const cutoff = isoDay(lookback)
+  const cutoff = lookbackCutoff()
 
   return s.teachers.filter((teacher) => {
     if (!teacher.isActive || teacher.id === assessment.teacherId) return false
@@ -652,7 +663,6 @@ const SIGNUP_PRIORITY = { completed: 5, approved: 4, candidates_generated: 3, si
 
 const sectionTerm = (sectionId) => byId(load().terms, byId(load().sections, sectionId).termId)
 const courseOfSection = (sectionId) => byId(load().courses, byId(load().sections, sectionId).courseId)
-const courseText = (course) => `${course.subject} ${course.courseNumber}`
 
 function reportTerm(params) {
   const s = load()
@@ -696,14 +706,12 @@ function currentStatusOf(assessment) {
   if (status === "approved") {
     return { currentStatus: "scheduled", currentDate: activeObservation(assessment.id)?.scheduledDate ?? null, attempts: 0 }
   }
+  // A postponed sign-up that has sent a new request is waiting on that request again.
+  if (pendingOffer(assessment.id)) return { currentStatus: "request_sent", currentDate: null, attempts: 0 }
   if (status === "postponed") {
     return { currentStatus: "postponed", currentDate: null, attempts: Math.max(currentAttemptNo(assessment.id) - 1, 1) }
   }
-  return {
-    currentStatus: pendingOffer(assessment.id) ? "request_sent" : "selecting_observer",
-    currentDate: null,
-    attempts: 0,
-  }
+  return { currentStatus: "selecting_observer", currentDate: null, attempts: 0 }
 }
 
 const termBrief = (term) => ({ id: term.id, season: term.season, year: term.year })
@@ -724,6 +732,7 @@ function reportRow(teacher, term) {
     email: teacher.email,
     school: teacher.school,
     department: teacher.department ?? teacher.school,
+    isActive: teacher.isActive,
     rank: teacher.rank,
     rankLabel: formatRank(teacher.rank),
     dueStatus: due.status,
@@ -736,22 +745,24 @@ function reportRow(teacher, term) {
     signUp: signUpRow
       ? {
           assessmentId: signUpRow.id,
-          course: courseText(courseOfSection(signUpRow.sectionId)),
+          course: courseLabel(courseOfSection(signUpRow.sectionId)),
           section: byId(load().sections, signUpRow.sectionId).sectionNumber,
         }
       : null,
   }
 }
 
-// GET /teachers/report?termId=  (AC / admin) -> every ACTIVE professor, signed up or not.
+// GET /teachers/report?termId=  (AC / admin) -> every professor, signed up or not, each with
+// `isActive`. The page shows active ones by default (§4.11); inactive ones stay in the
+// rows so the AC can find and reactivate them, but the counts only cover active professors.
 route("GET", "/teachers/report", ({ user, params }) => {
   if (!isAC(user)) throw fail(403, "forbidden", "You do not have permission to do that")
   const term = reportTerm(params)
   const data = load()
-    .teachers.filter((teacher) => teacher.isActive)
-    .map((teacher) => reportRow(teacher, term))
+    .teachers.map((teacher) => reportRow(teacher, term))
     .sort((a, b) => a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName))
-  const count = (test) => data.filter(test).length
+  const active = data.filter((row) => row.isActive)
+  const count = (test) => active.filter(test).length
   return {
     term: termBrief(term),
     counts: {
@@ -775,13 +786,11 @@ route("GET", "/teachers/(\\d+)/profile", ({ user, match, params }) => {
   if (!teacher) throw fail(404, "not_found", "Teacher not found")
   const term = reportTerm(params)
 
-  const lookback = new Date(`${term.startDate}T12:00:00`)
-  lookback.setFullYear(lookback.getFullYear() - APP_SETTINGS.observerLookbackYears)
-  const cutoff = isoDay(lookback)
+  const cutoff = lookbackCutoff()
   const courses = s.sections
     .filter((section) => section.teacherId === teacher.id)
     .map((section) => ({ section, taughtIn: byId(s.terms, section.termId) }))
-    .filter(({ taughtIn }) => taughtIn.id === term.id || (taughtIn.startDate < term.startDate && taughtIn.endDate >= cutoff))
+    .filter(({ taughtIn }) => taughtIn.id === term.id || (taughtIn.startDate <= today() && taughtIn.endDate >= cutoff))
     .sort((a, b) => b.taughtIn.startDate.localeCompare(a.taughtIn.startDate))
     .map(({ section, taughtIn }) => {
       const course = byId(s.courses, section.courseId)
@@ -790,7 +799,7 @@ route("GET", "/teachers/(\\d+)/profile", ({ user, match, params }) => {
         sectionNumber: section.sectionNumber,
         term: termBrief(taughtIn),
         thisTerm: taughtIn.id === term.id,
-        course: courseText(course),
+        course: courseLabel(course),
         title: course.title,
         level: course.courseLevel,
         department: course.subject,
@@ -810,7 +819,7 @@ route("GET", "/teachers/(\\d+)/profile", ({ user, match, params }) => {
         date: o.scheduledDate,
         status: o.status,
         partner: teacherBrief(given ? o.observeeId : o.observerId),
-        course: courseText(courseOfSection(assessment.sectionId)),
+        course: courseLabel(courseOfSection(assessment.sectionId)),
         term: termBrief(sectionTerm(assessment.sectionId)),
       }
     })
@@ -881,7 +890,11 @@ route("PATCH", "/teachers/(\\d+)", ({ user, match, body }) => {
     throw fail(404, "not_found", "Profesor not found")
   }
 
+  // The edit form sends the school but no department, so a school change would leave the
+  // old department behind; fall back to the new school like POST does.
+  const schoolChanged = body.school && body.school !== teacher.school
   Object.assign(teacher, body)
+  if (schoolChanged && !body.department) teacher.department = body.school
   teacher.id = Number(match[1])
 
   save()

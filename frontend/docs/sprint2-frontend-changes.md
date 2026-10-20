@@ -145,15 +145,23 @@ the "nothing needs approval" / "not cancelled" sentences were dropped from the U
 
 ## Professors page (issue #63, requirements §4.11)
 
-`/professors` (committee only) now lists **every active professor**, including those who
+`/professors` (committee only) now lists the **active professors**, including those who
 have not signed up: name, email, department, rank, due status, the semester they are next
 due, last completed observation, current observation status and sign-up status. Summary
 tiles (Due, Overdue, Not signed up, Signed up, Completed), filters (due status, sign-up,
 rank, department), search, sortable columns and a semester picker (default: the current or
 next Spring/Fall term). **Add Professor** is unchanged. The detail page adds courses (this
-term and the last 2 years, with level and department), observations given and received,
+term and the last 2 years back from today, with level and department), observations given and received,
 observer load against the 3-observation cap, and the current sign-up with its attempt
 history. Nothing is approved and nothing here sends reminders.
+
+**Inactive professors.** The default view is the active professors (§4.11). A **Show
+inactive** toggle (default off) adds the inactive ones, each with an Active/Inactive badge
+and an **Edit** link to the edit page, so the AC can reactivate them. The tiles (Due,
+Overdue, Not signed up, Signed up, Completed) **always count active professors only**,
+whatever the toggle says. The chosen semester is kept in the URL (`/professors?termId=`),
+so "Back to professors" from a detail page returns to it; the semester list is loaded once,
+separately from the report.
 
 | File | Change |
 |---|---|
@@ -163,7 +171,7 @@ history. Nothing is approved and nothing here sends reminders.
 | `pages/Professors.jsx`, `pages/ProfessorDetail.jsx` | Rewritten as above. |
 | `lib/mockServer.js`, `lib/mockData.js` | `GET /teachers/report`, `GET /teachers/:id/profile`; `department`; `observerCap`; mock-only history (state key bumped to `v4`, so an old demo resets itself). |
 | `lib/api.js`, `lib/format.js` | `professorReport`, `professorProfile`; current-status labels. |
-| `scripts/check-due.mjs` | `npm run check:due`. |
+| `scripts/check-due.mjs` | `npm run check:due`. Pins the mock's "today" (`setMockToday`) wherever a result depends on it, so it passes on any date. |
 
 **Mock history (mock-only, not in `dev_seed.sql`).** Six completed observations from earlier
 terms plus two past sections (Professor E, Fall 2024; Professor F, Spring 2025), so the

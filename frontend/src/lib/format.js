@@ -198,6 +198,12 @@ export const CURRENT_STATUS = {
   postponed: { label: "Postponed", tone: "warn" },
 }
 
+// Whether the professor is on the active roster (inactive ones are hidden by default).
+export const ACTIVE_STATUS = {
+  active: { label: "Active", tone: "good" },
+  inactive: { label: "Inactive", tone: "neutral" },
+}
+
 // The extra words that go with the badge: the date, or how many attempts were postponed.
 export function currentStatusDetail(row) {
   if (row.currentStatus === "scheduled" || row.currentStatus === "completed") {
