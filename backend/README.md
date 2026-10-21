@@ -15,7 +15,13 @@ npm run migrate                 # applies db/migrations/*.sql in order (idempote
 npm run seed                    # synthetic dev data + 3 demo logins (refuses in production)
 npm run dev                     # API on http://localhost:3000
 npm test                        # unit tests (no DB needed)
+npm run test:integration        # API tests against a real Postgres (needs the docker DB running)
 ```
+
+`test:integration` creates and wipes a separate `<your database>_test` database
+(e.g. `evalhub_test`) on the same server, runs the migrations and seed into it,
+and drives the real app over HTTP. Your dev data is never touched. Override the
+target with `TEST_DATABASE_URL`; its name must end in `_test`.
 
 Smoke test:
 
@@ -65,6 +71,7 @@ src/routes/      auth, teachers, terms, courses, sections, assessments (sign-up)
 src/middleware/  authenticate / requireRole, zod validation, error handler
 src/db/          pg pool, migration runner, seed script, SQL helpers
 test/            node:test unit tests
+integration/     node:test API tests against a real database (*.int.js + harness.js)
 ```
 
 ## Conventions
@@ -79,5 +86,5 @@ test/            node:test unit tests
 - JWTs stay valid until expiry even if a user is deactivated afterwards (8 h default).
 - Login is rate-limited per IP only; no account lockout.
 - Auth is local JWT login; the Q&A mentions Single Sign On — see `docs/schema.md` open questions.
-- No integration tests against a real database yet; unit tests cover the SQL helpers only.
+- Integration tests cover auth and role checks, sign-up, criteria, questionnaire responses, and sign-off; other routes are not covered yet.
 - Assessment sign-up API is built and migrated; the matching/candidate-generation, AC-approval, sign-off and feedback endpoints are not built yet (Sprint 2, in progress).
