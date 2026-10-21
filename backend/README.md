@@ -38,20 +38,27 @@ Demo accounts (dev only): `admin@example.edu` · `ac@example.edu` (Professor B) 
 ## Importing real course data (Coursebook / Nebula API)
 
 ```bash
-NEBULA_API_KEY=<if-required> npm run import:coursebook
+# backend/.env needs NEBULA_API_KEY (ask Zain; never commit it)
+npm run import:coursebook -- --dry-run   # fetch + filter only, no writes
+npm run import:coursebook
 ```
 
-Pulls courses, sections, and instructors from UTD Nebula Labs' API
-(`api.utdnebula.com` — the backend behind Coursebook, UT Dallas Trends, and
-Skedge) into `courses` / `course_sections` / `teachers`, as `source =
-'coursebook'`. Safe to re-run; never overwrites a `manual` or `seed` row.
+Pulls real courses, sections, and meeting times from UTD Nebula Labs' API
+(`api.utdnebula.com`, the backend behind Coursebook) into `courses` /
+`course_sections` / `teachers` with `source = 'coursebook'`. Safe to re-run;
+it never overwrites a `manual` or `seed` row.
 
-**This has not been run against a live response yet** — see the big comment
-at the top of `src/db/importCoursebook.js` for exactly what's unverified
-(whether an API key/header is even required, and the real shape of a
-section's `meetings` field). Run it once, and if something doesn't parse
-the way the script expects, the warnings it prints point at the file and
-field to fix.
+- **Instructors are pseudonymized.** Professor names must always be fictional,
+  so the script never fetches professor records. Each instructor becomes a
+  stable fake teacher (`Professor KQZ`, `prof-<hash>@example.edu`) derived from
+  their Nebula id, so re-runs and later terms map to the same teacher. Rank
+  defaults to `assistant_professor`.
+- **Scope:** `NEBULA_SUBJECTS` (default `CS`) and `NEBULA_TERMS` (Nebula session
+  names, default `25F,26S,26F`). Keeps face-to-face lecture sections only; skips
+  online sections, lab courses, lab sections (`0L1`, …), and sections without
+  meeting times, per the 10/14 review.
+- About 50 requests for a subject's courses plus about 230 per term; the
+  default run takes ~2 minutes and imports ~600 CS sections.
 
 ## Layout
 

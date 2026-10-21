@@ -31,14 +31,18 @@ const toCriterion = (r) => ({
 const criterionFields = {
   name: z.string().trim().min(1).max(200),
   description: z.string().trim().max(2000).nullable().optional(),
-  weight: z.number().min(0).optional(),
-  maxScore: z.number().int().positive().optional(),
-  sortOrder: z.number().int().optional(),
+  weight: z.number().min(0).max(999.99).multipleOf(0.01).optional(),
+  maxScore: z.number().int().min(1).max(5).optional(),
+  sortOrder: z.number().int().min(0).max(32767).optional(),
   isActive: z.boolean().optional(),
 };
-const createBody = z.object(criterionFields);
-const updateBody = z.object(criterionFields).partial()
-  .refine((b) => Object.keys(b).length > 0, { message: 'Provide at least one field to update' });
+
+const createBody = z.object(criterionFields).strict();
+
+const updateBody = z.object(criterionFields).partial().strict()
+  .refine((b) => Object.keys(b).length > 0, {
+    message: 'Provide at least one field to update',
+  });
 
 const COLUMNS = {
   name: 'name',
