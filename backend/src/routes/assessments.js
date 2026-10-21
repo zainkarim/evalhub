@@ -1,18 +1,19 @@
 import { Router } from 'express';
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
-import { query } from '../db/pool.js';
+import { pool, query } from '../db/pool.js';
 import { findTeacherConflict } from '../lib/availability.js';
 import { AC_OR_ADMIN, requireRole } from '../middleware/auth.js';
 import { HttpError, notFound } from '../middleware/errors.js';
 import { idParams, pagination, paged, validate } from '../middleware/validate.js';
+import { OBSERVER_CAPACITY, observerCommitmentsSql, getObserverCapacity } from '../lib/observerCapacity.js';
 
 const router = Router();
 
 const eligibleObserversSql = readFileSync(
   new URL('../../db/queries/eligible_observers.sql', import.meta.url),
   'utf8',
-);
+).replace('/* OBSERVER_COMMITMENTS_SQL */', observerCommitmentsSql);
 
 const STATUSES = [
   'signed_up',
@@ -406,6 +407,8 @@ router.post(
         new Date().toISOString().slice(0, 10),
         listSize,
         lookbackYears,
+        assessment.due_term_id,
+        OBSERVER_CAPACITY,
       ],
     );
 
@@ -603,6 +606,8 @@ router.post(
         new Date().toISOString().slice(0, 10),
         1,
         lookbackYears,
+        assessment.due_term_id,
+        OBSERVER_CAPACITY,
       ]);
 
       if (eligible.length > 0) {
@@ -861,85 +866,128 @@ router.post(
   validate(sendRequestBody),
   async (req, res) => {
     const assessmentId = req.valid.params.id;
-    const teacherIds = [...new Set(req.valid.body.teacherIds ?? [req.valid.body.teacherId])];
-
-    const { rows: assessmentRows } = await query(
-      'SELECT * FROM assessments WHERE id = $1',
-      [assessmentId],
-    );
-
-    if (!assessmentRows[0]) throw notFound('Assessment');
-
-    const assessment = assessmentRows[0];
-
-    if (TIME_OPTIONS_BLOCKED_STATUSES.includes(assessment.status)) {
-      throw new HttpError(409, 'conflict', 'This assessment is no longer open for scheduling');
-    }
-
-    const isOwner = req.user.teacherId === assessment.teacher_id;
-
-    if (!isOwner && !AC_OR_ADMIN.includes(req.user.role)) {
-      throw new HttpError(
-        403,
-        'forbidden',
-        'Only the observee (or AC/admin) can send this request',
-      );
-    }
-
-    if (teacherIds.includes(assessment.teacher_id)) {
-      throw new HttpError(400, 'validation_error', 'An observee cannot be offered as their own observer');
-    }
-
-    const { rows: openOptions } = await query(
-      `SELECT * FROM assessment_time_options WHERE assessment_id = $1 AND NOT is_confirmed`,
-      [assessmentId],
-    );
-
-    if (!openOptions.length) {
-      throw new HttpError(400, 'validation_error', 'No open date options to send -- add some first');
-    }
-
-    // Fix #3/#4 (professor feedback 10/13): the candidate pool check at
-    // generation time can't know whether an observer is free, because no
-    // dates exist yet -- that has to happen here, once real dates do.
+    const teacherIds = [
+      ...new Set(req.valid.body.teacherIds ?? [req.valid.body.teacherId]),
+    ];
+    const client = await pool.connect();
     const results = [];
-    for (const teacherId of teacherIds) {
-      const freeOptionIds = [];
-      for (const opt of openOptions) {
-        const conflict = await findTeacherConflict(
-          teacherId,
-          opt.proposed_date,
-          opt.start_time.slice(0, 5),
-          opt.end_time.slice(0, 5),
+
+    try {
+      await client.query('BEGIN');
+
+      const { rows: assessmentRows } = await client.query(
+        'SELECT * FROM assessments WHERE id = $1 FOR UPDATE',
+        [assessmentId],
+      );
+      const assessment = assessmentRows[0];
+      if (!assessment) throw notFound('Assessment');
+
+      const isOwner = req.user.teacherId === assessment.teacher_id;
+      if (!isOwner && !AC_OR_ADMIN.includes(req.user.role)) {
+        throw new HttpError(
+          403, 'forbidden',
+          'Only the observee (or AC/admin) can send this request',
         );
-        if (!conflict) freeOptionIds.push(opt.id);
       }
 
-      if (!freeOptionIds.length) {
-        results.push({ teacherId, offered: 0, reason: 'not free for any proposed slot' });
-        continue;
+      if (TIME_OPTIONS_BLOCKED_STATUSES.includes(assessment.status)) {
+        throw new HttpError(
+          409, 'conflict',
+          'This assessment is no longer open for scheduling',
+        );
       }
 
-      const { rows: offerRows } = await query(
-        `INSERT INTO time_option_offers (option_id, teacher_id, status)
-           SELECT id, $2, 'pending' FROM unnest($1::int[]) AS id
-         ON CONFLICT (option_id, teacher_id)
-           DO UPDATE SET status = 'pending', updated_at = now()
-         RETURNING *`,
-        [freeOptionIds, teacherId],
+      const { rows: confirmed } = await client.query(
+        `SELECT id FROM assessment_time_options
+         WHERE assessment_id = $1 AND is_confirmed`,
+        [assessmentId],
       );
+      if (confirmed.length) {
+        throw new HttpError(
+          409, 'conflict',
+          'This assessment already has a confirmed date',
+        );
+      }
 
-      results.push({ teacherId, offered: offerRows.length });
-    }
+      if (teacherIds.includes(assessment.teacher_id)) {
+        throw new HttpError(
+          400, 'validation_error',
+          'An observee cannot be offered as their own observer',
+        );
+      }
 
-    const sentToAny = results.some((r) => r.offered > 0);
-    if (!sentToAny) {
-      throw new HttpError(
-        409,
-        'conflict',
-        'None of the given observers are free at any of the proposed times -- propose different dates or choose other observers',
-        { results },
+      const { rows: openOptions } = await client.query(
+        `SELECT * FROM assessment_time_options
+         WHERE assessment_id = $1 AND NOT is_confirmed`,
+        [assessmentId],
       );
+      if (!openOptions.length) {
+        throw new HttpError(
+          400, 'validation_error',
+          'No open date options to send -- add some first',
+        );
+      }
+
+      for (const teacherId of teacherIds) {
+        const freeOptionIds = [];
+
+        for (const opt of openOptions) {
+          const conflict = await findTeacherConflict(
+            teacherId,
+            opt.proposed_date,
+            opt.start_time.slice(0, 5),
+            opt.end_time.slice(0, 5),
+            client,
+          );
+          if (!conflict) freeOptionIds.push(opt.id);
+        }
+
+        if (!freeOptionIds.length) {
+          results.push({
+            teacherId,
+            offered: 0,
+            reason: 'not free for any proposed slot',
+          });
+          continue;
+        }
+
+        const { rows: offerRows } = await client.query(
+          `INSERT INTO time_option_offers (option_id, teacher_id, status)
+             SELECT id, $2, 'pending' FROM unnest($1::int[]) AS id
+           ON CONFLICT (option_id, teacher_id)
+             DO UPDATE SET
+               status = CASE
+                 WHEN time_option_offers.status = 'accepted'
+                   THEN 'accepted'
+                 ELSE 'pending'
+               END,
+               updated_at = CASE
+                 WHEN time_option_offers.status = 'accepted'
+                   THEN time_option_offers.updated_at
+                 ELSE now()
+               END
+           RETURNING *`,
+          [freeOptionIds, teacherId],
+        );
+
+        results.push({ teacherId, offered: offerRows.length });
+      }
+
+      if (!results.some(r => r.offered > 0)) {
+        throw new HttpError(
+          409,
+          'conflict',
+          'None of the given observers are free at any of the proposed times -- propose different dates or choose other observers',
+          { results },
+        );
+      }
+
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
     }
 
     res.json({ results });
@@ -959,74 +1007,150 @@ router.post(
 // passed since the offer was accepted.
 router.post(
   '/:id/time-options/:optionId/finalize',
-  validate(z.object({ id: z.coerce.number().int().positive(), optionId: z.coerce.number().int().positive() }), 'params'),
+  validate(z.object({
+    id: z.coerce.number().int().positive(),
+    optionId: z.coerce.number().int().positive(),
+  }), 'params'),
   validate(z.object({ teacherId: z.number().int().positive() })),
   async (req, res) => {
-    const assessmentId = req.valid.params.id;
-    const optionId = req.valid.params.optionId;
+    const { id: assessmentId, optionId } = req.valid.params;
     const { teacherId } = req.valid.body;
+    const client = await pool.connect();
+    let updated;
 
-    const { rows: assessmentRows } = await query('SELECT * FROM assessments WHERE id = $1', [assessmentId]);
-    if (!assessmentRows[0]) throw notFound('Assessment');
-    const assessment = assessmentRows[0];
+    try {
+      await client.query('BEGIN');
 
-    const isOwner = req.user.teacherId === assessment.teacher_id;
-    if (!isOwner && !AC_OR_ADMIN.includes(req.user.role)) {
-      throw new HttpError(403, 'forbidden', 'Only the observee (or AC/admin) can finalize a date');
+      const { rows: assessments } = await client.query(
+        'SELECT * FROM assessments WHERE id = $1 FOR UPDATE',
+        [assessmentId],
+      );
+      const assessment = assessments[0];
+      if (!assessment) throw notFound('Assessment');
+
+      const isOwner = req.user.teacherId === assessment.teacher_id;
+      if (!isOwner && !AC_OR_ADMIN.includes(req.user.role)) {
+        throw new HttpError(
+          403, 'forbidden',
+          'Only the observee (or AC/admin) can finalize a date',
+        );
+      }
+
+      if (TIME_OPTIONS_BLOCKED_STATUSES.includes(assessment.status)) {
+        throw new HttpError(
+          409, 'conflict',
+          'This assessment is no longer open for scheduling',
+        );
+      }
+
+      await client.query(
+        'SELECT id FROM teachers WHERE id = $1 FOR UPDATE',
+        [teacherId],
+      );
+
+      const { rows: options } = await client.query(
+        `SELECT * FROM assessment_time_options
+         WHERE id = $1 AND assessment_id = $2`,
+        [optionId, assessmentId],
+      );
+      const option = options[0];
+      if (!option) throw notFound('Time option');
+
+      const { rows: existing } = await client.query(
+        `SELECT id FROM assessment_time_options
+         WHERE assessment_id = $1 AND is_confirmed`,
+        [assessmentId],
+      );
+      if (existing.length) {
+        throw new HttpError(
+          409, 'conflict',
+          'This assessment already has a confirmed date',
+        );
+      }
+
+      const { rows: offers } = await client.query(
+        `SELECT * FROM time_option_offers
+         WHERE option_id = $1 AND teacher_id = $2`,
+        [optionId, teacherId],
+      );
+      const offer = offers[0];
+      if (!offer || offer.status !== 'accepted') {
+        throw new HttpError(
+          409, 'conflict',
+          'That observer has not accepted this date/time',
+        );
+      }
+
+      const capacity = await getObserverCapacity(
+        client, teacherId, assessment.due_term_id, assessmentId,
+      );
+
+      // An accepted offer already reserves this assessment's slot.
+      // Also reject pre-existing data that puts the observer over the limit.
+      if (capacity.used > capacity.limit
+          || (!capacity.alreadyReserved && capacity.used >= capacity.limit)) {
+        throw new HttpError(
+          409,
+          'observer_capacity_reached',
+          'The observer has reached the limit of 3 observations for this semester',
+          { termId: assessment.due_term_id, ...capacity },
+        );
+      }
+
+      const date = option.proposed_date;
+      const start = option.start_time.slice(0, 5);
+      const end = option.end_time.slice(0, 5);
+
+      const observerConflict = await findTeacherConflict(
+        teacherId, date, start, end, client,
+      );
+      if (observerConflict) {
+        throw new HttpError(
+          409, 'conflict',
+          `The observer is no longer free at that time: ${observerConflict.detail}`,
+        );
+      }
+
+      const observeeConflict = await findTeacherConflict(
+        assessment.teacher_id, date, start, end, client,
+      );
+      if (observeeConflict) {
+        throw new HttpError(
+          409, 'conflict',
+          `You are no longer free at that time: ${observeeConflict.detail}`,
+        );
+      }
+
+      const { rows: confirmed } = await client.query(
+        `UPDATE assessment_time_options
+         SET is_confirmed = TRUE, confirmed_teacher_id = $2
+         WHERE id = $1
+         RETURNING *`,
+        [optionId, teacherId],
+      );
+      updated = confirmed[0];
+
+      // Keep only the selected offer, including on the selected date.
+      await client.query(
+        `UPDATE time_option_offers f
+         SET status = 'declined', updated_at = now()
+         FROM assessment_time_options t
+         WHERE f.option_id = t.id
+           AND t.assessment_id = $1
+           AND f.id <> $2
+           AND f.status <> 'declined'`,
+        [assessmentId, offer.id],
+      );
+
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
     }
 
-    const { rows: optionRows } = await query(
-      'SELECT * FROM assessment_time_options WHERE id = $1 AND assessment_id = $2',
-      [optionId, assessmentId],
-    );
-    const option = optionRows[0];
-    if (!option) throw notFound('Time option');
-    if (option.is_confirmed) throw new HttpError(409, 'conflict', 'This assessment already has a confirmed date');
-
-    const { rows: offerRows } = await query(
-      `SELECT * FROM time_option_offers WHERE option_id = $1 AND teacher_id = $2`,
-      [optionId, teacherId],
-    );
-    const offer = offerRows[0];
-    if (!offer || offer.status !== 'accepted') {
-      throw new HttpError(409, 'conflict', 'That observer has not accepted this date/time');
-    }
-
-    const proposedDate = option.proposed_date;
-    const startTime = option.start_time.slice(0, 5);
-    const endTime = option.end_time.slice(0, 5);
-
-    // No double-booking: neither the chosen observer nor the observee
-    // themselves can already be committed elsewhere at this slot.
-    const observerConflict = await findTeacherConflict(teacherId, proposedDate, startTime, endTime);
-    if (observerConflict) {
-      throw new HttpError(409, 'conflict', `The observer is no longer free at that time: ${observerConflict.detail}`);
-    }
-    const observeeConflict = await findTeacherConflict(assessment.teacher_id, proposedDate, startTime, endTime);
-    if (observeeConflict) {
-      throw new HttpError(409, 'conflict', `You are no longer free at that time: ${observeeConflict.detail}`);
-    }
-
-    const { rows: confirmed } = await query(
-      `UPDATE assessment_time_options
-          SET is_confirmed = TRUE, confirmed_teacher_id = $2
-        WHERE id = $1
-        RETURNING *`,
-      [optionId, teacherId],
-    );
-
-    // Every other offer on every other (still-open) option for this
-    // assessment is now moot -- decline them so a stale "accept" elsewhere
-    // can't be finalized into a second, conflicting confirmation.
-    await query(
-      `UPDATE time_option_offers
-          SET status = 'declined', updated_at = now()
-        WHERE option_id IN (SELECT id FROM assessment_time_options WHERE assessment_id = $1 AND id <> $2)
-          AND status <> 'declined'`,
-      [assessmentId, optionId],
-    );
-
-    res.json(toTimeOption(confirmed[0]));
+    res.json(toTimeOption(updated));
   },
 );
 
