@@ -6,7 +6,6 @@ import ScaleMeter from "./ScaleMeter"
 import StateBlock from "./StateBlock"
 
 const EMPTY = { name: "", description: "", maxScore: 5, weight: 1 }
-const SCALES = [2, 3, 4, 5, 6, 7, 8, 9, 10]
 const field = "mt-1 w-full rounded-md border border-line bg-white px-3 py-2 text-sm"
 
 function Heading({ title, hint, children }) {
@@ -36,11 +35,11 @@ function CriterionForm({ initial, submitLabel, busy, onSubmit, onCancel }) {
         onSubmit({
           name,
           description: form.description.trim() || null,
-          maxScore: Number(form.maxScore),
+          maxScore: 5,
           weight: Number(form.weight),
         })
       }}
-      className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_9rem_6rem]"
+      className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_6rem]"
     >
       <div>
         <label htmlFor={`${idPrefix}-name`} className="block text-xs text-muted">
@@ -57,23 +56,6 @@ function CriterionForm({ initial, submitLabel, busy, onSubmit, onCancel }) {
         />
       </div>
       <div>
-        <label htmlFor={`${idPrefix}-scale`} className="block text-xs text-muted">
-          Rating scale
-        </label>
-        <select
-          id={`${idPrefix}-scale`}
-          value={form.maxScore}
-          onChange={(event) => setForm({ ...form, maxScore: Number(event.target.value) })}
-          className={field}
-        >
-          {SCALES.map((value) => (
-            <option key={value} value={value}>
-              1 to {value}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div>
         <label htmlFor={`${idPrefix}-weight`} className="block text-xs text-muted">
           Weight
         </label>
@@ -88,7 +70,7 @@ function CriterionForm({ initial, submitLabel, busy, onSubmit, onCancel }) {
           className={field}
         />
       </div>
-      <div className="sm:col-span-3">
+      <div className="sm:col-span-2">
         <label htmlFor={`${idPrefix}-description`} className="block text-xs text-muted">
           Guidance for the observer (optional)
         </label>
@@ -102,7 +84,7 @@ function CriterionForm({ initial, submitLabel, busy, onSubmit, onCancel }) {
           placeholder="What a high or a low rating means for this question."
         />
       </div>
-      <div className="flex flex-wrap items-center gap-3 sm:col-span-3">
+      <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
         <button
           type="submit"
           disabled={busy || !form.name.trim()}
@@ -120,7 +102,7 @@ function CriterionForm({ initial, submitLabel, busy, onSubmit, onCancel }) {
           </button>
         )}
         <span className="flex items-center gap-2 text-xs text-muted">
-          Observers will see <ScaleMeter max={Number(form.maxScore)} />
+          Observers will see <ScaleMeter max={5} />
         </span>
       </div>
     </form>
@@ -128,8 +110,8 @@ function CriterionForm({ initial, submitLabel, busy, onSubmit, onCancel }) {
 }
 
 // The committee's editor for the observation form template (#33, requirements
-// §4.4): add, edit, deactivate and delete criteria, each with its own rating
-// scale and weight. A criterion already used in an observation can't be
+// §4.4): add, edit, deactivate and delete criteria, each with a
+// fixed 1–5 rating scale and configurable weight. A criterion already used in an observation can't be
 // deleted (the backend returns 409); deactivate it instead, so completed
 // records keep their questions.
 function CriteriaManager() {
@@ -212,7 +194,7 @@ function CriteriaManager() {
 
       <Heading
         title={`Questions on the form (${active.length} active)`}
-        hint="Observers answer these in this order, each on its own scale."
+        hint="Observers answer these in this order using a 1–5 rating scale."
       >
         {active.length > 0 && (
           <button
@@ -297,8 +279,8 @@ function CriteriaManager() {
                           </td>
                           <td className={`${td} whitespace-nowrap`}>
                             <span className="flex items-center gap-2">
-                              <ScaleMeter max={criterion.maxScore} />
-                              <span className="text-xs text-muted">1–{criterion.maxScore}</span>
+                              <ScaleMeter max={5} />
+                              <span className="text-xs text-muted">1–5</span>
                             </span>
                           </td>
                           <td className={`${td} tabular-nums`}>{criterion.weight}</td>

@@ -300,15 +300,15 @@ export function buildSeed(now = new Date()) {
 
   // Evaluation criteria (#33). Demo placeholders taken from the examples in
   // requirements §4.4 until Prof. Narayanasami's sample rubric arrives. Same
-  // shape as GET /api/criteria on main. Pacing uses a 3-point scale to show
-  // that each criterion can have its own scale.
+  // shape as GET /api/criteria on main. Every criterion uses a fixed
+  // 1–5 Likert rating scale.
   const criteria = [
     ["Clarity of communication", "Explains ideas clearly and checks for understanding.", 5],
     ["Preparation and organization", "Class is planned; materials and transitions are ready.", 5],
     ["Use of examples", "Uses examples that make abstract ideas concrete.", 5],
     ["Handling of student questions", "Responds to questions patiently and accurately.", 5],
     ["Student engagement", "Students participate and stay involved.", 5],
-    ["Pacing", "1 = too slow or too fast, 3 = well paced.", 3],
+    ["Pacing", "1 = poorly paced, 5 = well paced.", 5],
   ].map(([name, description, maxScore], index) => ({
     id: index + 1,
     name,

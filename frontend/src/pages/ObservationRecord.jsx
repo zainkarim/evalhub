@@ -77,9 +77,11 @@ function ObservationRecord() {
     : observation?.observeeSignedOffAt
   const canAct = observation && status === "approved" && (isParty || committee)
   // Observation form (#33): the observer fills it in until they sign off; the
-  // answers are visible to both once both have signed, and to the committee.
+  // The observer can review their answers. The observee sees ratings
+  // after the observer signs; the committee retains its access.
   const formOpen = isObserver && status === "approved" && !observation?.observerSignedOffAt
-  const bothSigned = Boolean(observation?.observerSignedOffAt && observation?.observeeSignedOffAt)
+  const observerSigned = Boolean(observation?.observerSignedOffAt)
+  const canViewResults = committee || isObserver || (isObservee && observerSigned)
 
   return (
     <div>
@@ -146,25 +148,18 @@ function ObservationRecord() {
                           class has taken place.
                         </p>
                       )
-                    ) : bothSigned || committee ? (
+                    ) : canViewResults ? (
                       <>
-                        {!bothSigned && (
+                        {!observerSigned && (
                           <p className="mb-3 text-sm text-muted">
-                            Not final yet: the observer can change these answers until they sign
-                            off, and the observee sees them once both have signed.
+                            These ratings are not final until the observer signs off.
                           </p>
                         )}
                         <ObservationResults observationId={observation.id} />
                       </>
-                    ) : isObserver ? (
-                      <p className="text-sm text-muted">
-                        You&apos;ve submitted the form and signed off. It becomes visible to
-                        both of you once the observee signs off too.
-                      </p>
                     ) : (
                       <p className="text-sm text-muted">
-                        The observer fills in the form after the class. You can read it once
-                        you have both signed off.
+                        The ratings become available once the observer signs off.
                       </p>
                     )}
                   </div>

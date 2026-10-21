@@ -44,6 +44,11 @@ function load() {
       state.nextId.notification ??=
         Math.max(0, ...state.notifications.map((item) => item.id)) + 1
 
+      // Migrate saved criteria to the uniform 1–5 rating scale.
+      for (const criterion of state.criteria) {
+        criterion.maxScore = 5
+      }
+
       return state
     }
   } catch {
@@ -1547,8 +1552,8 @@ function cleanCriterion(body, { partial = false } = {}) {
     out.weight = body.weight
   }
   if (body?.maxScore !== undefined) {
-    if (!Number.isInteger(body.maxScore) || body.maxScore < 1) throw fail(400, "validation_error", "The rating scale must be a whole number of 1 or more.")
-    out.maxScore = body.maxScore
+    if (body.maxScore !== 5) throw fail(400, "validation_error", "The rating scale must be 1–5.")
+    out.maxScore = 5
   }
   if (body?.sortOrder !== undefined) {
     if (!Number.isInteger(body.sortOrder)) throw fail(400, "validation_error", "Sort order must be a whole number.")
@@ -1682,14 +1687,17 @@ route("POST", "/observations/(\\d+)/responses", ({ user, match, body }) => {
   return { data: saved }
 })
 
-// Observer and observee see the answers only once BOTH have signed off; the
-// committee can always see them (same rule as main).
+// The observer can always see their own answers. The observee can see
+// ratings once the observer signs; the committee retains its access.
 route("GET", "/observations/(\\d+)/responses", ({ user, match }) => {
   const s = load()
   const { observation } = getObservationFor(user, match[1])
-  const bothSigned = observation.observerSignedOffAt && observation.observeeSignedOffAt
-  if (!isAC(user) && !bothSigned) {
-    throw fail(409, "conflict", "Responses are not visible until both the observer and observee have signed off")
+  const canView =
+    isAC(user) ||
+    user.teacherId === observation.observerId ||
+    (user.teacherId === observation.observeeId && Boolean(observation.observerSignedOffAt))
+  if (!canView) {
+    throw fail(403, "forbidden", "Ratings become visible to the observee after the observer signs off")
   }
   const rows = s.observationResponses
     .filter((r) => r.observationId === observation.id)
