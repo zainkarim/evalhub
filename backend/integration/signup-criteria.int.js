@@ -5,12 +5,13 @@ import { startIntegration, USERS } from './harness.js';
 
 let ctx;
 let mySection;    // a section Professor C teaches that has no assessment yet
+let spareSection; // a second section Professor C teaches, created here, never signed up for
 let otherSection; // a section someone else teaches
 
 before(async () => {
   ctx = await startIntegration();
   [mySection] = await ctx.sql(
-    `SELECT id, course_id FROM course_sections
+    `SELECT id, course_id, term_id FROM course_sections
       WHERE teacher_id = 3 AND id NOT IN (SELECT section_id FROM assessments)
       ORDER BY id LIMIT 1`,
   );
@@ -20,6 +21,11 @@ before(async () => {
       ORDER BY id LIMIT 1`,
   );
   assert.ok(mySection && otherSection, 'seed data should include free sections for these tests');
+  [spareSection] = await ctx.sql(
+    `INSERT INTO course_sections (course_id, term_id, section_number, teacher_id)
+     VALUES ($1, $2, 'T99', 3) RETURNING id, course_id`,
+    [mySection.course_id, mySection.term_id],
+  );
 });
 after(async () => { await ctx?.close(); });
 
@@ -40,14 +46,20 @@ describe('sign-up', () => {
   test('a section the professor does not teach: 409', async () => {
     const res = await ctx.api('POST', '/assessments/sign-up', { as: USERS.faculty, body: { sectionId: otherSection.id } });
     assert.equal(res.status, 409);
+    assert.match(res.body.error.message, /not the instructor/);
   });
 
-  test('a courseId that does not match the section: 409', async () => {
+  // Uses the professor's own free section, so only the course check can fail.
+  test('a courseId that does not match the section: 409 naming the real course', async () => {
     const res = await ctx.api('POST', '/assessments/sign-up', {
       as: USERS.faculty,
-      body: { sectionId: otherSection.id, courseId: mySection.course_id + 100000 },
+      body: { sectionId: spareSection.id, courseId: spareSection.course_id + 100000 },
     });
     assert.equal(res.status, 409);
+    assert.match(res.body.error.message, /not the course you specified/);
+    assert.equal(res.body.error.details.actualCourseId, spareSection.course_id);
+    const rows = await ctx.sql('SELECT 1 FROM assessments WHERE section_id = $1', [spareSection.id]);
+    assert.equal(rows.length, 0);
   });
 
   test('faculty cannot sign up on behalf of another teacher', async () => {

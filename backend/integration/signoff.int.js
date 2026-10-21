@@ -125,9 +125,19 @@ describe('both sign-offs complete the record', () => {
   });
 
   test('retrying after completion returns the record unchanged', async () => {
-    const res = await signOff(obs.ready, USERS.faculty);
-    assert.equal(res.status, 200);
-    assert.equal(res.body.status, 'completed');
+    const stamps = () => ctx.sql(
+      `SELECT o.observer_signed_off_at, o.observee_signed_off_at, a.completed_at
+         FROM observations o JOIN assessments a ON a.id = o.assessment_id
+        WHERE o.id = $1`,
+      [obs.ready],
+    );
+    const [before] = await stamps();
+    for (const as of [USERS.faculty, USERS.profA]) {
+      const res = await signOff(obs.ready, as);
+      assert.equal(res.status, 200);
+      assert.equal(res.body.status, 'completed');
+    }
+    assert.deepEqual(await stamps(), [before]);
   });
 
   test('once both have signed, the observee can see the results', async () => {
