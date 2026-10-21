@@ -18,7 +18,7 @@ const closedOn = (term) =>
   term?.signupDeadline && todayISO() > toDateOnly(term.signupDeadline) ? term.signupDeadline : null
 
 const selectClass =
-  "w-full rounded border border-line bg-white px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-muted"
+  "w-full rounded-md border border-line bg-white px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-muted"
 
 function ObservationSignup() {
   const { user } = useAuth()
@@ -139,7 +139,7 @@ function ObservationSignup() {
 
       <div className="mt-6 max-w-2xl">
         <StateBlock loading={loading} error={error} onRetry={reload}>
-          <div className="rounded border border-line bg-white p-6">
+          <div className="rounded-lg border border-line bg-white p-6 shadow-xs">
             {created ? (
               <div className="text-sm">
                 <p className="font-medium text-utd-green">✓ Observation sign-up submitted.</p>
@@ -159,14 +159,14 @@ function ObservationSignup() {
                 <div className="mt-5 flex flex-wrap gap-3">
                   <Link
                     to={`/assessments/${created.id}`}
-                    className="rounded bg-utd-green px-4 py-2 font-medium text-white hover:bg-utd-green-dark"
+                    className="rounded-md bg-utd-green px-4 py-2 font-medium text-white hover:bg-utd-green-dark"
                   >
                     Open sign-up
                   </Link>
                   <button
                     type="button"
                     onClick={() => resetFrom(1)}
-                    className="rounded border border-line px-4 py-2 hover:border-ink"
+                    className="rounded-md border border-line px-4 py-2 hover:border-ink"
                   >
                     Sign up another section
                   </button>
@@ -298,7 +298,7 @@ function ObservationSignup() {
                 )}
 
                 {teacherId && items?.length === 0 && (
-                  <p className="rounded border border-line bg-canvas px-4 py-3 text-sm text-muted">
+                  <p className="rounded-md border border-line bg-canvas px-4 py-3 text-sm text-muted">
                     {committee
                       ? "This professor has no sections in a current or upcoming Spring/Fall term."
                       : "You have no sections in a current or upcoming Spring/Fall term. Sections appear here once they are listed with you as instructor."}
@@ -306,7 +306,7 @@ function ObservationSignup() {
                 )}
 
                 {selected?.signUp && (
-                  <p className="rounded border border-line bg-canvas px-4 py-3 text-sm">
+                  <p className="rounded-md border border-line bg-canvas px-4 py-3 text-sm">
                     This section already has an observation sign-up.{" "}
                     <Link
                       to={`/assessments/${selected.signUp.id}`}
@@ -321,7 +321,7 @@ function ObservationSignup() {
                 {submitError && (
                   <p
                     role="alert"
-                    className="rounded border border-utd-orange/40 bg-white px-3 py-2 text-sm"
+                    className="rounded-md border border-utd-orange/40 bg-white px-3 py-2 text-sm"
                   >
                     {submitError}
                   </p>
@@ -335,7 +335,7 @@ function ObservationSignup() {
                     (!committee && Boolean(closedOn(selected.section.term))) ||
                     submitting
                   }
-                  className="rounded bg-utd-green px-4 py-2 text-sm font-medium text-white hover:bg-utd-green-dark disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-md bg-utd-green px-4 py-2 text-sm font-medium text-white hover:bg-utd-green-dark disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting ? "Submitting…" : "Submit Observation Request"}
                 </button>

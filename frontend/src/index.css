@@ -9,16 +9,70 @@
   --color-utd-green-dark: #006b36;
   --color-utd-orange: #c75b12;
 
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    Helvetica, Arial, sans-serif;
+  /* Public Sans: an open typeface made for public-service interfaces; plain,
+     institutional and very legible at small sizes. Falls back to the system UI
+     font when offline. */
+  --font-sans: "Public Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, Helvetica, Arial, sans-serif;
+
+  /* Shadows tinted with the ink colour instead of pure black. */
+  --shadow-xs: 0 1px 2px 0 rgb(22 32 28 / 0.05);
+  --shadow-sm: 0 1px 3px 0 rgb(22 32 28 / 0.08), 0 1px 2px -1px rgb(22 32 28 / 0.06);
+  --shadow-lg: 0 12px 24px -6px rgb(22 32 28 / 0.14), 0 4px 8px -4px rgb(22 32 28 / 0.08);
 }
 
 html {
   background-color: var(--color-canvas);
   color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  scrollbar-gutter: stable;
+}
+
+::selection {
+  background-color: color-mix(in srgb, var(--color-utd-green) 22%, transparent);
+}
+
+/* Page titles: slightly tighter, so they read as titles, not big body text. */
+h1 {
+  letter-spacing: -0.02em;
+}
+
+/* Page titles (the first heading in the page) get a little more presence. */
+main h1:first-of-type {
+  font-size: 1.75rem;
+  line-height: 2.25rem;
+}
+
+/* Numbers in tables line up (dates, counts, scores). */
+table {
+  font-variant-numeric: tabular-nums;
+}
+
+/* A quiet hover on data rows, so long tables are easier to follow. */
+tbody tr {
+  transition: background-color 120ms ease;
+}
+tbody tr:hover {
+  background-color: color-mix(in srgb, var(--color-canvas) 70%, white);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
 }
 
 :focus-visible {
   outline: 2px solid var(--color-utd-green);
   outline-offset: 2px;
+}
+
+/* On the green brand bar the focus ring is white so it stays visible. */
+.brand-bar :focus-visible {
+  outline-color: white;
 }

@@ -229,7 +229,41 @@ resetMockData()
 
 // Completed this semester: the due status still explains why they were due, the
 // current status says Completed with the date.
+// The observer must complete every active evaluation criterion before signing off.
+const activeCriteria = (await call(AC, "/criteria")).data
+assert.ok(activeCriteria.length > 0, "the evaluation form has active criteria")
+await call("professor.d@example.edu", "/observations/2/responses", {
+  method: "POST",
+  body: {
+    responses: activeCriteria.map((criterion) => ({
+      criterionId: criterion.id,
+      score: Math.min(4, criterion.maxScore),
+    })),
+  },
+})
+// Observer can read saved answers before signing.
+const observerRatings = await call("professor.d@example.edu", "/observations/2/responses")
+assert.equal(observerRatings.data.length, activeCriteria.length)
+
+// Observee cannot see ratings before the observer signs.
+assert.equal(
+  await statusOf(call("professor.f@example.edu", "/observations/2/responses")),
+  403,
+  "observee must not see ratings before observer sign-off",
+)
+
+// Observer signs first.
 await call("professor.d@example.edu", "/observations/2/sign-off", { method: "POST", body: {} })
+
+// Observee can now review ratings before signing themselves.
+const observeeRatings = await call("professor.f@example.edu", "/observations/2/responses")
+assert.equal(
+  observeeRatings.data.length,
+  activeCriteria.length,
+  "observee should see all ratings after observer sign-off",
+)
+
+// Observee signs after reviewing the ratings.
 await call("professor.f@example.edu", "/observations/2/sign-off", { method: "POST", body: {} })
 const done = await report(FALL_2026)
 const f = byLetter(done).F

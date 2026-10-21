@@ -378,12 +378,56 @@ should know about:
 - The mock's observer matching (`eligibleObservers` in `lib/mockServer.js`) still
   compares `school`; the backend now matches on department. Not changed here.
 
+## Sprint 3 observation calendar (#59)
+
+The frontend reads `term.observationDeadline` to limit Quick Pick and
+Calendar choices to eligible class meetings. If the deadline is missing,
+it falls back to `term.endDate`. The backend should independently reject
+dates beyond the observation deadline.
+
+## Sprint 3 notification events (#62)
+
+The NotificationBell uses the shared `GET /notifications/inbox`,
+`POST /notifications/:id/read`, and `POST /notifications/read-all`
+endpoints documented above, not the older `/notifications` API.
+
+In addition to list-ready and reminder messages, the mock generates
+notifications for request sent, withdrawn, declined, confirmed dates,
+direct scheduling, and postponements. Notifications use the shared
+`subject`, `body`, `link`, and `readAt` fields.
+
+### #33 Observation form and evaluation criteria (backend on `main`)
+
+The frontend uses `main`'s routes as they are: `GET/POST /criteria`,
+`PATCH/DELETE /criteria/:id` (committee only; a used criterion returns 409, so
+the UI offers Deactivate), `POST /observations/:id/responses` (observer only,
+until they sign off) and `GET /observations/:id/responses` (observer/observee
+after both sign off; committee any time). The observer's sign-off requires every
+active criterion to be answered, as on `main`.
+
+Gaps on `main` (proposed, not implemented there):
+
+- **Observer notes.** #33 asks for notes, but `observation_responses` stores
+  only scores. The frontend sends `notes` with `POST .../responses` and reads
+  `notes` from `GET .../responses`. Proposed: `observations.observer_notes TEXT`.
+  Today `main` silently drops the field.
+- **Draft answers.** `GET .../responses` is blocked for the observer until both
+  sign off, so an observer who reloads the page can't see what they saved. The
+  form starts empty again (saving again overwrites). Proposed: let the observer
+  read their own answers before signing off.
+- **Template snapshot.** Requirements §4.5: template changes apply to future
+  observations only. `main` keeps answered criteria (no delete once used) but
+  renames or scale changes still show on old records.
+- **Rating scale.** Each criterion has its own `maxScore` (1..n); the sample
+  rubric from Prof. Narayanasami has not been supplied, so the demo criteria
+  are placeholders from §4.4.
+
 ## Not built (outside this task)
 
 View-only roles for Department Head / Annual Review Committee (the `users.role`
 check only allows `faculty`, `ac_member`, `admin`), the observation-form and
 process-feedback forms, the rank-based eligibility engine, KPI dashboards, and
-email delivery. The AC reminders (due/overdue, deadlines; the Professors page has a marked
-place for a future "Send reminder" action), the end-of-process survey request, and the
-criteria editor are later phases.
-The Cycle page is the AC's landing page until the KPI dashboards exist.
+email delivery. AC reminders, deadline reminders, and the
+end-of-process survey request remain future work where not implemented.
+The Cycle page is the AC's landing page until KPI dashboards exist.
+The evaluation criteria editor is implemented in the Sprint 3 frontend.
