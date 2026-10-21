@@ -15,7 +15,13 @@ npm run migrate                 # applies db/migrations/*.sql in order (idempote
 npm run seed                    # synthetic dev data + 3 demo logins (refuses in production)
 npm run dev                     # API on http://localhost:3000
 npm test                        # unit tests (no DB needed)
+npm run test:integration        # API tests against a real Postgres (needs the docker DB running)
 ```
+
+`test:integration` creates and wipes a separate `<your database>_test` database
+(e.g. `evalhub_test`) on the same server, runs the migrations and seed into it,
+and drives the real app over HTTP. Your dev data is never touched. Override the
+target with `TEST_DATABASE_URL`; its name must end in `_test`.
 
 Smoke test:
 
@@ -32,20 +38,27 @@ Demo accounts (dev only): `admin@example.edu` · `ac@example.edu` (Professor B) 
 ## Importing real course data (Coursebook / Nebula API)
 
 ```bash
-NEBULA_API_KEY=<if-required> npm run import:coursebook
+# backend/.env needs NEBULA_API_KEY (ask Zain; never commit it)
+npm run import:coursebook -- --dry-run   # fetch + filter only, no writes
+npm run import:coursebook
 ```
 
-Pulls courses, sections, and instructors from UTD Nebula Labs' API
-(`api.utdnebula.com` — the backend behind Coursebook, UT Dallas Trends, and
-Skedge) into `courses` / `course_sections` / `teachers`, as `source =
-'coursebook'`. Safe to re-run; never overwrites a `manual` or `seed` row.
+Pulls real courses, sections, and meeting times from UTD Nebula Labs' API
+(`api.utdnebula.com`, the backend behind Coursebook) into `courses` /
+`course_sections` / `teachers` with `source = 'coursebook'`. Safe to re-run;
+it never overwrites a `manual` or `seed` row.
 
-**This has not been run against a live response yet** — see the big comment
-at the top of `src/db/importCoursebook.js` for exactly what's unverified
-(whether an API key/header is even required, and the real shape of a
-section's `meetings` field). Run it once, and if something doesn't parse
-the way the script expects, the warnings it prints point at the file and
-field to fix.
+- **Instructors are pseudonymized.** Professor names must always be fictional,
+  so the script never fetches professor records. Each instructor becomes a
+  stable fake teacher (`Professor KQZ`, `prof-<hash>@example.edu`) derived from
+  their Nebula id, so re-runs and later terms map to the same teacher. Rank
+  defaults to `assistant_professor`.
+- **Scope:** `NEBULA_SUBJECTS` (default `CS`) and `NEBULA_TERMS` (Nebula session
+  names, default `25F,26S,26F`). Keeps face-to-face lecture sections only; skips
+  online sections, lab courses, lab sections (`0L1`, …), and sections without
+  meeting times, per the 10/14 review.
+- About 50 requests for a subject's courses plus about 230 per term; the
+  default run takes ~2 minutes and imports ~600 CS sections.
 
 ## Layout
 
@@ -58,6 +71,7 @@ src/routes/      auth, teachers, terms, courses, sections, assessments (sign-up)
 src/middleware/  authenticate / requireRole, zod validation, error handler
 src/db/          pg pool, migration runner, seed script, SQL helpers
 test/            node:test unit tests
+integration/     node:test API tests against a real database (*.int.js + harness.js)
 ```
 
 ## Conventions
@@ -72,5 +86,5 @@ test/            node:test unit tests
 - JWTs stay valid until expiry even if a user is deactivated afterwards (8 h default).
 - Login is rate-limited per IP only; no account lockout.
 - Auth is local JWT login; the Q&A mentions Single Sign On — see `docs/schema.md` open questions.
-- No integration tests against a real database yet; unit tests cover the SQL helpers only.
+- Integration tests cover auth and role checks, sign-up, criteria, questionnaire responses, and sign-off; other routes are not covered yet.
 - Assessment sign-up API is built and migrated; the matching/candidate-generation, AC-approval, sign-off and feedback endpoints are not built yet (Sprint 2, in progress).
