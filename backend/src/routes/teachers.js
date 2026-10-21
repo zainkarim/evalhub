@@ -24,6 +24,7 @@ const toTeacher = (r) => ({
   lastName: r.last_name,
   email: r.email,
   school: r.school,
+  department: r.department,
   rank: r.rank,
   isActive: r.is_active,
   createdAt: r.created_at,
@@ -36,6 +37,9 @@ const teacherFields = {
   email: z.string().trim().email().max(254),
   // Short upper-case school code, e.g. ECS, EPPS (normalised so equality matching works)
   school: z.string().trim().toUpperCase().min(1).max(50),
+  // Observer matching is by department (migration 005), e.g. CS. Defaults to
+  // the school on create, the same fallback migration 005 used.
+  department: z.string().trim().toUpperCase().min(1).max(50).optional(),
   rank: z.enum(RANKS),
   isActive: z.boolean().optional(),
 };
@@ -49,6 +53,9 @@ const listQuery = z.object({
   rank: z.enum(RANKS).optional(),
   active: z.enum(['true', 'false']).optional(),
   ...pagination,
+  // The AC Professors page loads the whole roster at once; the department
+  // alone has 130+ teachers after the Nebula import, past the usual 100.
+  pageSize: z.coerce.number().int().min(1).max(500).default(25),
 });
 
 const COLUMNS = {
@@ -56,6 +63,7 @@ const COLUMNS = {
   lastName: 'last_name',
   email: 'email',
   school: 'school',
+  department: 'department',
   rank: 'rank',
   isActive: 'is_active',
 };
@@ -581,9 +589,9 @@ router.get('/:id', validate(idParams, 'params'), async (req, res) => {
 router.post('/', requireRole(...AC_OR_ADMIN), validate(createBody), async (req, res) => {
   const b = req.valid.body;
   const { rows } = await query(
-    `INSERT INTO teachers (first_name, last_name, email, school, rank, is_active)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-    [b.firstName, b.lastName, b.email, b.school, b.rank, b.isActive ?? true],
+    `INSERT INTO teachers (first_name, last_name, email, school, department, rank, is_active)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+    [b.firstName, b.lastName, b.email, b.school, b.department ?? b.school, b.rank, b.isActive ?? true],
   );
   res.status(201).json(toTeacher(rows[0]));
 });
