@@ -124,20 +124,30 @@ describe('both sign-offs complete the record', () => {
     assert.ok(assessment.completed_at);
   });
 
-  test('retrying after completion returns the record unchanged', async () => {
-    const stamps = () => ctx.sql(
-      `SELECT o.observer_signed_off_at, o.observee_signed_off_at, a.completed_at
+  test('retrying after completion returns 409 without changing signatures or completion', async () => {
+    // Read timestamps as text to preserve PostgreSQL's full precision.
+    const snapshot = () => ctx.sql(
+      `SELECT o.observer_signed_off_at::text, o.observee_signed_off_at::text,
+              a.completed_at::text,
+              o.status AS observation_status, a.status AS assessment_status
          FROM observations o JOIN assessments a ON a.id = o.assessment_id
         WHERE o.id = $1`,
       [obs.ready],
     );
-    const [before] = await stamps();
+    const [before] = await snapshot();
+    assert.ok(before.observer_signed_off_at);
+    assert.ok(before.observee_signed_off_at);
+    assert.ok(before.completed_at);
+    assert.equal(before.observation_status, 'completed');
+    assert.equal(before.assessment_status, 'completed');
+
     for (const as of [USERS.faculty, USERS.profA]) {
       const res = await signOff(obs.ready, as);
-      assert.equal(res.status, 200);
-      assert.equal(res.body.status, 'completed');
+      assert.equal(res.status, 409);
+      assert.equal(res.body.error.code, 'conflict');
+      assert.equal(res.body.error.message, 'You have already signed off on this observation');
+      assert.deepEqual(await snapshot(), [before]);
     }
-    assert.deepEqual(await stamps(), [before]);
   });
 
   test('once both have signed, the observee can see the results', async () => {

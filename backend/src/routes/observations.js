@@ -307,80 +307,76 @@ router.post('/:id/sign-off', validate(idParams, 'params'), async (req, res) => {
       );
     }
 
-    // A completed record is returned without any writes, after authorization.
-    if (observation.status === 'completed' && assessment.status === 'completed') {
-      updated = observation;
-    } else {
-      if (observation.status !== 'approved' || assessment.status !== 'approved') {
-        throw new HttpError(
-          409, 'conflict',
-          'The observation and assessment must both be active and approved before sign-off',
-        );
-      }
+    // Each participant can sign only once, including after completion.
+    if ((isObserver && observation.observer_signed_off_at)
+        || (isObservee && observation.observee_signed_off_at)) {
+      throw new HttpError(
+        409, 'conflict',
+        'You have already signed off on this observation',
+      );
+    }
 
-      if (!observation.scheduled_date) {
-        throw new HttpError(
-          409, 'conflict',
-          'The observation must have a scheduled date before sign-off',
-        );
-      }
-      if (!observation.date_reached) {
-        throw new HttpError(
-          409, 'conflict',
-          'The scheduled observation date has not been reached',
-        );
-      }
+    if (observation.status !== 'approved' || assessment.status !== 'approved') {
+      throw new HttpError(
+        409, 'conflict',
+        'The observation and assessment must both be active and approved before sign-off',
+      );
+    }
 
-      if ((isObserver && observation.observer_signed_off_at)
-          || (isObservee && observation.observee_signed_off_at)) {
-        throw new HttpError(
-          409, 'conflict',
-          'You have already signed off on this observation',
-        );
-      }
+    if (!observation.scheduled_date) {
+      throw new HttpError(
+        409, 'conflict',
+        'The observation must have a scheduled date before sign-off',
+      );
+    }
+    if (!observation.date_reached) {
+      throw new HttpError(
+        409, 'conflict',
+        'The scheduled observation date has not been reached',
+      );
+    }
 
-      // Preserve main's requirement: every active criterion needs an answer.
-      if (isObserver) {
-        const { rows: unanswered } = await client.query(
-          `SELECT c.id, c.name
-           FROM evaluation_criteria c
-           WHERE c.is_active
-             AND NOT EXISTS (
-               SELECT 1 FROM observation_responses r
-               WHERE r.observation_id = $1 AND r.criterion_id = c.id
-             )`,
-          [observation.id],
-        );
-        if (unanswered.length > 0) {
-          throw new HttpError(
-            409, 'conflict',
-            'All active criteria must be answered before signing off',
-            { missing: unanswered.map((c) => ({ id: c.id, name: c.name })) },
-          );
-        }
-      }
-
-      const column = isObserver ? 'observer_signed_off_at' : 'observee_signed_off_at';
-      const { rows: signedRows } = await client.query(
-        `UPDATE observations SET ${column} = now() WHERE id = $1 RETURNING *`,
+    // Preserve main's requirement: every active criterion needs an answer.
+    if (isObserver) {
+      const { rows: unanswered } = await client.query(
+        `SELECT c.id, c.name
+         FROM evaluation_criteria c
+         WHERE c.is_active
+           AND NOT EXISTS (
+             SELECT 1 FROM observation_responses r
+             WHERE r.observation_id = $1 AND r.criterion_id = c.id
+           )`,
         [observation.id],
       );
-      updated = signedRows[0];
-
-      if (updated.observer_signed_off_at && updated.observee_signed_off_at) {
-        const { rows: completedRows } = await client.query(
-          `UPDATE observations SET status = 'completed' WHERE id = $1 RETURNING *`,
-          [observation.id],
-        );
-        updated = completedRows[0];
-
-        await client.query(
-          `UPDATE assessments
-           SET status = 'completed', completed_at = COALESCE(completed_at, now())
-           WHERE id = $1`,
-          [assessment.id],
+      if (unanswered.length > 0) {
+        throw new HttpError(
+          409, 'conflict',
+          'All active criteria must be answered before signing off',
+          { missing: unanswered.map((c) => ({ id: c.id, name: c.name })) },
         );
       }
+    }
+
+    const column = isObserver ? 'observer_signed_off_at' : 'observee_signed_off_at';
+    const { rows: signedRows } = await client.query(
+      `UPDATE observations SET ${column} = now() WHERE id = $1 RETURNING *`,
+      [observation.id],
+    );
+    updated = signedRows[0];
+
+    if (updated.observer_signed_off_at && updated.observee_signed_off_at) {
+      const { rows: completedRows } = await client.query(
+        `UPDATE observations SET status = 'completed' WHERE id = $1 RETURNING *`,
+        [observation.id],
+      );
+      updated = completedRows[0];
+
+      await client.query(
+        `UPDATE assessments
+         SET status = 'completed', completed_at = COALESCE(completed_at, now())
+         WHERE id = $1`,
+        [assessment.id],
+      );
     }
 
     await client.query('COMMIT');
