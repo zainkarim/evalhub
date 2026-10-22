@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { query } from '../db/pool.js';
-import { findTeacherConflict } from '../lib/availability.js';
+import { findTeacherConflict,  dayCodeFor } from '../lib/availability.js';
 import { AC_OR_ADMIN, requireRole } from '../middleware/auth.js';
 import { HttpError, notFound } from '../middleware/errors.js';
 import { idParams, pagination, paged, validate } from '../middleware/validate.js';
@@ -769,6 +769,32 @@ router.post(
     // whole batch (rather than silently dropping some) if any proposed slot
     // conflicts with the observee's own teaching schedule or an existing
     // confirmed observation -- the caller picks different times and resubmits.
+    const { rows: sectionRows } = await query(
+      `SELECT cs.meeting_days, tm.start_date, tm.end_date, tm.observation_deadline
+         FROM course_sections cs
+         JOIN terms tm ON tm.id = cs.term_id
+        WHERE cs.id = $1`,
+      [assessment.section_id],
+    );
+    const section = sectionRows[0];
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const deadline = section.observation_deadline ?? section.end_date;
+
+    for (const opt of req.valid.body.options) {
+      if (opt.proposedDate < todayStr) {
+        throw new HttpError(400, 'validation_error', `Proposed date ${opt.proposedDate} is in the past`, { proposedDate: opt.proposedDate });
+      }
+      if (opt.proposedDate < section.start_date || opt.proposedDate > section.end_date) {
+        throw new HttpError(400, 'validation_error', `Proposed date ${opt.proposedDate} falls outside this section's term (${section.start_date} to ${section.end_date})`, { proposedDate: opt.proposedDate });
+      }
+      if (opt.proposedDate > deadline) {
+        throw new HttpError(400, 'validation_error', `Proposed date ${opt.proposedDate} is after the observation-period deadline (${deadline})`, { proposedDate: opt.proposedDate });
+      }
+      if (!section.meeting_days || !section.meeting_days.includes(dayCodeFor(opt.proposedDate))) {
+        throw new HttpError(409, 'conflict', `${opt.proposedDate} is not a day this section meets (meeting days: ${section.meeting_days ?? 'none scheduled'})`, { proposedDate: opt.proposedDate });
+      }
+    }
+
     for (const opt of req.valid.body.options) {
       const conflict = await findTeacherConflict(assessment.teacher_id, opt.proposedDate, opt.startTime, opt.endTime);
       if (conflict) {
