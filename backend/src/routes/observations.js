@@ -234,18 +234,23 @@ router.post(
   },
 );
 
-// GET /api/observations/:id/responses   (observer, observee, or AC/admin --
-// but observer/observee only once BOTH have signed off; "view results
-// read-only once submitted and signed", the issue's own wording)
+// GET /api/observations/:id/responses   (AC/admin and the observer: always;
+// the observee: only once the OBSERVER has signed off. Professor correction
+// on #23: the original "both signed" gate was backwards -- it made the
+// observee sign off blind before they were ever allowed to see what they
+// were signing. The observer wrote the responses and is the only one who
+// can edit them (see POST above), so they can always see their own work;
+// the observee's read access unlocks as soon as the observer locks theirs
+// in, and the observee signs after reviewing, not before.)
 router.get('/:id/responses', validate(idParams, 'params'), async (req, res) => {
   const observation = await loadObservation(req.valid.params.id);
   if (!observation) throw notFound('Observation');
 
-  const { isAcAdmin } = requireParty(req, observation);
+  const { isAcAdmin, isObserver } = requireParty(req, observation);
 
-  const bothSigned = observation.observer_signed_off_at && observation.observee_signed_off_at;
-  if (!isAcAdmin && !bothSigned) {
-    throw new HttpError(409, 'conflict', 'Responses are not visible until both the observer and observee have signed off');
+  const observerSigned = Boolean(observation.observer_signed_off_at);
+  if (!isAcAdmin && !isObserver && !observerSigned) {
+    throw new HttpError(409, 'conflict', 'Responses are not visible to the observee until the observer has signed off');
   }
 
   const { rows } = await query(
