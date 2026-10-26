@@ -47,6 +47,11 @@ const createBody = z.object(teacherFields);
 const updateBody = z.object(teacherFields).partial()
   .refine((b) => Object.keys(b).length > 0, { message: 'Provide at least one field to update' });
 
+// Faculty must supply a valid rank and no other fields.
+const selfUpdateBody = z.object({
+  rank: teacherFields.rank,
+}).strict();
+
 const listQuery = z.object({
   q: z.string().trim().max(100).optional(),
   school: z.string().trim().toUpperCase().max(50).optional(),
@@ -596,16 +601,36 @@ router.post('/', requireRole(...AC_OR_ADMIN), validate(createBody), async (req, 
   res.status(201).json(toTeacher(rows[0]));
 });
 
-// PATCH /api/teachers/:id   (AC / admin) — partial update
-router.patch('/:id', requireRole(...AC_OR_ADMIN), validate(idParams, 'params'), validate(updateBody), async (req, res) => {
-  const { sets, values } = buildUpdate(req.valid.body, COLUMNS);
-  const { rows } = await query(
-    `UPDATE teachers SET ${sets.join(', ')} WHERE id = $${values.length + 1} RETURNING *`,
-    [...values, req.valid.params.id],
-  );
-  if (!rows[0]) throw notFound('Teacher');
-  res.json(toTeacher(rows[0]));
-});
+// PATCH /api/teachers/:id
+// AC/admin: full partial update. Faculty: own rank only.
+router.patch(
+  '/:id',
+  requireRole(...AC_OR_ADMIN, 'faculty'),
+  validate(idParams, 'params'),
+  (req, res, next) => {
+    if (req.user.role === 'faculty') {
+      if (req.user.teacherId !== req.valid.params.id) {
+        throw new HttpError(
+          403, 'forbidden',
+          'You can only update your own rank',
+        );
+      }
+
+      return validate(selfUpdateBody)(req, res, next);
+    }
+
+    return validate(updateBody)(req, res, next);
+  },
+  async (req, res) => {
+    const { sets, values } = buildUpdate(req.valid.body, COLUMNS);
+    const { rows } = await query(
+      `UPDATE teachers SET ${sets.join(', ')} WHERE id = $${values.length + 1} RETURNING *`,
+      [...values, req.valid.params.id],
+    );
+    if (!rows[0]) throw notFound('Teacher');
+    res.json(toTeacher(rows[0]));
+  },
+);
 
 // DELETE /api/teachers/:id   (AC / admin) — SOFT delete (is_active = false).
 // Teachers are referenced by teaching history and user accounts, so rows are never removed.
