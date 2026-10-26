@@ -870,7 +870,7 @@ route("POST", "/teachers", ({ user, body }) => {
 })
 
 // AC/admin can update any professor.
-// Faculty can update only their own rank and active status (Issue #50).
+// Faculty can update only their own rank  (Issue #50).
 route("PATCH", "/teachers/(\\d+)", ({ user, match, body }) => {
   const committee = isAC(user)
   const ownProfile = Number(user?.teacherId) === Number(match[1])
@@ -880,9 +880,9 @@ route("PATCH", "/teachers/(\\d+)", ({ user, match, body }) => {
   }
 
   if (!committee && Object.keys(body).some(
-    (key) => !["rank", "isActive"].includes(key)
+    (key) => key !== "rank"
   )) {
-    throw fail(403, "forbidden", "You can only update your rank and status")
+    throw fail(403, "forbidden", "You can only update your rank")
   }
 
   const s = load()

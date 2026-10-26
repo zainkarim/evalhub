@@ -73,7 +73,7 @@ function ProfessorForm() {
       if (isEditing) {
         const updates = committee
           ? form
-          : { rank: form.rank, isActive: form.isActive }
+          : { rank: form.rank }
 
         await api.updateProfessor(id, updates)
         navigate(committee ? `/professors/${id}` : "/observations")
@@ -202,7 +202,7 @@ function ProfessorForm() {
           </select>
         </label>
 
-        {isEditing && (
+        {isEditing && committee && (
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
