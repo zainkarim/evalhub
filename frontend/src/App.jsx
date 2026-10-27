@@ -17,6 +17,7 @@ import Observations from "./pages/Observations"
 import ProfessorDetail from "./pages/ProfessorDetail"
 import ProfessorManagement from "./pages/ProfessorManagement"
 import Professors from "./pages/Professors"
+import FeedbackSurvey from "./pages/FeedbackSurvey"
 
 // Committee-only pages: anyone else gets a plain "limited to the committee"
 // message instead of the page (the navigation link is hidden for them too).
@@ -96,6 +97,7 @@ function App() {
             />
 <Route path="/review" element={<Navigate to="/cycle" replace />} />
             <Route path="/notifications" element={<Notifications />} />
+            <Route path="/feedback-survey" element={<FeedbackSurvey />} />
             <Route
               path="/evaluation-criteria"
               element={
