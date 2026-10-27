@@ -6,6 +6,7 @@ import StatusBadge from "../components/StatusBadge"
 import { api } from "../lib/api"
 import { describeDue, DUE_STATUS } from "../lib/dueStatus"
 import {
+  ACTIVE_STATUS,
   ASSESSMENT_STATUS,
   CURRENT_STATUS,
   OBSERVATION_STATUS,
@@ -65,6 +66,7 @@ function ProfessorDetail() {
   const call = useCallback(() => api.professorProfile(id, termId), [id, termId])
   const { data, error, loading, reload } = useApi(call)
 
+  const backTermId = termId ?? data?.term.id
   const professor = data?.teacher
   const summary = data?.summary
   const given = (data?.observations ?? []).filter((row) => row.role === "observer")
@@ -73,7 +75,10 @@ function ProfessorDetail() {
 
   return (
     <div>
-      <Link to="/professors" className="text-sm text-muted hover:text-ink">
+      <Link
+        to={backTermId ? `/professors?termId=${backTermId}` : "/professors"}
+        className="text-sm text-muted hover:text-ink"
+      >
         Back to professors
       </Link>
 
@@ -102,7 +107,9 @@ function ProfessorDetail() {
               <dl className="mt-8 grid grid-cols-2 gap-x-8 gap-y-5 rounded border border-line bg-white p-6 sm:grid-cols-3">
                 <Fact label="Email">{professor.email}</Fact>
                 <Fact label="School">{professor.school}</Fact>
-                <Fact label="Status">{professor.isActive ? "Active" : "Inactive"}</Fact>
+                <Fact label="Status">
+                  <StatusBadge status={professor.isActive ? "active" : "inactive"} map={ACTIVE_STATUS} />
+                </Fact>
                 <Fact label={`Due status · ${formatTerm(data.term)}`}>
                   <StatusBadge status={summary.dueStatus} map={DUE_STATUS} />
                 </Fact>
@@ -144,7 +151,7 @@ function ProfessorDetail() {
               <section className="mt-6 rounded border border-line bg-white p-6">
                 <h2 className="text-sm font-semibold">Courses</h2>
                 <p className="mt-1 text-sm text-muted">
-                  Taught in {formatTerm(data.term)} and in the previous two years. Observers are matched
+                  Taught in {formatTerm(data.term)} and in the last two years up to today. Observers are matched
                   by course level and department.
                 </p>
                 {data.courses.length === 0 ? (

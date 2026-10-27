@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react"
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom"
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { useAuth } from "../context/auth-context"
 import { api, CHANGED_EVENT } from "../lib/api"
+import NotificationBell from "./NotificationBell"
 import { displayName, hasTeacherProfile, isAC, roleLabel } from "../lib/roles"
 
 // Faculty and committee members see different navigation. `badge` names the
@@ -12,6 +13,8 @@ const links = [
   { to: "/observations", label: "Observations", badge: "requests" },
   { to: "/cycle", label: "Cycle", committeeOnly: true, badge: "alerts" },
   { to: "/notifications", label: "Notifications", profileOnly: true, badge: "unread" },
+  { to: "/evaluation-criteria", label: "Evaluation Criteria", committeeOnly: true },
+  { to: "/my-profile", label: "My Profile", profileOnly: true },
 ]
 
 function Layout() {
@@ -26,22 +29,23 @@ function Layout() {
     let active = true
     async function refresh() {
       const next = { requests: 0, alerts: 0, unread: 0 }
-      try {
-        if (committee) {
-          // Insufficient pools: nobody eligible (urgent) plus short lists (limited).
-          const alerts = await api.assessmentAlerts()
-          next.alerts = alerts.counts.urgent + alerts.counts.limited
-        }
-        if (hasTeacherProfile(user)) {
-          const incoming = await api.incomingRequests()
-          next.requests = (incoming.data ?? []).filter(
-            (request) => request.status === "pending",
-          ).length
-          next.unread = (await api.inbox()).unread
-        }
-      } catch {
-        // counters are a convenience; pages show their own errors
+      // Counters are a convenience and pages show their own errors, so one
+      // failing call must not drop the other badges.
+      const [alerts, incoming, inbox] = await Promise.allSettled([
+        committee ? api.assessmentAlerts() : null,
+        hasTeacherProfile(user) ? api.incomingRequests() : null,
+        hasTeacherProfile(user) ? api.inbox() : null,
+      ])
+      // Insufficient pools: nobody eligible (urgent) plus short lists (limited).
+      if (alerts.status === "fulfilled" && alerts.value) {
+        next.alerts = alerts.value.counts.urgent + alerts.value.counts.limited
       }
+      if (incoming.status === "fulfilled" && incoming.value) {
+        next.requests = (incoming.value.data ?? []).filter(
+          (request) => request.status === "pending",
+        ).length
+      }
+      if (inbox.status === "fulfilled" && inbox.value) next.unread = inbox.value.unread
       if (active) setCounts(next)
     }
     refresh()
@@ -57,51 +61,93 @@ function Layout() {
     navigate("/login", { replace: true })
   }
 
+  const name = displayName(user)
+  const initials =
+    name
+      .split(/[\s@.]+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join("") || "?"
+
   return (
     <div className="min-h-screen bg-canvas font-sans text-ink">
-      <header className="border-b border-line bg-white">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-8 gap-y-3 px-6 py-4">
-          <span className="text-lg font-semibold tracking-tight">
-            EvalHub
-            <span className="ml-2 align-middle text-xs font-normal text-muted">
-              UT Dallas ECS
-            </span>
-          </span>
-
-          <nav className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
-            {hasTeacherProfile(user) && (
-              <NavLink
-                to={`/professors/${user.teacherId}/edit`}
-                className={({ isActive }) =>
-                  `border-b-2 pb-1 ${isActive
-                    ? "border-utd-green text-ink"
-                    : "border-transparent text-muted hover:text-ink"
-                  }`
-                }
+      <header>
+        {/* Brand bar: who you are and what app this is. */}
+        <div className="brand-bar bg-utd-green-dark text-white">
+          <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-6 px-6">
+            <Link to="/" className="flex shrink-0 items-center gap-3 rounded-md">
+              <span
+                aria-hidden="true"
+                className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-lg font-bold text-utd-green-dark shadow-sm"
               >
-                My Profile
-              </NavLink>
-            )}
+                E
+              </span>
+              <span className="leading-tight">
+                <span className="block text-lg font-semibold tracking-tight">EvalHub</span>
+                <span className="hidden text-xs text-white/70 sm:block">
+                  Faculty peer observation · UT Dallas ECS
+                </span>
+              </span>
+            </Link>
+
+            <div className="ml-auto flex items-center gap-2 text-sm sm:gap-4">
+              <NotificationBell />
+              <span aria-hidden="true" className="hidden h-8 w-px bg-white/20 sm:block" />
+              <span className="flex items-center gap-3">
+                <span
+                  aria-hidden="true"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-xs font-semibold ring-1 ring-white/25"
+                >
+                  {initials}
+                </span>
+                <span className="hidden leading-tight md:block">
+                  <span className="block font-medium">{name}</span>
+                  {roleLabel(user) && (
+                    <span className="block text-xs text-white/70">{roleLabel(user)}</span>
+                  )}
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={signOut}
+                className="ml-1 rounded-md border border-white/30 px-3.5 py-1.5 font-medium text-white/90 hover:bg-white/10 hover:text-white"
+              >
+                Sign out
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation row: where you can go. */}
+        <div className="border-b border-line bg-white">
+          <nav
+            aria-label="Main"
+            className="mx-auto flex h-12 w-full max-w-7xl gap-2 overflow-x-auto px-4 text-sm [scrollbar-width:none] sm:px-6 [&::-webkit-scrollbar]:hidden"
+          >
             {links
               .filter((link) => committee || !link.committeeOnly)
               .filter((link) => !link.profileOnly || hasTeacherProfile(user))
               .map((link) => {
+                const to = link.to === "/my-profile"
+                  ? `/professors/${user.teacherId}/edit`
+                  : link.to
                 const count = counts[link.badge] ?? 0
                 return (
                   <NavLink
                     key={link.to}
-                    to={link.to}
+                    to={to}
                     className={({ isActive }) =>
-                      `border-b-2 pb-1 ${isActive
-                        ? "border-utd-green text-ink"
-                        : "border-transparent text-muted hover:text-ink"
+                      `relative flex h-full shrink-0 items-center gap-2 whitespace-nowrap px-3 ${isActive
+                        ? "font-semibold text-utd-green-dark after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-utd-green"
+                        : "text-muted hover:text-ink"
                       }`
                     }
                   >
                     {link.label}
                     {count > 0 && (
                       <span
-                        className="ml-1.5 rounded-full bg-utd-orange px-1.5 py-0.5 text-[10px] font-semibold text-white"
+                        className="min-w-[1.25rem] rounded-full bg-utd-orange px-1.5 text-center text-[11px] font-semibold leading-5 text-white"
                         aria-label={`${count} waiting`}
                       >
                         {count}
@@ -111,24 +157,10 @@ function Layout() {
                 )
               })}
           </nav>
-
-          <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-            <span className="text-muted">
-              {displayName(user)}
-              {roleLabel(user) ? ` · ${roleLabel(user)}` : ""}
-            </span>
-            <button
-              type="button"
-              onClick={signOut}
-              className="rounded border border-line px-3 py-1.5 hover:border-ink"
-            >
-              Sign out
-            </button>
-          </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-6 py-10">
+      <main className="mx-auto w-full max-w-7xl px-6 pt-10 pb-16">
         <Outlet />
       </main>
     </div>

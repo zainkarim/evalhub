@@ -35,15 +35,17 @@ sign in as the other person in the same browser window.
 2. Professor C's CS 1337 sign-up says **Not started**. Click **Start Observer
    Selection** once: lists are built for every sign-up in the term without one → pool
    1 · list 1 and a new **Limited pool** alert appears; the badge now reads 2. The
-   button now reads "Observer selection started"; nothing else can be started. Use
-   **Notify** on a row (or **Notify all**) to send "your list is ready". Pick **Spring
+   button now reads "Observer selection started"; nothing else can be started. Each
+   professor with a non-empty list is told automatically ("your list is ready"). **Remind** /
+   **Remind all** only nudge sign-ups still choosing. If a sign-up has no eligible
+   observer, the button stays as **Re-check empty lists**. Pick **Spring
    2027** in the term selector: the deadline is still ahead, so Start is locked ("Opens
    after …").
 3. **Faculty · `faculty@example.edu`** (Professor C) → *Observations* → CS 1337. Before
    step 2 the page said "Observer selection opens after the sign-up deadline (date). You
    will get a notification when your list is ready." (no Find button). The list is
-   there after step 2 even before **Notify**; the *Notifications* inbox shows the
-   message once the AC sends it. Now: **Ask one observer** → pick Professor H → tick **4–8** class
+   there after step 2, and the *Notifications* inbox already holds the
+   "list is ready" message. Now: **Ask one observer** → pick Professor H → tick **4–8** class
    dates (the button stays disabled until then) → **Send request**.
 4. **`professor.h@example.edu`** → *Observations* → the request lists the dates and a
    48-hour timer. **Decline…** (optional reason) — back as Professor C the request is
@@ -75,7 +77,7 @@ sign in as the other person in the same browser window.
 
 | File | Purpose |
 |---|---|
-| `pages/Cycle.jsx` (`/cycle`, committee only; `/review` redirects) | The AC landing page: the three cycle dates (editable), the single cycle-wide **Start Observer Selection** (idempotent, locked until the sign-up deadline has passed), observer-pool alerts, and a read-only table of every sign-up with the observer list and Notify / Notify all. Replaces the old Sign-up review page, which released selection per sign-up. |
+| `pages/Cycle.jsx` (`/cycle`, committee only; `/review` redirects) | The AC landing page: the three cycle dates (editable), the single cycle-wide **Start Observer Selection** (idempotent, locked until the sign-up deadline has passed), observer-pool alerts, and a read-only table of every sign-up with the observer list and Remind / Remind all. Replaces the old Sign-up review page, which released selection per sign-up. |
 | `pages/Notifications.jsx` (`/notifications`) | The professor's in-app inbox ("your observer list is ready"). In-app only; email is not implemented. |
 | `components/ObserverSummary.jsx` | Pool/list sizes, candidates, requested observer, offered dates, confirmed date. |
 | `components/RequestPanel.jsx` | Professor: one observer + 4–8 class dates, then a single request; pending request with 48h countdown and Withdraw. |
@@ -114,13 +116,13 @@ backend. Where the backend lacks a route, or differs from the requirements, it i
 listed in [`api-expectations.md`](api-expectations.md). Mock-only additions: the
 cycle dates (`signupDeadline`, `observationDeadline`, `feedbackDeadline`, `selectionStartedAt`)
 and `PATCH /terms/:id/dates`, the cycle-wide `POST /terms/:id/start-observer-selection`,
-in-app notifications ("your list is ready"), decline / withdraw, the 48h request record,
+in-app notifications ("your list is ready", sent when a non-empty list is generated, plus committee reminders), decline / withdraw, the 48h request record,
 the attempt log, `attemptNo` on time options, and the alerts feed.
 
 **Added rules** (not stated in the docs, easy to remove in `mockServer.js`):
 summer / past-term sections can't be signed up; observer selection is locked until
 the day after the term's sign-up deadline and runs once for the whole term; a faculty
-sign-up after that is refused (the committee can still sign someone up); the professor can only ask people on the list; one
+sign-up after the sign-up deadline is refused (the committee can still sign someone up and, once selection started, that sign-up gets its list at once); Start can be pressed again to re-check sign-ups whose list is empty; the professor can only ask people on the list; one
 request waits at a time; requests expire after 48 hours; observer confirmation needs a
 future date; step-in observers must be AC members; the retry-in-3–4-weeks gate was
 dropped in favour of "new attempt in the same semester".
@@ -145,15 +147,23 @@ the "nothing needs approval" / "not cancelled" sentences were dropped from the U
 
 ## Professors page (issue #63, requirements §4.11)
 
-`/professors` (committee only) now lists **every active professor**, including those who
+`/professors` (committee only) now lists the **active professors**, including those who
 have not signed up: name, email, department, rank, due status, the semester they are next
 due, last completed observation, current observation status and sign-up status. Summary
 tiles (Due, Overdue, Not signed up, Signed up, Completed), filters (due status, sign-up,
 rank, department), search, sortable columns and a semester picker (default: the current or
 next Spring/Fall term). **Add Professor** is unchanged. The detail page adds courses (this
-term and the last 2 years, with level and department), observations given and received,
+term and the last 2 years back from today, with level and department), observations given and received,
 observer load against the 3-observation cap, and the current sign-up with its attempt
 history. Nothing is approved and nothing here sends reminders.
+
+**Inactive professors.** The default view is the active professors (§4.11). A **Show
+inactive** toggle (default off) adds the inactive ones, each with an Active/Inactive badge
+and an **Edit** link to the edit page, so the AC can reactivate them. The tiles (Due,
+Overdue, Not signed up, Signed up, Completed) **always count active professors only**,
+whatever the toggle says. The chosen semester is kept in the URL (`/professors?termId=`),
+so "Back to professors" from a detail page returns to it; the semester list is loaded once,
+separately from the report.
 
 | File | Change |
 |---|---|
@@ -163,7 +173,7 @@ history. Nothing is approved and nothing here sends reminders.
 | `pages/Professors.jsx`, `pages/ProfessorDetail.jsx` | Rewritten as above. |
 | `lib/mockServer.js`, `lib/mockData.js` | `GET /teachers/report`, `GET /teachers/:id/profile`; `department`; `observerCap`; mock-only history (state key bumped to `v4`, so an old demo resets itself). |
 | `lib/api.js`, `lib/format.js` | `professorReport`, `professorProfile`; current-status labels. |
-| `scripts/check-due.mjs` | `npm run check:due`. |
+| `scripts/check-due.mjs` | `npm run check:due`. Pins the mock's "today" (`setMockToday`) wherever a result depends on it, so it passes on any date. |
 
 **Mock history (mock-only, not in `dev_seed.sql`).** Six completed observations from earlier
 terms plus two past sections (Professor E, Fall 2024; Professor F, Spring 2025), so the

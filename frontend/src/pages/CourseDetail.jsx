@@ -63,8 +63,8 @@ function CourseDetail() {
                 {course.title}
               </p>
 
-              <section className="mt-8 rounded border border-line bg-white p-6">
-                <h2 className="text-sm font-semibold">
+              <section className="mt-8 rounded-lg border border-line bg-white p-6 shadow-xs">
+                <h2 className="text-base font-semibold">
                   Course Sections
                 </h2>
 

@@ -10,6 +10,8 @@
 //   - Never observed -> due (§4.1 has no first-semester exemption).
 // Terms are `{ season: "spring" | "summer" | "fall", year }`.
 
+import { formatTerm } from "./format"
+
 // Years between observations. §4.1 says this must be configurable per professor
 // (e.g. after a promotion), so callers may pass `frequencyYears` to override it.
 export const DEFAULT_FREQUENCY_YEARS = { assistant: 1, other: 2 }
@@ -28,9 +30,6 @@ export const termFromIndex = (index) => ({
   season: index % 2 === 1 ? "fall" : "spring",
   year: Math.floor(index / 2),
 })
-
-export const termLabel = (term) =>
-  term ? `${term.season.charAt(0).toUpperCase()}${term.season.slice(1)} ${term.year}` : "—"
 
 // The status keys, labels and badge tones the Professors page shows.
 export const DUE_STATUS = {
@@ -76,13 +75,13 @@ export function computeDue({ rank, lastObservedTerm, term, frequencyYears }) {
 }
 
 // "Spring 2026 or Fall 2026" / "Spring 2027" — the semester(s) the professor is due.
-export const describeWindow = (dueWindow) => dueWindow.map(termLabel).join(" or ")
+export const describeWindow = (dueWindow) => dueWindow.map(formatTerm).join(" or ")
 
 // The "next due" column: when the professor is (or was) due.
 export function describeDue({ status, dueWindow }) {
   if (status === "never_observed") return "Now (never observed)"
   if (!dueWindow?.length) return "—"
-  return status === "overdue" ? `Was due ${termLabel(dueWindow[0])}` : describeWindow(dueWindow)
+  return status === "overdue" ? `Was due ${formatTerm(dueWindow[0])}` : describeWindow(dueWindow)
 }
 
 // The semester to open the page on: the one in progress, else the next Spring/Fall

@@ -18,6 +18,7 @@ export const SORT_KEYS = {
   lastObserved: (row) => row.lastCompleted?.date ?? null,
   current: (row) => CURRENT_ORDER[row.currentStatus] ?? 9,
   signUp: (row) => (row.signUp ? 1 : 0),
+  active: (row) => (row.isActive ? 0 : 1),
 }
 
 // `sort` is { key, direction: "asc" | "desc" }. Ties fall back to the name.

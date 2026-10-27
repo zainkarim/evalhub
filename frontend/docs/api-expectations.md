@@ -31,7 +31,7 @@ but the frontend needs more · **mock** = mock-only today, needs to be built.
 | exists | `POST /auth/login`, `GET /auth/me` | any | sign-in, role + `teacherId` + name |
 | exists | `GET /teachers`, `GET /teachers/:id` | AC/admin (`:id` also self) | roster, sign-up on behalf |
 | extend | `GET /teachers`, `GET /teachers/:id` | AC/admin | also return `department` (see "Professors report") |
-| mock | `GET /teachers/report` (`?termId=`) | AC/admin | the Professors page: every active professor with due and sign-up status; **register before `GET /teachers/:id`** |
+| mock | `GET /teachers/report` (`?termId=`) | AC/admin | the Professors page: every professor (active and inactive, flagged `isActive`) with due and sign-up status; counts cover active professors only; **register before `GET /teachers/:id`** |
 | mock | `GET /teachers/:id/profile` (`?termId=`) | AC/admin | the professor detail page: courses, observations, observer load, current sign-up |
 | extend | `GET /terms` | any | needs `signupDeadline` (mock-only today) |
 | exists | `GET /courses`, `GET /sections` | any | pickers (frontend sends `pageSize=100`) |
@@ -41,7 +41,7 @@ but the frontend needs more · **mock** = mock-only today, needs to be built.
 | mock | `POST /terms/:termId/start-observer-selection` | AC/admin | THE one cycle-wide "Start Observer Selection"; idempotent; see "Cycle and notifications" |
 | mock | `PATCH /terms/:id/dates` `{ signupDeadline, observationDeadline, feedbackDeadline }` | AC/admin | edit the cycle dates |
 | mock | `GET /notifications/inbox`, `POST /notifications/:id/read`, `POST /notifications/read-all` | professor | in-app messages |
-| mock | `POST /notifications/list-ready` `{ termId, assessmentIds? }` | AC/admin | "your list is ready" messages (Notify / Notify all) |
+| mock | `POST /notifications/list-reminder` `{ termId, assessmentIds? }` | AC/admin | reminders (Remind / Remind all) to sign-ups still choosing; the first "list is ready" message is sent automatically |
 | mock | `GET /assessments/alerts` (`?termId=`) | AC/admin | alerts panel + nav counter |
 | exists | `GET /assessments/:id/time-options` | owner, offered observer, AC/admin | return `attemptNo` too |
 | extend | `POST /assessments/:id/time-options` `{ options: [{ proposedDate, startTime, endTime }] }` | owner, AC/admin | **4–8** options (backend accepts 1–8) |
@@ -138,9 +138,10 @@ From `docs/requirements.md` §4.2–4.3 unless marked **added**.
 
 1. **Sign-up**: instructor of the section only; one per section (409); **added** –
    only current/upcoming Spring/Fall terms. **Added:** a faculty sign-up is refused
-   (409) once Start Observer Selection has run for the term, because selection is a
-   single cycle-wide run; the committee can still sign a professor up, and that sign-up
-   gets its list at once (other lists are not re-rolled).
+   (409, "Sign-ups closed on <date>.") once the term's sign-up deadline has passed (the
+   deadline day itself is open), not when Start is clicked. The committee can still sign a
+   professor up; if selection has started, that sign-up gets its list (and, when the list
+   is non-empty, its "list is ready" message) at once. Other lists are not re-rolled.
 2. **Sign-up deadline** (**mock-only**, `terms.signupDeadline`): selection opens the
    day after it. Before that Start returns 409 and the UI shows "Opens after <date>".
    The professor sees "Observer selection opens after the sign-up deadline (<date>).
@@ -149,11 +150,15 @@ From `docs/requirements.md` §4.2–4.3 unless marked **added**.
    `POST /terms/:termId/start-observer-selection` (mock). It builds the list for every
    sign-up in the term that has none, using the same pool rules as
    `db/queries/eligible_observers.sql` plus availability from schedules; up to 5 chosen
-   at random. It is **idempotent**: once `terms.selectionStartedAt` is set, another call
-   returns `alreadyStarted: true` and changes nothing (no new lists, log rows or
-   messages); existing lists are never re-rolled. It approves nothing, and there is no
-   per-sign-up start. The professor can use the list as soon as it exists; the "list is
-   ready" message is only a message. Zero eligible keeps the sign-up `signed_up` and
+   at random. It is **idempotent** for sign-ups that already have a non-empty list: a
+   later call (`alreadyStarted: true`) never re-rolls them and sends nothing twice.
+   Sign-ups whose list is **empty** are re-evaluated on every call ("Re-check empty
+   lists" in the UI, shown while any exist after selection started): if an observer is
+   eligible now, the list is generated and `list_ready` is sent; if nobody is, nothing
+   changes (no new list, no history row) and the call reports it in `stillEmpty`. It approves nothing, and there is no
+   per-sign-up start. The professor can use the list as soon as it exists. Generating a
+   non-empty list (Start, re-check or a late committee sign-up) sends one `list_ready`
+   message per list; an empty list sends none. Zero eligible keeps the sign-up `signed_up` and
    still **persists the 0/0 list** so the alert and the "unmatched faculty" / "list
    sufficiency" KPIs can see it (the reference route currently returns without saving
    one). The list is recorded in the attempt history as `list_generated` by "System".
@@ -239,19 +244,22 @@ routes, so the backend team can see what integration needs:
 
 // POST /terms/:termId/start-observer-selection  (AC/admin; 409 before the day after signupDeadline)
 { "termId": 10, "alreadyStarted": false, "startedAt": "…", "started": 5, "noEligible": 1, "limited": 1, "full": 3 }
-// second call: { "alreadyStarted": true, "started": 0, … } and nothing changes
+// "stillEmpty": empty-list sign-ups re-checked that still have nobody eligible.
+// second call: { "alreadyStarted": true, "started": 0, "stillEmpty": n, … }; non-empty lists are untouched
 
 // PATCH /terms/:id/dates  { signupDeadline, observationDeadline, feedbackDeadline }  (AC/admin)
 // -> the term. 400 unless sign-up < observation < feedback; 409 to move the sign-up deadline after selection started.
 
 // Notification (what a professor sees)
-{ "id": 1, "type": "list_ready", "termId": 10, "subject": "Your observer list is ready", "body": "…",
+{ "id": 1, "type": "list_ready" | "list_reminder", "termId": 10, "subject": "Your observer list is ready", "body": "…",
   "link": "/assessments/1" | null, "createdAt": "…", "readAt": null | "…", "sentBy": { "name": "Professor B" }, "channel": "in_app" }
 // GET  /notifications/inbox        -> { "data": [ Notification ], "unread": 1 }       (needs a teacher profile)
 // POST /notifications/:id/read     -> Notification;   POST /notifications/read-all -> { "unread": 0 }
 
-// POST /notifications/list-ready  { termId, assessmentIds? }   (AC/admin; 409 before selection has run)
-// -> { "sent": 4, "alreadyNotified": 0, "noList": 1 }  — one message per observee whose list has at least one observer
+// POST /notifications/list-reminder  { termId, assessmentIds? }   (AC/admin; 409 before selection has run)
+// -> { "sent": 4, "skipped": 3 }  — a type "list_reminder" message for each sign-up still choosing
+//    (status candidates_generated with a non-empty list); approved, completed, postponed and
+//    empty-list sign-ups are skipped. Reminders are optional: nothing depends on them.
 ```
 
 Notifications are in-app only; **email delivery is not implemented**. No step waits
@@ -267,7 +275,8 @@ Suggested backend additions: `terms.signup_deadline`, `terms.observation_deadlin
 `GET /teachers/report?termId=` backs the AC's `/professors` page and
 `GET /teachers/:id/profile?termId=` its detail page. Both are AC/admin only (403 for
 faculty). Without `termId` the server uses the semester in progress, else the next
-Spring/Fall term. The frontend never computes anything the backend should own except
+Spring/Fall term. "Today" for that choice and for the 2-year look-back below is the
+server's date (the mock lets its checks pin it, `setMockToday`). The frontend never computes anything the backend should own except
 through `src/lib/dueStatus.js`, which is pure, so it can be moved to the server unchanged.
 
 > **Route order (backend team):** register `GET /teachers/report` **before**
@@ -278,12 +287,12 @@ through `src/lib/dueStatus.js`, which is pure, so it can be moved to the server 
 ```jsonc
 // GET /teachers/report?termId=10
 { "term": { "id": 10, "season": "fall", "year": 2026 },
-  "counts": { "due": 5,            // dueStatus due OR never_observed
+  "counts": { "due": 5,            // ACTIVE professors only; dueStatus due OR never_observed
               "overdue": 2, "neverObserved": 3,   // neverObserved is a sub-count of due
               "signedUp": 4, "notSignedUp": 6, "completed": 0 },
-  "data": [{                       // every ACTIVE teacher, signed up or not
+  "data": [{                       // every teacher, signed up or not, active or not
     "id": 5, "firstName": "Professor", "lastName": "E", "email": "professor.e@example.edu",
-    "school": "ECS", "department": "CS",
+    "school": "ECS", "department": "CS", "isActive": true,
     "rank": "assistant_professor", "rankLabel": "Assistant Professor",
     "dueStatus": "due | overdue | not_due | never_observed",
     "dueTerm": { "season": "spring", "year": 2025 } | null,   // first semester they are/were due
@@ -299,12 +308,19 @@ through `src/lib/dueStatus.js`, which is pure, so it can be moved to the server 
 { "teacher": TeacherBrief & { "department", "isActive" }, "term": { "id", "season", "year" },
   "summary": <one row of the report above>,
   "courses": [{ "sectionId", "sectionNumber", "term", "thisTerm": true, "course": "CS 1337",
-                "title", "level": 1, "department": "CS", "school": "ECS" }],   // this term + the last 2 years
+                "title", "level": 1, "department": "CS", "school": "ECS" }],   // this term + the last 2 years back from today (same cutoff as the observer pool)
   "observations": [{ "id", "assessmentId", "role": "observer | observee", "date", "status": "approved | completed | postponed",
                      "partner": TeacherBrief, "course": "CS 1337", "term": { "id", "season", "year" } }],
   "observerLoad": { "count": 1, "cap": 3 },          // requirements §4.2; postponed attempts not counted
   "signUp": { "assessmentId", "status", "section": SectionView, "attempts": [ AttemptLogEntry ] } | null }
 ```
+
+**Inactive professors.** Requirements §4.11 makes the default view the active
+professors, so the Professors page hides `isActive: false` rows unless "Show inactive" is
+ticked. They stay in `data` (with an Inactive badge and an Edit link, so the AC can
+reactivate them) but are **not counted**: `counts` is computed over active professors only
+and does not change with the toggle. A real backend can return the same shape, or add an
+`?includeInactive=` filter; the page only needs `isActive` on each row.
 
 **Status definitions**
 
@@ -314,9 +330,10 @@ through `src/lib/dueStatus.js`, which is pure, so it can be moved to the server 
 | | `overdue` | the window has passed with no completed observation |
 | | `not_due` | the window has not started |
 | | `never_observed` | no completed observation as observee; counted as due (§4.1 has no first-semester exemption) |
+| `isActive` | `true / false` | on the active roster; inactive rows are listed only on request and are not counted |
 | `currentStatus` | `none` | no sign-up for the semester (shown "None yet") |
 | | `selecting_observer` | signed up; no request waiting for a reply |
-| | `request_sent` | a request to one observer is waiting |
+| | `request_sent` | a request to one observer is waiting (wins over `postponed`: a postponed sign-up that has sent a new request reads "Request sent") |
 | | `scheduled` | a date is confirmed (assessment status `approved`; **not** Completed) |
 | | `completed` | observed and both sign-offs done |
 | | `postponed` | an attempt did not happen; `attempts` says how many (never cancelled) |
@@ -351,6 +368,9 @@ should know about:
   create/update bodies (`teacherFields`) do not accept it, so `POST /teachers` inserts no
   department and fails against the `NOT NULL` column. Fix: add `department` to
   `toTeacher`, to `teacherFields` (required on create, like `school`) and to `COLUMNS`.
+- `PATCH /teachers/:id` should re-derive `department` when `school` changes and the body
+  carries no department (the mock falls back to the new school, like create), otherwise
+  an edit leaves the old department behind.
 - Because the body does not take it yet, **the Add Professor / Edit form was left
   unchanged**. Once the body accepts `department`, add a text field to
   `pages/ProfessorManagement.jsx`. Until then the mock fills `department` from `school`,
@@ -358,12 +378,56 @@ should know about:
 - The mock's observer matching (`eligibleObservers` in `lib/mockServer.js`) still
   compares `school`; the backend now matches on department. Not changed here.
 
+## Sprint 3 observation calendar (#59)
+
+The frontend reads `term.observationDeadline` to limit Quick Pick and
+Calendar choices to eligible class meetings. If the deadline is missing,
+it falls back to `term.endDate`. The backend should independently reject
+dates beyond the observation deadline.
+
+## Sprint 3 notification events (#62)
+
+The NotificationBell uses the shared `GET /notifications/inbox`,
+`POST /notifications/:id/read`, and `POST /notifications/read-all`
+endpoints documented above, not the older `/notifications` API.
+
+In addition to list-ready and reminder messages, the mock generates
+notifications for request sent, withdrawn, declined, confirmed dates,
+direct scheduling, and postponements. Notifications use the shared
+`subject`, `body`, `link`, and `readAt` fields.
+
+### #33 Observation form and evaluation criteria (backend on `main`)
+
+The frontend uses `main`'s routes as they are: `GET/POST /criteria`,
+`PATCH/DELETE /criteria/:id` (committee only; a used criterion returns 409, so
+the UI offers Deactivate), `POST /observations/:id/responses` (observer only,
+until they sign off) and `GET /observations/:id/responses` (observer/observee
+after both sign off; committee any time). The observer's sign-off requires every
+active criterion to be answered, as on `main`.
+
+Gaps on `main` (proposed, not implemented there):
+
+- **Observer notes.** #33 asks for notes, but `observation_responses` stores
+  only scores. The frontend sends `notes` with `POST .../responses` and reads
+  `notes` from `GET .../responses`. Proposed: `observations.observer_notes TEXT`.
+  Today `main` silently drops the field.
+- **Draft answers.** `GET .../responses` is blocked for the observer until both
+  sign off, so an observer who reloads the page can't see what they saved. The
+  form starts empty again (saving again overwrites). Proposed: let the observer
+  read their own answers before signing off.
+- **Template snapshot.** Requirements §4.5: template changes apply to future
+  observations only. `main` keeps answered criteria (no delete once used) but
+  renames or scale changes still show on old records.
+- **Rating scale.** Each criterion has its own `maxScore` (1..n); the sample
+  rubric from Prof. Narayanasami has not been supplied, so the demo criteria
+  are placeholders from §4.4.
+
 ## Not built (outside this task)
 
 View-only roles for Department Head / Annual Review Committee (the `users.role`
 check only allows `faculty`, `ac_member`, `admin`), the observation-form and
 process-feedback forms, the rank-based eligibility engine, KPI dashboards, and
-email delivery. The AC reminders (due/overdue, deadlines; the Professors page has a marked
-place for a future "Send reminder" action), the end-of-process survey request, and the
-criteria editor are later phases.
-The Cycle page is the AC's landing page until the KPI dashboards exist.
+email delivery. AC reminders, deadline reminders, and the
+end-of-process survey request remain future work where not implemented.
+The Cycle page is the AC's landing page until KPI dashboards exist.
+The evaluation criteria editor is implemented in the Sprint 3 frontend.

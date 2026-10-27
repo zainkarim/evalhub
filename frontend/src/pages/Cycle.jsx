@@ -260,14 +260,15 @@ function ObserverList({ item }) {
 
 // The committee's page for the semester's cycle: its dates, the single Start
 // Observer Selection action, alerts for empty or short observer pools, and a
-// read-only view of every sign-up with the "list is ready" Notify buttons.
+// read-only view of every sign-up with Remind buttons. The "list is ready"
+// message is sent automatically when a list is generated.
 // The committee does not approve or release anything per sign-up.
 function Cycle() {
   const [termId, setTermId] = useState(null)
   const [open, setOpen] = useState(null) // expanded sign-up id
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("")
-  const [busy, setBusy] = useState(null) // "start" | "notify-all" | sign-up id
+  const [busy, setBusy] = useState(null) // "start" | "remind-all" | sign-up id
   const [notice, setNotice] = useState("")
   const [actionError, setActionError] = useState("")
 
@@ -306,8 +307,16 @@ function Cycle() {
   const deadlinePassed =
     !current?.signupDeadline || todayISO() > toDateOnly(current.signupDeadline)
   const stage = (status) => rows.filter((item) => normalizeStatus(item.status) === status).length
-  const ready = rows.filter((item) => (item.candidateSummary?.listSize ?? 0) > 0)
-  const toNotify = ready.filter((item) => !item.listReadyNotifiedAt)
+  const hasList = (item) => (item.candidateSummary?.listSize ?? 0) > 0
+  // Still choosing: the only sign-ups a reminder makes sense for.
+  const isChoosing = (item) => item.status === "candidates_generated" && hasList(item)
+  const withLists = rows.filter(hasList).length
+  const choosing = rows.filter(isChoosing)
+  // Selection ran but nobody was eligible: Start can be pressed again to re-check.
+  const emptyLists = rows.filter(
+    (item) => item.status === "signed_up" && item.candidateSummary?.listSize === 0,
+  )
+  const canRecheck = started && emptyLists.length > 0
   const text = search.trim().toLowerCase()
   const shown = rows.filter(
     (item) =>
@@ -335,32 +344,32 @@ function Cycle() {
   const start = () =>
     run("start", async () => {
       const result = await api.startObserverSelection(current.id)
-      if (result.alreadyStarted) {
-        setNotice("Observer selection had already started. Nothing changed.")
+      const plural = (n) => `${n} sign-up${n === 1 ? "" : "s"}`
+      if (result.alreadyStarted && result.started === 0) {
+        setNotice(
+          result.stillEmpty
+            ? `Re-checked ${plural(result.stillEmpty)} with no list. Still no eligible observers; the committee stays alerted.`
+            : "Observer selection had already started. Nothing changed.",
+        )
         return
       }
-      const parts = [`Observer lists built for ${result.started} sign-up${result.started === 1 ? "" : "s"}.`]
+      const parts = [`Observer lists built for ${plural(result.started)}.`]
       if (result.noEligible) parts.push(`${result.noEligible} with no eligible observer.`)
       if (result.limited) parts.push(`${result.limited} with a limited pool.`)
+      if (result.stillEmpty) parts.push(`${result.stillEmpty} still with no eligible observer.`)
       setNotice(parts.join(" "))
     })
 
-  const notify = (item) =>
+  const remind = (item) =>
     run(item.id, async () => {
-      await api.notifyListReady(current.id, [item.id])
-      setNotice(`Notified ${fullName(item.teacher)} that their list is ready.`)
+      await api.remindListReady(current.id, [item.id])
+      setNotice(`Reminded ${fullName(item.teacher)} to choose an observer.`)
     })
 
-  const notifyAll = () =>
-    run("notify-all", async () => {
-      const result = await api.notifyListReady(current.id)
-      setNotice(
-        `Notified ${result.sent} professor${result.sent === 1 ? "" : "s"}.` +
-          (result.alreadyNotified ? ` ${result.alreadyNotified} had already been notified.` : "") +
-          (result.noList
-            ? ` ${result.noList} ${result.noList === 1 ? "has" : "have"} no list to announce.`
-            : ""),
-      )
+  const remindAll = () =>
+    run("remind-all", async () => {
+      const result = await api.remindListReady(current.id)
+      setNotice(`Reminded ${result.sent} professor${result.sent === 1 ? "" : "s"} still choosing.`)
     })
 
   return (
@@ -406,22 +415,32 @@ function Cycle() {
               <h3 className="text-sm font-medium">Start Observer Selection</h3>
               <p className="mt-1 text-sm text-muted">
                 {started
-                  ? `Started on ${formatLocalDate(current.selectionStartedAt)}. Every sign-up in ${formatTerm(current)} has its list, and professors can already use it.`
+                  ? `Started on ${formatLocalDate(current.selectionStartedAt)}. ${withLists} of ${rows.length} sign-up${rows.length === 1 ? " has" : "s have"} a list.${emptyLists.length > 0 ? ` ${emptyLists.length} ${emptyLists.length === 1 ? "has" : "have"} no eligible observers yet (the committee is alerted below).` : ""}`
                   : `One click builds the list of up to five observers for every sign-up in ${formatTerm(current)} (${rows.length} so far). ${SELECTION_COPY.acButtonHint}`}
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-3">
                 <button
                   type="button"
-                  disabled={started || !deadlinePassed || busy !== null}
+                  disabled={(started && !canRecheck) || !deadlinePassed || busy !== null}
                   onClick={start}
                   className="rounded bg-utd-green px-4 py-2 text-sm font-medium text-white hover:bg-utd-green-dark disabled:opacity-50"
                 >
                   {busy === "start"
-                    ? "Starting…"
-                    : started
-                      ? "Observer selection started"
-                      : "Start Observer Selection"}
+                    ? started
+                      ? "Re-checking…"
+                      : "Starting…"
+                    : canRecheck
+                      ? "Re-check empty lists"
+                      : started
+                        ? "Observer selection started"
+                        : "Start Observer Selection"}
                 </button>
+                {deadlinePassed && current.signupDeadline && (
+                  <span className="text-xs text-muted">
+                    Sign-ups closed on {formatDate(current.signupDeadline)}. You can still sign a
+                    professor up.
+                  </span>
+                )}
                 {!started && !deadlinePassed && (
                   <span className="text-xs text-muted">
                     Opens after the sign-up deadline ({formatDate(current.signupDeadline)}).
@@ -499,22 +518,22 @@ function Cycle() {
                   <div className="ml-auto flex items-center gap-3">
                     <span className="text-xs text-muted">
                       {started
-                        ? `${ready.length} list${ready.length === 1 ? "" : "s"} ready · ${toNotify.length} not yet notified`
+                        ? `${choosing.length} still choosing an observer`
                         : "Lists appear after Start Observer Selection"}
                     </span>
                     <button
                       type="button"
-                      disabled={!started || toNotify.length === 0 || busy !== null}
-                      onClick={notifyAll}
+                      disabled={!started || choosing.length === 0 || busy !== null}
+                      onClick={remindAll}
                       className="rounded border border-line px-3 py-1.5 text-sm font-medium hover:border-ink disabled:opacity-50"
                     >
-                      {busy === "notify-all" ? "Sending…" : "Notify all"}
+                      {busy === "remind-all" ? "Sending…" : "Remind all"}
                     </button>
                   </div>
                 </div>
                 <p className="mt-2 text-xs text-muted">
-                  Notify only sends a message (&ldquo;your list is ready&rdquo;). Professors can
-                  already see and use their list without it.
+                  Professors are told automatically when their list is ready. Remind only nudges
+                  those still choosing; nothing waits for it.
                 </p>
 
                 {shown.length === 0 ? (
@@ -539,7 +558,6 @@ function Cycle() {
                       <tbody>
                         {shown.map((item) => {
                           const expanded = open === item.id
-                          const hasList = (item.candidateSummary?.listSize ?? 0) > 0
                           return (
                             <Fragment key={item.id}>
                               <tr className="border-b border-line last:border-0">
@@ -571,21 +589,21 @@ function Cycle() {
                                   </span>
                                 </td>
                                 <td className={`${td} whitespace-nowrap`}>
-                                  {hasList &&
-                                    (item.listReadyNotifiedAt ? (
-                                      <span className="mr-3 text-xs text-muted">
-                                        Notified {formatLocalDate(item.listReadyNotifiedAt)}
-                                      </span>
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        disabled={busy !== null}
-                                        onClick={() => notify(item)}
-                                        className="mr-3 rounded border border-line px-3 py-1.5 text-xs font-medium hover:border-ink disabled:opacity-50"
-                                      >
-                                        {busy === item.id ? "Sending…" : "Notify"}
-                                      </button>
-                                    ))}
+                                  {item.listReadyNotifiedAt && (
+                                    <span className="mr-3 text-xs text-muted">
+                                      Notified {formatLocalDate(item.listReadyNotifiedAt)}
+                                    </span>
+                                  )}
+                                  {isChoosing(item) && (
+                                    <button
+                                      type="button"
+                                      disabled={busy !== null}
+                                      onClick={() => remind(item)}
+                                      className="mr-3 rounded border border-line px-3 py-1.5 text-xs font-medium hover:border-ink disabled:opacity-50"
+                                    >
+                                      {busy === item.id ? "Sending…" : "Remind"}
+                                    </button>
+                                  )}
                                   <button
                                     type="button"
                                     aria-expanded={expanded}

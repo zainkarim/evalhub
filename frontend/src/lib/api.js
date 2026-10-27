@@ -84,6 +84,16 @@ function query(params = {}) {
 const post = (path, body) => request(path, { method: "POST", body })
 
 export const api = {
+  // ---- evaluation criteria (#33; backend: routes/criteria.js on main)
+  listCriteria: (params) => request(`/criteria${query(params)}`),
+  createCriterion: (body) => post("/criteria", body),
+  updateCriterion: (id, body) => request(`/criteria/${id}`, { method: "PATCH", body }),
+  deleteCriterion: (id) => request(`/criteria/${id}`, { method: "DELETE" }),
+  // ---- observation form answers (#33; backend: routes/observations.js on main)
+  // `notes` is a proposed addition; main stores only the scores.
+  submitResponses: (id, responses, notes) =>
+    post(`/observations/${id}/responses`, notes ? { responses, notes } : { responses }),
+  getResponses: (id) => request(`/observations/${id}/responses`),
   // ---- auth
   // POST /auth/login -> { token, user }
   login: (email, password) =>
@@ -141,8 +151,8 @@ export const api = {
   inbox: () => request("/notifications/inbox"),
   markNotificationRead: (id) => post(`/notifications/${id}/read`),
   markAllNotificationsRead: () => post("/notifications/read-all"),
-  notifyListReady: (termId, assessmentIds) =>
-    post("/notifications/list-ready", assessmentIds ? { termId, assessmentIds } : { termId }),
+  remindListReady: (termId, assessmentIds) =>
+    post("/notifications/list-reminder", assessmentIds ? { termId, assessmentIds } : { termId }),
 
   // ---- observer: confirm one date, or decline
   incomingRequests: () => request("/time-options/incoming"),

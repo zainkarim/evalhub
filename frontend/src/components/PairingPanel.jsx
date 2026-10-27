@@ -17,9 +17,9 @@ function PairingPanel({ observation, viewer, title = "Observer pairing" }) {
   const action = observation.status === "approved" && isParty ? "Sign off" : "Open record"
 
   return (
-    <section className="mt-6 rounded border border-line bg-white p-6">
+    <section className="mt-6 rounded-lg border border-line bg-white p-6 shadow-xs">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <h2 className="text-sm font-semibold">
+        <h2 className="text-base font-semibold">
           {title} · attempt {observation.attemptNo}
         </h2>
         <StatusBadge status={observation.status} map={OBSERVATION_STATUS} />
@@ -46,7 +46,7 @@ function PairingPanel({ observation, viewer, title = "Observer pairing" }) {
       </dl>
 
       {observation.status === "postponed" && (
-        <p className="mt-4 rounded border border-line bg-canvas px-4 py-3 text-sm">
+        <p className="mt-4 rounded-md border border-line bg-canvas px-4 py-3 text-sm">
           This attempt was postponed. The reason is in the attempt history below.
         </p>
       )}
@@ -54,7 +54,7 @@ function PairingPanel({ observation, viewer, title = "Observer pairing" }) {
       {(isParty || viewer?.role !== "faculty") && (
         <Link
           to={`/records/${observation.id}`}
-          className="mt-5 inline-block rounded border border-line px-4 py-2 text-sm font-medium text-utd-green hover:border-ink"
+          className="mt-5 inline-block rounded-md border border-line px-4 py-2 text-sm font-medium text-utd-green hover:border-ink"
         >
           {action}
         </Link>

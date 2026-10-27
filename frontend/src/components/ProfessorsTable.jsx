@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom"
 import StatusBadge from "./StatusBadge"
 import { describeDue, DUE_STATUS } from "../lib/dueStatus"
-import { CURRENT_STATUS, currentStatusDetail, formatDate } from "../lib/format"
+import { ACTIVE_STATUS, CURRENT_STATUS, currentStatusDetail, formatDate } from "../lib/format"
 
 // Each column header; the sorting for each key is in lib/professorSort.js.
 const COLUMNS = [
@@ -13,6 +13,7 @@ const COLUMNS = [
   { key: "lastObserved", label: "Last observed" },
   { key: "current", label: "Current status" },
   { key: "signUp", label: "Sign-up" },
+  { key: "active", label: "Status" },
 ]
 
 function Cell({ column, row, termId }) {
@@ -54,6 +55,19 @@ function Cell({ column, row, termId }) {
       ) : (
         <span className="text-muted">Not signed up</span>
       )
+    case "active":
+      return (
+        <>
+          <StatusBadge status={row.isActive ? "active" : "inactive"} map={ACTIVE_STATUS} />
+          <Link to={`/professors/${row.id}/edit`} className="mt-1 block text-xs text-utd-green hover:underline">
+            Edit
+            <span className="sr-only">
+              {" "}
+              {row.firstName} {row.lastName}
+            </span>
+          </Link>
+        </>
+      )
     default:
       return null
   }
@@ -62,8 +76,8 @@ function Cell({ column, row, termId }) {
 // The roster with one sortable header per column. `sort` is { key, direction }.
 function ProfessorsTable({ rows, sort, onSort, termId }) {
   return (
-    <div className="overflow-x-auto rounded border border-line bg-white">
-      <table className="w-full min-w-[60rem] text-left text-sm">
+    <div className="relative overflow-x-auto rounded border border-line bg-white">
+      <table className="w-full min-w-[66rem] text-left text-sm">
         <thead className="border-b border-line text-xs text-muted">
           <tr>
             {COLUMNS.map((column) => {

@@ -115,13 +115,13 @@ function Courses() {
               : "Search by course number or title"
           }
           aria-label="Search courses"
-          className="w-full max-w-sm rounded border border-line bg-white px-3 py-2 text-sm"
+          className="w-full max-w-sm rounded-md border border-line bg-white px-3 py-2 text-sm"
         />
         <select
           value={term}
           onChange={(event) => setTerm(event.target.value)}
           aria-label="Filter by term"
-          className="rounded border border-line bg-white px-3 py-2 text-sm"
+          className="rounded-md border border-line bg-white px-3 py-2 text-sm"
         >
           <option value="">All terms</option>
           {terms.map((option) => (
@@ -140,7 +140,7 @@ function Courses() {
           empty={visibleCourses?.length === 0}
           emptyMessage="No courses match these filters. Clear the search or pick another term."
         >
-          <div className="relative overflow-x-auto rounded border border-line bg-white">
+          <div className="relative overflow-x-auto rounded-lg border border-line bg-white shadow-xs">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-line text-xs text-muted">
                 <tr>

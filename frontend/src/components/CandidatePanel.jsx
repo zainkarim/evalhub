@@ -11,7 +11,7 @@ function CandidateTable({ candidates, offers = [] }) {
     offers.filter((offer) => offer.observerId === id).sort((a, b) => b.id - a.id)[0]
 
   return (
-    <div className="relative overflow-x-auto rounded border border-line">
+    <div className="relative overflow-x-auto rounded-lg border border-line bg-white shadow-xs">
       <table className="w-full text-left text-sm">
         <thead className="border-b border-line bg-canvas text-xs text-muted">
           <tr>
@@ -52,8 +52,8 @@ function CandidatePanel({ assessment, committee, owner }) {
   const { candidateList: list, candidates, signupDeadline } = assessment
 
   return (
-    <section className="mt-6 rounded border border-line bg-white p-6">
-      <h2 className="text-sm font-semibold">Observer candidates</h2>
+    <section className="mt-6 rounded-lg border border-line bg-white p-6 shadow-xs">
+      <h2 className="text-base font-semibold">Observer candidates</h2>
 
       {!list ? (
         <div className="mt-3 text-sm">
@@ -82,7 +82,7 @@ function CandidatePanel({ assessment, committee, owner }) {
           )}
 
           {list.listSize === 0 ? (
-            <div className="mt-4 rounded border border-utd-orange/40 bg-canvas px-4 py-3 text-sm">
+            <div className="mt-4 rounded-md border border-utd-orange/40 bg-canvas px-4 py-3 text-sm">
               <p className="font-medium">No eligible observers found.</p>
               <p className="mt-1 text-muted">
                 {owner

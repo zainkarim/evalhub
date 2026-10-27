@@ -32,10 +32,21 @@ function Login() {
 
   return (
     <div className="min-h-screen bg-canvas font-sans text-ink md:grid md:grid-cols-[1fr_1.1fr]">
-      <section className="flex flex-col justify-between bg-utd-green px-8 py-12 text-white md:px-12">
-        <p className="text-lg font-semibold tracking-tight">EvalHub</p>
+      <section className="flex flex-col justify-between bg-utd-green-dark px-8 py-10 text-white md:px-12 md:py-12">
+        <p className="flex items-center gap-2.5">
+          <span
+            aria-hidden="true"
+            className="flex h-9 w-9 items-center justify-center rounded-md bg-white text-base font-bold text-utd-green-dark"
+          >
+            E
+          </span>
+          <span className="leading-tight">
+            <span className="block text-lg font-semibold tracking-tight">EvalHub</span>
+            <span className="block text-xs text-white/70">UT Dallas ECS</span>
+          </span>
+        </p>
         <div className="my-14 max-w-sm">
-          <h1 className="text-3xl leading-tight font-semibold md:text-4xl">
+          <h1 className="text-3xl leading-[1.15] font-semibold md:text-[2.5rem]">
             Peer teaching evaluations for ECS faculty.
           </h1>
           <p className="mt-5 text-sm leading-relaxed text-white/80">
@@ -51,7 +62,7 @@ function Login() {
 
       <section className="flex items-center px-8 py-12 md:px-16">
         <div className="w-full max-w-sm">
-          <h2 className="text-xl font-semibold">Sign in</h2>
+          <h2 className="text-2xl font-semibold tracking-tight">Sign in</h2>
           <p className="mt-1 text-sm text-muted">Use your UTD email address.</p>
 
           <form onSubmit={handleSubmit} className="mt-8 space-y-5" noValidate>
@@ -66,7 +77,7 @@ function Login() {
                 required
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                className="mt-1.5 w-full rounded border border-line bg-white px-3 py-2 text-sm"
+                className="mt-1.5 w-full rounded-md border border-line bg-white px-3 py-2 text-sm"
                 placeholder="name@utdallas.edu"
               />
             </div>
@@ -82,14 +93,14 @@ function Login() {
                 required
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                className="mt-1.5 w-full rounded border border-line bg-white px-3 py-2 text-sm"
+                className="mt-1.5 w-full rounded-md border border-line bg-white px-3 py-2 text-sm"
               />
             </div>
 
             {error && (
               <p
                 role="alert"
-                className="rounded border border-utd-orange/40 bg-white px-3 py-2 text-sm"
+                className="rounded-md border border-utd-orange/40 bg-white px-3 py-2 text-sm"
               >
                 {error}
               </p>
@@ -98,22 +109,22 @@ function Login() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full rounded bg-utd-green px-4 py-2.5 text-sm font-medium text-white hover:bg-utd-green-dark disabled:opacity-60"
+              className="w-full rounded-md bg-utd-green px-4 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-utd-green-dark disabled:opacity-60"
             >
               {submitting ? "Signing in…" : "Sign in"}
             </button>
           </form>
 
-          <div className="mt-8 rounded border border-line bg-white p-4">
-            <p className="text-sm font-medium">Demo Accounts</p>
-            <p className="mt-1 text-xs text-muted">
-              For development and team testing only.
+          <div className="mt-8 rounded-lg border border-line bg-white p-4 shadow-xs">
+            <p className="text-sm font-semibold">Demo accounts</p>
+            <p className="mt-0.5 text-xs text-muted">
+              For development and team testing only. Click one to fill in the form.
             </p>
 
-            <div className="mt-4 space-y-3">
+            <div className="mt-3 divide-y divide-line overflow-hidden rounded-md border border-line">
               {[
                 { label: "Faculty", email: "faculty@example.edu", note: "Professor C — signs up, then picks one observer and dates" },
-                { label: "Assessment Committee", email: "ac@example.edu", note: "Professor B — the cycle, starts observer selection, sends notifications" },
+                { label: "Assessment Committee", email: "ac@example.edu", note: "Professor B — the cycle, starts observer selection, sends reminders" },
                 { label: "Administrator", email: "admin@example.edu", note: "Committee view, no teaching profile" },
                 ...(USE_MOCKS
                   ? [
@@ -129,7 +140,7 @@ function Login() {
                     setEmail(account.email)
                     setPassword("ChangeMe-Dev-123!")
                   }}
-                  className="w-full rounded border border-line px-3 py-2 text-left text-sm hover:bg-gray-50"
+                  className="block w-full px-3 py-2.5 text-left text-sm hover:bg-canvas"
                 >
                   <span className="font-medium">{account.label}</span>
                   <span className="block text-xs text-muted">

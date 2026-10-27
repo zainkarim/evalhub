@@ -105,7 +105,13 @@ export function meetingDates(section, { from = todayISO(), limit = 40 } = {}) {
   const term = section?.term
   if (!term || !section.meetingDays) return []
   const start = toDateOnly(term.startDate) > from ? toDateOnly(term.startDate) : from
-  const end = toDateOnly(term.endDate)
+  // Stop at the observation deadline when the term has one; otherwise at the
+  // end of the semester (the real backend does not send a deadline yet).
+  const semesterEnd = toDateOnly(term.endDate)
+  const observationDeadline = toDateOnly(term.observationDeadline)
+  if (!semesterEnd) return []
+  const end =
+    observationDeadline && observationDeadline < semesterEnd ? observationDeadline : semesterEnd
   const codes = ["U", "M", "T", "W", "R", "F", "S"]
   const dates = []
   const cursor = new Date(`${start}T12:00:00`)
@@ -196,6 +202,12 @@ export const CURRENT_STATUS = {
   scheduled: { label: "Scheduled", tone: "good" },
   completed: { label: "Completed", tone: "done" },
   postponed: { label: "Postponed", tone: "warn" },
+}
+
+// Whether the professor is on the active roster (inactive ones are hidden by default).
+export const ACTIVE_STATUS = {
+  active: { label: "Active", tone: "good" },
+  inactive: { label: "Inactive", tone: "neutral" },
 }
 
 // The extra words that go with the badge: the date, or how many attempts were postponed.

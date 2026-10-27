@@ -13,8 +13,12 @@ import { useApi } from "../lib/useApi"
 const canSignUp = (term) =>
   term && term.season !== "summer" && toDateOnly(term.endDate) >= todayISO()
 
+// Faculty sign-ups close with the sign-up deadline; the committee can still sign someone up.
+const closedOn = (term) =>
+  term?.signupDeadline && todayISO() > toDateOnly(term.signupDeadline) ? term.signupDeadline : null
+
 const selectClass =
-  "w-full rounded border border-line bg-white px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-muted"
+  "w-full rounded-md border border-line bg-white px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-muted"
 
 function ObservationSignup() {
   const { user } = useAuth()
@@ -99,7 +103,7 @@ function ObservationSignup() {
 
   const handleSubmit = async (event) => {
     event.preventDefault()
-    if (!selected || selected.signUp) return
+    if (!selected || selected.signUp || (!committee && closedOn(selected.section.term))) return
     setSubmitting(true)
     setSubmitError("")
     try {
@@ -135,7 +139,7 @@ function ObservationSignup() {
 
       <div className="mt-6 max-w-2xl">
         <StateBlock loading={loading} error={error} onRetry={reload}>
-          <div className="rounded border border-line bg-white p-6">
+          <div className="rounded-lg border border-line bg-white p-6 shadow-xs">
             {created ? (
               <div className="text-sm">
                 <p className="font-medium text-utd-green">✓ Observation sign-up submitted.</p>
@@ -144,24 +148,25 @@ function ObservationSignup() {
                   {formatTerm(created.section.term)}
                 </p>
                 <p className="mt-3 text-muted">
-                  Next: observer selection opens after the sign-up deadline
-                  {created.signupDeadline ? ` (${formatDate(created.signupDeadline)})` : ""}. You
-                  will get a notification when your list is ready. You&apos;ll then see up to
-                  five professors from your school who have taught this course level, choose one
-                  and offer 4–8 dates, and send the request yourself. They confirm one. No
-                  approval is needed.
+                  {created.selectionStartedAt
+                    ? "Observer selection has already started, so the list is built now. "
+                    : `Next: observer selection opens after the sign-up deadline${created.signupDeadline ? ` (${formatDate(created.signupDeadline)})` : ""}. `}
+                  You will get a notification when your list is ready (none if no one is eligible
+                  yet; the committee is alerted). You&apos;ll then see up to five professors from
+                  your school who have taught this course level, choose one and offer 4–8 dates,
+                  and send the request yourself. They confirm one. No approval is needed.
                 </p>
                 <div className="mt-5 flex flex-wrap gap-3">
                   <Link
                     to={`/assessments/${created.id}`}
-                    className="rounded bg-utd-green px-4 py-2 font-medium text-white hover:bg-utd-green-dark"
+                    className="rounded-md bg-utd-green px-4 py-2 font-medium text-white hover:bg-utd-green-dark"
                   >
                     Open sign-up
                   </Link>
                   <button
                     type="button"
                     onClick={() => resetFrom(1)}
-                    className="rounded border border-line px-4 py-2 hover:border-ink"
+                    className="rounded-md border border-line px-4 py-2 hover:border-ink"
                   >
                     Sign up another section
                   </button>
@@ -273,7 +278,16 @@ function ObservationSignup() {
                   <div>
                     <p className="mb-2 text-sm font-medium">Section details</p>
                     <SectionInfo section={selected.section} className="bg-canvas" />
-                    {selected.section.term?.signupDeadline && (
+                    {!committee && closedOn(selected.section.term) && (
+                      <p
+                        role="alert"
+                        className="mt-2 rounded border border-utd-orange/40 bg-white px-3 py-2 text-sm"
+                      >
+                        Sign-ups closed on {formatDate(closedOn(selected.section.term))}. Ask the
+                        committee to sign you up.
+                      </p>
+                    )}
+                    {selected.section.term?.signupDeadline && !closedOn(selected.section.term) && (
                       <p className="mt-2 text-xs text-muted">
                         Sign-up deadline: {formatDate(selected.section.term.signupDeadline)}.
                         Observer selection opens after it, and you will get a notification when
@@ -284,7 +298,7 @@ function ObservationSignup() {
                 )}
 
                 {teacherId && items?.length === 0 && (
-                  <p className="rounded border border-line bg-canvas px-4 py-3 text-sm text-muted">
+                  <p className="rounded-md border border-line bg-canvas px-4 py-3 text-sm text-muted">
                     {committee
                       ? "This professor has no sections in a current or upcoming Spring/Fall term."
                       : "You have no sections in a current or upcoming Spring/Fall term. Sections appear here once they are listed with you as instructor."}
@@ -292,7 +306,7 @@ function ObservationSignup() {
                 )}
 
                 {selected?.signUp && (
-                  <p className="rounded border border-line bg-canvas px-4 py-3 text-sm">
+                  <p className="rounded-md border border-line bg-canvas px-4 py-3 text-sm">
                     This section already has an observation sign-up.{" "}
                     <Link
                       to={`/assessments/${selected.signUp.id}`}
@@ -307,7 +321,7 @@ function ObservationSignup() {
                 {submitError && (
                   <p
                     role="alert"
-                    className="rounded border border-utd-orange/40 bg-white px-3 py-2 text-sm"
+                    className="rounded-md border border-utd-orange/40 bg-white px-3 py-2 text-sm"
                   >
                     {submitError}
                   </p>
@@ -315,8 +329,13 @@ function ObservationSignup() {
 
                 <button
                   type="submit"
-                  disabled={!selected || Boolean(selected.signUp) || submitting}
-                  className="rounded bg-utd-green px-4 py-2 text-sm font-medium text-white hover:bg-utd-green-dark disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={
+                    !selected ||
+                    Boolean(selected.signUp) ||
+                    (!committee && Boolean(closedOn(selected.section.term))) ||
+                    submitting
+                  }
+                  className="rounded-md bg-utd-green px-4 py-2 text-sm font-medium text-white hover:bg-utd-green-dark disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting ? "Submitting…" : "Submit Observation Request"}
                 </button>
