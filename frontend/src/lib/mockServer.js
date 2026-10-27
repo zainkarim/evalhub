@@ -32,6 +32,7 @@ function load() {
       state = saved
       state.notifications ??= []
       state.nextId ??= {}
+      state.surveyResponses ??= []
 
       if (!state.criteria || !state.observationResponses) {
         const seed = buildSeed()
@@ -238,13 +239,13 @@ const teacherBrief = (id) => {
   const t = byId(load().teachers, id)
   return t
     ? {
-        id: t.id,
-        firstName: t.firstName,
-        lastName: t.lastName,
-        email: t.email,
-        rank: t.rank,
-        school: t.school,
-      }
+      id: t.id,
+      firstName: t.firstName,
+      lastName: t.lastName,
+      email: t.email,
+      rank: t.rank,
+      school: t.school,
+    }
     : null
 }
 
@@ -468,13 +469,13 @@ function assessmentDetail(assessment) {
     ...assessmentView(assessment),
     candidateList: list
       ? {
-          id: list.id,
-          targetSchool: list.targetSchool,
-          targetLevel: list.targetLevel,
-          poolSize: list.poolSize,
-          listSize: list.listSize,
-          generatedAt: list.generatedAt,
-        }
+        id: list.id,
+        targetSchool: list.targetSchool,
+        targetLevel: list.targetLevel,
+        poolSize: list.poolSize,
+        listSize: list.listSize,
+        generatedAt: list.generatedAt,
+      }
       : null,
     candidates: rows.map((candidate) => ({
       ...teacherBrief(candidate.teacherId),
@@ -582,7 +583,7 @@ function shuffle(rows) {
   const copy = [...rows]
   for (let i = copy.length - 1; i > 0; i -= 1) {
     const j = Math.floor(Math.random() * (i + 1))
-    ;[copy[i], copy[j]] = [copy[j], copy[i]]
+      ;[copy[i], copy[j]] = [copy[j], copy[i]]
   }
   return copy
 }
@@ -863,10 +864,10 @@ function reportRow(teacher, term) {
     ...currentStatusOf(signUpRow),
     signUp: signUpRow
       ? {
-          assessmentId: signUpRow.id,
-          course: courseLabel(courseOfSection(signUpRow.sectionId)),
-          section: byId(load().sections, signUpRow.sectionId).sectionNumber,
-        }
+        assessmentId: signUpRow.id,
+        course: courseLabel(courseOfSection(signUpRow.sectionId)),
+        section: byId(load().sections, signUpRow.sectionId).sectionNumber,
+      }
       : null,
   }
 }
@@ -960,11 +961,11 @@ route("GET", "/teachers/(\\d+)/profile", ({ user, match, params }) => {
     observerLoad: { count: observerCount, cap: APP_SETTINGS.observerCap },
     signUp: signUpRow
       ? {
-          assessmentId: signUpRow.id,
-          status: signUpRow.status,
-          section: sectionView(signUpRow.sectionId),
-          attempts: s.attemptLog.filter((row) => row.assessmentId === signUpRow.id).map(logView),
-        }
+        assessmentId: signUpRow.id,
+        status: signUpRow.status,
+        section: sectionView(signUpRow.sectionId),
+        attempts: s.attemptLog.filter((row) => row.assessmentId === signUpRow.id).map(logView),
+      }
       : null,
   }
 })
@@ -1956,6 +1957,39 @@ route("POST", "/notifications/list-reminder", ({ user, body }) => {
   save()
   return { sent, skipped }
 })
+
+route("POST", "/surveys", ({ user, body }) => {
+  const s = load()
+  s.surveyResponses ??= []
+  
+  const alreadySubmitted = s.surveyResponses.some(
+    (response) => response.userId === user.id
+  )
+
+  if (alreadySubmitted) {
+    throw fail(409, "conflict", "You have already submitted this survey.")
+  }
+
+
+  if (!["1", "2", "3", "4", "5"].includes(String(body?.rating))) {
+    throw fail(400, "validation_error", "Please select a rating.")
+  }
+
+  const response = {
+    id: Date.now(),
+    userId: user.id,
+    rating: Number(body.rating),
+    feedback: body.feedback ?? "",
+    suggestions: body.suggestions ?? "",
+    submittedAt: new Date().toISOString(),
+  }
+
+  s.surveyResponses.push(response)
+  save()
+
+  return response
+})
+
 
 // ---------------------------------------------------------------- entry ----
 

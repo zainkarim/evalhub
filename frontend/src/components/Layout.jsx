@@ -13,6 +13,7 @@ const links = [
   { to: "/observations", label: "Observations", badge: "requests" },
   { to: "/cycle", label: "Cycle", committeeOnly: true, badge: "alerts" },
   { to: "/notifications", label: "Notifications", profileOnly: true, badge: "unread" },
+  { to: "/feedback-survey", label: "Feedback Survey", profileOnly: true },
   { to: "/evaluation-criteria", label: "Evaluation Criteria", committeeOnly: true },
 ]
 
