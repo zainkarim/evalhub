@@ -67,6 +67,7 @@ async function send(path, { method = "GET", body, auth = true } = {}) {
       response.status,
     )
   }
+
   return data
 }
 
@@ -74,13 +75,25 @@ function query(params = {}) {
   const entries = Object.entries(params).filter(
     ([, value]) => value !== undefined && value !== null && value !== "",
   )
+
   if (entries.length === 0) return ""
+
   return `?${new URLSearchParams(entries)}`
 }
 
 const post = (path, body) => request(path, { method: "POST", body })
 
 export const api = {
+  // ---- evaluation criteria (#33; backend: routes/criteria.js on main)
+  listCriteria: (params) => request(`/criteria${query(params)}`),
+  createCriterion: (body) => post("/criteria", body),
+  updateCriterion: (id, body) => request(`/criteria/${id}`, { method: "PATCH", body }),
+  deleteCriterion: (id) => request(`/criteria/${id}`, { method: "DELETE" }),
+  // ---- observation form answers (#33; backend: routes/observations.js on main)
+  // `notes` is a proposed addition; main stores only the scores.
+  submitResponses: (id, responses, notes) =>
+    post(`/observations/${id}/responses`, notes ? { responses, notes } : { responses }),
+  getResponses: (id) => request(`/observations/${id}/responses`),
   // ---- auth
   // POST /auth/login -> { token, user }
   login: (email, password) =>
@@ -96,11 +109,20 @@ export const api = {
   // ---- catalogue (page size is capped at 100 by the backend)
   listProfessors: (params) => request(`/teachers${query({ pageSize: 100, ...params })}`),
   getProfessor: (id) => request(`/teachers/${id}`),
+  // Committee: every active professor with due / sign-up status for a term (the server picks the
+  // current or next term without termId), and one professor's courses, observations and load.
+  professorReport: (termId) => request(`/teachers/report${query({ termId })}`),
+  professorProfile: (id, termId) => request(`/teachers/${id}/profile${query({ termId })}`),
+  createProfessor: (body) => post("/teachers", body),
+  updateProfessor: (id, body) => request(`/teachers/${id}`, { method: "PATCH", body }),
 
   listCourses: (params) => request(`/courses${query({ pageSize: 100, ...params })}`),
   getCourse: (id) => request(`/courses/${id}`),
 
+  // Sections
   listSections: (params) => request(`/sections${query(params)}`),
+
+  // Terms
   listTerms: (params) => request(`/terms${query(params)}`),
 
   // ---- sign-ups ("assessments")
@@ -111,9 +133,9 @@ export const api = {
     request(`/assessments${query({ pageSize: 100, ...params })}`),
   getAssessment: (id) => request(`/assessments/${id}`),
 
-  // ---- committee: start observer selection (after the sign-up deadline)
-  generateCandidates: (id) => post(`/assessments/${id}/candidates`),
-  startSelection: (body) => post("/assessments/start-selection", body),
+  // ---- committee: the cycle (one Start Observer Selection for the whole term)
+  startObserverSelection: (termId) => post(`/terms/${termId}/start-observer-selection`),
+  updateTermDates: (termId, body) => request(`/terms/${termId}/dates`, { method: "PATCH", body }),
   assessmentAlerts: (params) => request(`/assessments/alerts${query(params)}`),
   stepInOptions: (id) => request(`/assessments/${id}/step-in-options`),
   assignObserver: (id, body) => post(`/assessments/${id}/observations`, body),
@@ -124,6 +146,13 @@ export const api = {
   sendRequest: (id, teacherId) => post(`/assessments/${id}/time-options/send`, { teacherId }),
   withdrawRequest: (id, reason) =>
     post(`/assessments/${id}/time-options/withdraw`, reason ? { reason } : {}),
+
+  // ---- notifications (in-app only; email is not implemented)
+  inbox: () => request("/notifications/inbox"),
+  markNotificationRead: (id) => post(`/notifications/${id}/read`),
+  markAllNotificationsRead: () => post("/notifications/read-all"),
+  remindListReady: (termId, assessmentIds) =>
+    post("/notifications/list-reminder", assessmentIds ? { termId, assessmentIds } : { termId }),
 
   // ---- observer: confirm one date, or decline
   incomingRequests: () => request("/time-options/incoming"),

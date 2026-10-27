@@ -7,13 +7,16 @@ import { AC_ROLES, isAC } from "./lib/roles"
 import AssessmentDetail from "./pages/AssessmentDetail"
 import CourseDetail from "./pages/CourseDetail"
 import Courses from "./pages/Courses"
+import Cycle from "./pages/Cycle"
+import EvaluationCriteria from "./pages/EvaluationCriteria"
 import Login from "./pages/Login"
+import Notifications from "./pages/Notifications"
 import ObservationRecord from "./pages/ObservationRecord"
 import ObservationSignup from "./pages/ObservationSignup"
 import Observations from "./pages/Observations"
 import ProfessorDetail from "./pages/ProfessorDetail"
+import ProfessorManagement from "./pages/ProfessorManagement"
 import Professors from "./pages/Professors"
-import SignupReview from "./pages/SignupReview"
 import FacultyDashboard from "./pages/FacultyDashboard"
 
 // Committee-only pages: anyone else gets a plain "limited to the committee"
@@ -22,10 +25,10 @@ function CommitteeRoute({ children }) {
   return <ProtectedRoute roles={AC_ROLES}>{children}</ProtectedRoute>
 }
 
-// Each role lands on the page it works from: the committee on Sign-up review.
+// Each role lands on the page it works from: the committee on the Cycle page.
 function Home() {
   const { user } = useAuth()
-  return <Navigate to={isAC(user) ? "/review" : "/observations"} replace />
+  return <Navigate to={isAC(user) ? "/cycle" : "/observations"} replace />
 }
 
 function App() {
@@ -52,6 +55,24 @@ function App() {
               }
             />
             <Route
+              path="/professors/new"
+              element={
+                <CommitteeRoute>
+                  <ProfessorManagement />
+                </CommitteeRoute>
+              }
+            />
+
+            <Route
+              path="/professors/:id/edit"
+              element={
+                <CommitteeRoute>
+                  <ProfessorManagement />
+                </CommitteeRoute>
+              }
+            />
+
+            <Route
               path="/professors/:id"
               element={
                 <CommitteeRoute>
@@ -59,6 +80,7 @@ function App() {
                 </CommitteeRoute>
               }
             />
+
             <Route path="/courses" element={<Courses />} />
             <Route path="/courses/:id" element={<CourseDetail />} />
             <Route path="/dashboard" element={<FacultyDashboard />} />
@@ -67,10 +89,20 @@ function App() {
             <Route path="/assessments/:id" element={<AssessmentDetail />} />
             <Route path="/records/:id" element={<ObservationRecord />} />
             <Route
-              path="/review"
+              path="/cycle"
               element={
                 <CommitteeRoute>
-                  <SignupReview />
+                  <Cycle />
+                </CommitteeRoute>
+              }
+            />
+<Route path="/review" element={<Navigate to="/cycle" replace />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route
+              path="/evaluation-criteria"
+              element={
+                <CommitteeRoute>
+                  <EvaluationCriteria />
                 </CommitteeRoute>
               }
             />

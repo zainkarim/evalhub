@@ -1,6 +1,5 @@
-import { useState } from "react"
-import { api } from "../lib/api"
-import { ALERT, formatDate, formatRank, fullName, OFFER_STATUS } from "../lib/format"
+import { ALERT, formatRank, fullName, OFFER_STATUS } from "../lib/format"
+import { waitingCopy } from "../lib/workflow"
 import StatusBadge from "./StatusBadge"
 
 const th = "px-4 py-3 font-medium"
@@ -12,7 +11,7 @@ function CandidateTable({ candidates, offers = [] }) {
     offers.filter((offer) => offer.observerId === id).sort((a, b) => b.id - a.id)[0]
 
   return (
-    <div className="relative overflow-x-auto rounded border border-line">
+    <div className="relative overflow-x-auto rounded-lg border border-line bg-white shadow-xs">
       <table className="w-full text-left text-sm">
         <thead className="border-b border-line bg-canvas text-xs text-muted">
           <tr>
@@ -46,59 +45,23 @@ function CandidateTable({ candidates, offers = [] }) {
   )
 }
 
-// The observer list for a sign-up. The committee starts candidate generation
-// after the sign-up deadline (requirements §4.3 step 2); the professor never
-// generates it, so until then they see a waiting state.
-function CandidatePanel({ assessment, committee, owner, onChanged }) {
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState("")
-
-  const { candidateList: list, candidates, status, selectionOpen, signupDeadline } = assessment
-  const canStart = committee && status === "signed_up" && (!list || list.poolSize === 0)
-
-  const start = async () => {
-    setBusy(true)
-    setError("")
-    try {
-      await api.generateCandidates(assessment.id)
-      onChanged()
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const startButton = canStart && (
-    <div className="mt-4">
-      <button
-        type="button"
-        disabled={busy || !selectionOpen}
-        onClick={start}
-        className="rounded bg-utd-green px-4 py-2 text-sm font-medium text-white hover:bg-utd-green-dark disabled:opacity-50"
-      >
-        {busy ? "Starting…" : list ? "Check again" : "Start Observer Selection"}
-      </button>
-      {!selectionOpen && (
-        <p className="mt-2 text-xs text-muted">
-          Opens after the sign-up deadline ({formatDate(signupDeadline)}).
-        </p>
-      )}
-    </div>
-  )
+// The observer list for a sign-up. Observer selection runs once for the whole
+// cycle (Cycle page, after the sign-up deadline), so this panel only displays the
+// result. There is no per-sign-up control here, and nothing to approve.
+function CandidatePanel({ assessment, committee, owner }) {
+  const { candidateList: list, candidates, signupDeadline } = assessment
 
   return (
-    <section className="mt-6 rounded border border-line bg-white p-6">
-      <h2 className="text-sm font-semibold">Observer candidates</h2>
+    <section className="mt-6 rounded-lg border border-line bg-white p-6 shadow-xs">
+      <h2 className="text-base font-semibold">Observer candidates</h2>
 
       {!list ? (
         <div className="mt-3 text-sm">
           <p className="text-muted">
             {owner
-              ? `Waiting for the committee to start observer selection${selectionOpen ? "" : ` (after the sign-up deadline, ${formatDate(signupDeadline)})`}. Your list of up to five professors will appear here.`
-              : "Observer selection has not been started for this sign-up."}
+              ? `${waitingCopy(signupDeadline)} Your list of up to five professors will appear here.`
+              : "Observer selection has not run for this sign-up yet. It starts for the whole term from the Cycle page."}
           </p>
-          {startButton}
         </div>
       ) : (
         <>
@@ -119,14 +82,13 @@ function CandidatePanel({ assessment, committee, owner, onChanged }) {
           )}
 
           {list.listSize === 0 ? (
-            <div className="mt-4 rounded border border-utd-orange/40 bg-canvas px-4 py-3 text-sm">
+            <div className="mt-4 rounded-md border border-utd-orange/40 bg-canvas px-4 py-3 text-sm">
               <p className="font-medium">No eligible observers found.</p>
               <p className="mt-1 text-muted">
                 {owner
                   ? "The committee has been alerted and will assign someone."
                   : "This is on the committee's alerts. Assign an observer below."}
               </p>
-              {startButton}
             </div>
           ) : (
             <div className="mt-4">
@@ -136,11 +98,6 @@ function CandidatePanel({ assessment, committee, owner, onChanged }) {
         </>
       )}
 
-      {error && (
-        <p role="alert" className="mt-3 rounded border border-utd-orange/40 bg-white px-3 py-2 text-sm">
-          {error}
-        </p>
-      )}
     </section>
   )
 }

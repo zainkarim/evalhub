@@ -26,8 +26,8 @@ import { nextStep } from "../lib/workflow"
 
 // One sign-up from start to finish. Two views of the same record:
 //   the professor being observed -> follows progress, picks ONE observer + dates
-//   committee members            -> see the pool and candidates, start selection,
-//                                   assign manually, postpone
+//   committee members            -> see the pool and candidates, assign manually
+//                                   (stretch goal), postpone
 function AssessmentDetail() {
   const { id } = useParams()
   const { user } = useAuth()
@@ -84,7 +84,7 @@ function AssessmentDetail() {
               </div>
 
               {assessment.alert && committeeView ? (
-                <p className="mt-5 rounded border border-utd-orange/40 bg-white px-4 py-3 text-sm">
+                <p className="mt-5 rounded-md border border-utd-orange/40 bg-white px-4 py-3 text-sm">
                   <span className="font-medium text-utd-orange">
                     {ALERT[assessment.alert].label}.{" "}
                   </span>
@@ -111,12 +111,11 @@ function AssessmentDetail() {
                 assessment={assessment}
                 committee={committeeView}
                 owner={owner}
-                onChanged={reload}
               />
 
               {committeeView && (
-                <section className="mt-6 rounded border border-line bg-white p-6">
-                  <h2 className="text-sm font-semibold">Request and schedule</h2>
+                <section className="mt-6 rounded-lg border border-line bg-white p-6 shadow-xs">
+                  <h2 className="text-base font-semibold">Request and schedule</h2>
                   <div className="mt-3">
                     <ObserverSummary assessment={assessment} showCandidates={false} />
                   </div>
@@ -129,7 +128,7 @@ function AssessmentDetail() {
                 <CommitteeActions assessment={assessment} onChanged={reload} />
               )}
               {committee && owner && (
-                <p className="mt-6 rounded border border-line bg-white px-5 py-4 text-sm text-muted">
+                <p className="mt-6 rounded-lg border border-line bg-white px-5 py-4 text-sm text-muted shadow-xs">
                   This is your own sign-up, so another committee member handles any manual
                   assignment.
                 </p>

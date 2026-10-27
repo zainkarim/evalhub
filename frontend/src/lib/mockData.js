@@ -12,6 +12,8 @@ export const APP_SETTINGS = {
   candidateListSize: 5,
   observerLookbackYears: 2,
   requestExpiryHours: 48,
+  // Requirements §4.2: at most 3 observations per cycle as an observer (POC).
+  observerCap: 3,
 }
 
 const terms = [
@@ -33,7 +35,12 @@ const terms = [
   startDate,
   endDate,
   isLongTerm: season !== "summer",
-  signupDeadline: null, // mock-only; buildSeed() sets it for the open terms
+  // Mock-only cycle dates (the backend terms have no such columns); buildSeed()
+  // sets them for the open terms.
+  signupDeadline: null,
+  observationDeadline: null,
+  feedbackDeadline: null,
+  selectionStartedAt: null, // set once the committee has clicked Start Observer Selection
 }))
 
 const teachers = [
@@ -53,6 +60,9 @@ const teachers = [
   lastName: letter,
   email: `professor.${letter.toLowerCase()}@example.edu`,
   school,
+  // teachers.department (backend migration 005): free text, NOT NULL, the
+  // department-level course prefix ("CS", "EPPS"), same values as dev_seed.sql.
+  department: school === "ECS" ? "CS" : school,
   rank,
   isActive: true,
 }))
@@ -106,6 +116,10 @@ const sections = [
   [23, 2, 10, "001", 3, "TR", "11:30", "12:45", "ECSW 1.365"], // mock-only: gives Professor C a second sign-up
   [24, 9, 10, "001", 9, "TR", "09:00", "10:15", "GR 3.302"], // mock-only: level with no other instructor -> zero eligible observers
   [25, 4, 11, "001", 5, "MW", "10:00", "11:15", "ECSS 2.412"], // mock-only: Spring 2027 section, its sign-up deadline is still ahead
+  // mock-only history for the Professors page: same course level as each teacher's
+  // current sections, so the eligible-observer pools do not change.
+  [26, 4, 4, "002", 5, "TR", "10:00", "11:15", "ECSS 2.412"], // Professor E, Fall 2024
+  [27, 6, 5, "002", 6, "F", "13:00", "15:45", "ECSS 3.100"], // Professor F, Spring 2025
 ].map(
   ([id, courseId, termId, sectionNumber, teacherId, meetingDays, startTime, endTime, location]) => ({
     id,
@@ -159,20 +173,17 @@ export function buildSeed(now = new Date()) {
     return day(offsetDays)
   }
 
-  // Sign-up deadlines are mock-only (the backend has no such field). Fall 2026
-  // is already past, so the committee can start observer selection; Spring 2027
-  // is still ahead, so Start Observer Selection shows as locked.
+  // Keep the Cycle deadlines and the calendar's observation cutoff.
   const seededTerms = terms.map((term) =>
     term.id === 10
-      ? { ...term, signupDeadline: day(-10) }
+      ? { ...term, signupDeadline: day(-10), observationDeadline: day(35), feedbackDeadline: day(55) }
       : term.id === 11
-        ? { ...term, signupDeadline: day(30) }
-        : term,
+        ? { ...term, signupDeadline: day(30), observationDeadline: "2027-04-23", feedbackDeadline: day(165) }        : term,
   )
 
   const assessments = [
     // Same two rows as the real seed.
-    // Waiting for the committee to start observer selection.
+    // Signed up; observer selection has not run yet, so no list.
     { id: 1, teacherId: 3, sectionId: 21, dueTermId: 10, status: "signed_up", completedAt: null },
     { id: 2, teacherId: 3, sectionId: 17, dueTermId: 8, status: "completed", completedAt: iso(-150 * DAY) },
     // mock-only: Professor F has a confirmed date that has now passed -> sign-off is open.
@@ -187,6 +198,49 @@ export function buildSeed(now = new Date()) {
     signedUpAt: iso(-(20 - index * 3) * DAY),
     createdAt: iso(-(20 - index * 3) * DAY),
     updatedAt: iso(-index * DAY),
+  }))
+
+  // mock-only: completed observations from earlier terms, so the Professors page has
+  // due, overdue, not-due and never-observed professors to show. Fixed dates (not
+  // relative to today) because the terms they belong to are fixed. Professors B, I
+  // and J are deliberately never observed.
+  const history = [
+    // [assessmentId, observee, observer, sectionId, termId, scheduledDate]
+    [6, 1, 4, 1, 4, "2024-10-16"], // A, Fall 2024
+    [7, 4, 1, 7, 7, "2025-10-14"], // D, Fall 2025
+    [8, 5, 7, 26, 4, "2024-11-05"], // E, Fall 2024
+    [9, 6, 2, 27, 5, "2025-03-07"], // F, Spring 2025
+    [10, 7, 6, 5, 2, "2024-03-12"], // G, Spring 2024
+    [11, 8, 5, 4, 5, "2025-02-10"], // H, Spring 2025
+  ]
+  const historicAssessments = history.map(([id, teacherId, , sectionId, dueTermId, date]) => ({
+    id,
+    teacherId,
+    sectionId,
+    dueTermId,
+    status: "completed",
+    completedAt: `${date}T18:00:00.000Z`,
+    notes: null,
+    signedUpAt: `${date}T09:00:00.000Z`,
+    createdAt: `${date}T09:00:00.000Z`,
+    updatedAt: `${date}T18:00:00.000Z`,
+  }))
+  const historicObservations = history.map(([assessmentId, observeeId, observerId, , , date], index) => ({
+    id: 4 + index,
+    assessmentId,
+    observeeId,
+    observerId,
+    attemptNo: 1,
+    status: "completed",
+    isAcStepin: false,
+    sourceListId: null,
+    scheduledDate: date,
+    observerSignedOffAt: `${date}T18:00:00.000Z`,
+    observeeSignedOffAt: `${date}T19:00:00.000Z`,
+    observeeComment: null,
+    retryAfter: null,
+    createdAt: `${date}T09:00:00.000Z`,
+    updatedAt: `${date}T19:00:00.000Z`,
   }))
 
   const candidateLists = [
@@ -244,6 +298,39 @@ export function buildSeed(now = new Date()) {
     { id: 4, assessmentId: 5, observerId: 4, attemptNo: 1, status: "confirmed", sentAt: iso(-8 * DAY), expiresAt: iso(-6 * DAY), respondedAt: iso(-7 * DAY), reason: null, optionIds: [6, 7, 8, 9, 10] },
   ]
 
+  // Evaluation criteria (#33). Demo placeholders taken from the examples in
+  // requirements §4.4 until Prof. Narayanasami's sample rubric arrives. Same
+  // shape as GET /api/criteria on main. Every criterion uses a fixed
+  // 1–5 Likert rating scale.
+  const criteria = [
+    ["Clarity of communication", "Explains ideas clearly and checks for understanding.", 5],
+    ["Preparation and organization", "Class is planned; materials and transitions are ready.", 5],
+    ["Use of examples", "Uses examples that make abstract ideas concrete.", 5],
+    ["Handling of student questions", "Responds to questions patiently and accurately.", 5],
+    ["Student engagement", "Students participate and stay involved.", 5],
+    ["Pacing", "1 = poorly paced, 5 = well paced.", 5],
+  ].map(([name, description, maxScore], index) => ({
+    id: index + 1,
+    name,
+    description,
+    weight: 1,
+    maxScore,
+    sortOrder: index + 1,
+    isActive: true,
+    updatedBy: 2,
+    createdAt: iso(-200 * DAY),
+    updatedAt: iso(-200 * DAY),
+  }))
+
+  // The completed observation (id 1) already has a signed form.
+  const observationResponses = [4, 5, 4, 3, 4, 3].map((score, index) => ({
+    id: index + 1,
+    observationId: 1,
+    criterionId: index + 1,
+    score,
+    updatedAt: iso(-152 * DAY),
+  }))
+
   const observations = [
     {
       id: 1,
@@ -258,6 +345,8 @@ export function buildSeed(now = new Date()) {
       observerSignedOffAt: iso(-152 * DAY),
       observeeSignedOffAt: iso(-151 * DAY),
       observeeComment: null,
+      observerNotes:
+        "Well-organized lecture with clear worked examples. Consider pausing more often for questions in the second half.",
       retryAfter: null,
       createdAt: iso(-175 * DAY),
       updatedAt: iso(-151 * DAY),
@@ -313,7 +402,7 @@ export function buildSeed(now = new Date()) {
     ...extra,
   })
   const attemptLog = [
-    entry(3, 1, "selection_started", "Professor B", "ac_member", -5),
+    entry(3, 1, "list_generated", "System", "system", -5),
     entry(3, 1, "request_sent", "Professor F", "faculty", -4.5, { observerId: 2, count: 5 }),
     entry(3, 1, "request_declined", "Professor B", "ac_member", -4.2, {
       observerId: 2,
@@ -321,8 +410,8 @@ export function buildSeed(now = new Date()) {
     }),
     entry(3, 1, "request_sent", "Professor F", "faculty", -4, { observerId: 4, count: 5 }),
     entry(3, 1, "date_confirmed", "Professor D", "faculty", -3.5, { observerId: 4, date: classDay("F", -1, 0, -1) }),
-    entry(4, 1, "selection_started", "Administrator", "admin", -3),
-    entry(5, 1, "selection_started", "Administrator", "admin", -14),
+    entry(4, 1, "list_generated", "System", "system", -3),
+    entry(5, 1, "list_generated", "System", "system", -14),
     entry(5, 1, "request_sent", "Professor B", "ac_member", -10, { observerId: 5, count: 5 }),
     entry(5, 1, "no_response_expired", "System", "system", -8, {
       observerId: 5,
@@ -337,26 +426,32 @@ export function buildSeed(now = new Date()) {
   ].map((row, index) => ({ id: index + 1, ...row }))
 
   return {
-    version: 2,
+    version: 4,
     terms: seededTerms,
     teachers,
     courses,
     sections,
     users,
-    assessments,
+    assessments: [...assessments, ...historicAssessments],
     candidateLists,
     candidates,
     timeOptions,
     offers,
-    observations,
+    observations: [...observations, ...historicObservations],
     attemptLog,
+    // In-app notifications and configurable evaluation criteria.
+    notifications: [],
+    criteria,
+    observationResponses,
     nextId: {
-      assessment: 6,
-      candidateList: 4,
+      criterion: criteria.length + 1,
+      response: observationResponses.length + 1,
+      assessment: 12,      candidateList: 4,
       timeOption: 16,
       offer: 5,
-      observation: 4,
+      observation: 10,
       log: attemptLog.length + 1,
+      notification: 1,
     },
   }
 }

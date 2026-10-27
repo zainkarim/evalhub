@@ -16,8 +16,8 @@ import {
 import StatusBadge from "./StatusBadge"
 
 // A colleague asked this professor to observe their class and offered several
-// dates. Confirming exactly one date makes the pairing final — there is no
-// committee approval afterwards. Declining (reason optional) is recorded.
+// dates. Confirming exactly one date is final; nothing goes to the committee.
+// Declining (reason optional) is recorded.
 function IncomingRequest({ request, onChanged }) {
   const [optionId, setOptionId] = useState("")
   const [declining, setDeclining] = useState(false)
@@ -89,7 +89,7 @@ function IncomingRequest({ request, onChanged }) {
               type="button"
               disabled={!optionId || busy}
               onClick={() => run(() => api.confirmTimeOption(optionId))}
-              className="rounded bg-utd-green px-3 py-1.5 font-medium text-white hover:bg-utd-green-dark disabled:opacity-50"
+              className="rounded-md bg-utd-green px-3 py-1.5 font-medium text-white hover:bg-utd-green-dark disabled:opacity-50"
             >
               {busy ? "Confirming…" : "Confirm this date"}
             </button>
@@ -97,7 +97,7 @@ function IncomingRequest({ request, onChanged }) {
               type="button"
               disabled={busy}
               onClick={() => setDeclining(true)}
-              className="rounded border border-line px-3 py-1.5 hover:border-ink disabled:opacity-60"
+              className="rounded-md border border-line px-3 py-1.5 hover:border-ink disabled:opacity-60"
             >
               Decline…
             </button>
@@ -106,7 +106,7 @@ function IncomingRequest({ request, onChanged }) {
       )}
 
       {pending && declining && (
-        <div className="mt-3 rounded border border-line bg-canvas p-4">
+        <div className="mt-3 rounded-md border border-line bg-canvas p-4">
           <label htmlFor={`decline-${request.id}`} className="block text-sm font-medium">
             Reason (optional)
           </label>
@@ -114,7 +114,7 @@ function IncomingRequest({ request, onChanged }) {
             id={`decline-${request.id}`}
             value={reason}
             onChange={(event) => setReason(event.target.value)}
-            className="mt-2 w-full rounded border border-line bg-white px-3 py-2 text-sm"
+            className="mt-2 w-full rounded-md border border-line bg-white px-3 py-2 text-sm"
             placeholder="None of the dates work"
           />
           <p className="mt-2 text-xs text-muted">
@@ -125,14 +125,14 @@ function IncomingRequest({ request, onChanged }) {
               type="button"
               disabled={busy}
               onClick={() => run(() => api.declineRequest(request.assessmentId, reason.trim()))}
-              className="rounded bg-utd-orange px-3 py-1.5 font-medium text-white disabled:opacity-60"
+              className="rounded-md bg-utd-orange px-3 py-1.5 font-medium text-white disabled:opacity-60"
             >
               {busy ? "Declining…" : "Decline request"}
             </button>
             <button
               type="button"
               onClick={() => setDeclining(false)}
-              className="rounded border border-line px-3 py-1.5 hover:border-ink"
+              className="rounded-md border border-line px-3 py-1.5 hover:border-ink"
             >
               Back
             </button>
@@ -164,7 +164,7 @@ function IncomingRequest({ request, onChanged }) {
       )}
 
       {error && (
-        <p role="alert" className="mt-2 rounded border border-utd-orange/40 bg-white px-3 py-2">
+        <p role="alert" className="mt-2 rounded-md border border-utd-orange/40 bg-white px-3 py-2">
           {error}
         </p>
       )}

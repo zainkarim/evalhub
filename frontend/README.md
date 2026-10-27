@@ -21,7 +21,7 @@ Demo accounts (password `ChangeMe-Dev-123!` for all; the first three exist in
 | Account | Who | Use it to |
 |---|---|---|
 | `faculty@example.edu` | Professor C (faculty) | sign up, pick one observer + dates, sign off |
-| `ac@example.edu` | Professor B (Assessment Committee) | review sign-ups, start observer selection, resolve alerts |
+| `ac@example.edu` | Professor B (Assessment Committee) | see the cycle and sign-ups, click Start Observer Selection once, notify professors, resolve alerts |
 | `admin@example.edu` | Administrator | committee view, no teaching profile |
 | `professor.h@example.edu` | Professor H (mock only) | confirm one of the offered dates, or decline |
 | `professor.e@example.edu` | Professor E (mock only) | see a 5-of-6 candidate list |
@@ -32,12 +32,20 @@ To use the real API, copy `.env.example` to `.env.local` and set `VITE_API_URL`
 switches automatically. Several workflow screens need endpoints the backend doesn't
 have yet — see [`docs/api-expectations.md`](docs/api-expectations.md).
 
+Checks without a browser: `npm run check:mock` (the observation workflow) and
+`npm run check:due` (the due-date rules and the Professors report; independent of the date it runs on).
+
 ## The workflow (docs/requirements.md §4.3)
 
 1. The professor signs up for a section.
-2. **After the sign-up deadline** the committee reviews sign-ups (**Sign-up review**)
-   and presses **Start Observer Selection** — for one sign-up or for a whole term.
-   Until then the professor sees "Waiting for the committee to start observer selection".
+2. **After the sign-up deadline** the committee presses **Start Observer Selection**
+   once on the **Cycle** page. One click builds the list for every sign-up in the term; a
+   second click changes nothing. Until then the professor sees "Observer selection opens
+   after the sign-up deadline (date). You will get a notification when your list is ready."
+   Each professor with a non-empty list is told automatically; the committee can send
+   reminders (Remind / Remind all) to those still choosing, but nothing waits for them.
+   Faculty sign-ups close at the sign-up deadline; the committee can still sign someone up.
+   A sign-up with no eligible observer keeps the button as "Re-check empty lists". Nothing is approved.
 3. The system lists up to five candidates. An empty or short pool raises an alert on
    the committee dashboard (0 eligible = urgent, 1–4 = limited pool).
 4. The professor picks **one** observer and **4–8 dates**; nothing is sent until the
@@ -62,14 +70,15 @@ src/
   components/   Layout (role-aware nav), ProtectedRoute, StateBlock, StatusBadge,
                 SectionInfo, Stepper, CandidatePanel, RequestPanel, ObserverSummary,
                 AttemptHistory, PostponeControl, PairingPanel, CommitteeActions,
-                IncomingRequest
+                IncomingRequest, ProfessorsTable
   context/      AuthProvider + useAuth (JWT in localStorage)
   lib/          api.js (fetch wrapper), useApi.js (loading/error),
+                dueStatus.js (who is due: pure, shared), professorSort.js,
                 mockServer.js + mockData.js (in-browser API),
                 roles.js, format.js, workflow.js (shared helpers)
   pages/        Login, Courses, CourseDetail, Professors, ProfessorDetail,
                 Observations, ObservationSignup, AssessmentDetail,
-                ObservationRecord, SignupReview
+                ObservationRecord, Cycle, Notifications
 ```
 
 ## Who sees what
@@ -80,8 +89,9 @@ src/
 | Observations | my sign-ups, requests to observe (dates to confirm), given / received | all sign-ups (filterable); "My observations" tab if they teach |
 | Sign-up form | own sections | any professor (sign up on their behalf) |
 | Sign-up detail | waiting state, then choose one observer + dates, attempt history | pool and candidates (read-only), request and dates, manual assignment, postpone, attempt history |
-| Sign-up review | — (blocked) | alerts, Start Observer Selection (single and bulk; a locked row says when it opens), search + status filter, every sign-up with course, section, meeting, location, observee, pool and candidates |
-| Professors | — (blocked) | roster + each professor's sign-ups |
+| Cycle (`/cycle`; `/review` redirects) | — (blocked) | the three cycle dates (editable), the one Start Observer Selection button (locked until the sign-up deadline has passed), alerts, and a read-only table of every sign-up (course, section, meeting, observee name + email, list of up to five observers) with Remind / Remind all (the "list is ready" message is automatic) |
+| Notifications | inbox (if they teach) | inbox (if they teach); in-app only, email is not implemented |
+| Professors (`/professors`) | — (blocked) | active professors (a "Show inactive" toggle adds the inactive ones, with an Edit link to reactivate them): due status and next due semester, rank, department, last completed observation, current status, sign-up status; counts (active professors only), filters, search, sort, semester picker (kept in the URL, so Back from a professor returns to the same semester); detail page with courses, observations given/received and observer load (max 3) |
 | Observation record | sign off (observer / observee only), postpone, attempt history | view-only, postpone, attempt history |
 
 See [`docs/sprint2-frontend-changes.md`](docs/sprint2-frontend-changes.md) for the
