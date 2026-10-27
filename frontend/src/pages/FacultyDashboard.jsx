@@ -1,132 +1,65 @@
 import { Link } from "react-router-dom"
-import StatusBadge from "../components/StatusBadge"
+import ObservationRows from "../components/ObservationRows"
+import StateBlock from "../components/StateBlock"
 import {
-    OBSERVATION_STATUS,
     courseLabel,
-    formatDate,
     fullName,
     toDateOnly,
 } from "../lib/format"
 import { useCallback, useState } from "react"
-import { api } from "../lib/api"
 import { useApi } from "../lib/useApi"
 import { useAuth } from "../context/auth-context"
 import { hasTeacherProfile } from "../lib/roles"
+import { loadObservationActivity } from "../lib/observationActivity"
 
 
-function ObservationRows({ rows, view }) {
-    if (rows.length === 0) {
-        return <p className="text-sm text-muted">No observations yet.</p>
-    }
-
-    return (
-        <div className="relative overflow-x-auto rounded border border-line bg-white">
-            <table className="w-full text-left text-sm">
-                <thead className="border-b border-line text-xs text-muted">
-                    <tr>
-                        <th className="p-3">Course</th>
-                        <th className="p-3">
-                            {view === "observer" ? "Observing" : "Observer"}
-                        </th>
-                        <th className="p-3">Date</th>
-                        <th className="p-3">Status</th>
-                        <th className="p-3">Open</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {rows.map((observation) => (
-                        <tr key={observation.id} className="border-t border-line">
-                            <td className="p-3">
-                                {observation.section?.course
-                                    ? courseLabel(observation.section.course)
-                                    : "—"}
-                            </td>
-                            <td className="p-3">
-                                {fullName(
-                                    view === "observer"
-                                        ? observation.observee
-                                        : observation.observer
-                                )}
-                            </td>
-                            <td className="p-3">
-                                {formatDate(observation.scheduledDate)}
-                            </td>
-                            <td className="p-3">
-                                <StatusBadge
-                                    status={observation.status}
-                                    map={OBSERVATION_STATUS}
-                                />
-                            </td>
-                            <td className="p-3">
-                                <Link
-                                    to={`/records/${observation.id}`}
-                                    className="text-blue-600 hover:underline"
-                                >
-                                    View
-                                </Link>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-    )
-}
 
 export default function FacultyDashboard() {
     const [view, setView] = useState("observee")
     const { user } = useAuth()
     const hasProfile = hasTeacherProfile(user)
 
-    const loadDashboard = useCallback(async () => {
-        if (!hasProfile) {
-            return {
-                observations: [],
-                assessments: [],
-                incoming: [],
-            }
-        }
+    const loadDashboard = useCallback(
+        () =>
+            hasProfile
+                ? loadObservationActivity(user.teacherId)
+                : Promise.resolve({
+                    signUps: [],
+                    incoming: [],
+                    given: [],
+                    received: [],
+                }),
+        [hasProfile, user.teacherId]
+    )
 
-        const [observations, assessments, incoming] = await Promise.all([
-            api.listObservations(),
-            api.myAssessments(),
-            api.incomingRequests(),
-        ])
+    const { data, error, loading, reload } = useApi(loadDashboard)
 
-        return {
-            observations: observations.data ?? [],
-            assessments: assessments.data ?? [],
-            incoming: incoming.data ?? [],
-        }
-    }, [hasProfile])
-
-    const { data, error, loading } = useApi(loadDashboard)
-
-    const observations = data?.observations ?? []
+    const observations =
+        view === "observer"
+            ? (data?.given ?? [])
+            : (data?.received ?? [])
 
     const pendingRequests =
         view === "observer"
             ? (data?.incoming ?? []).filter((item) => item.status === "pending")
-            : (data?.assessments ?? []).filter(
+            : (data?.signUps ?? []).filter(
                 (item) => item.offer?.status === "pending"
             )
 
 
-    const mine = hasProfile
-        ? observations.filter((item) =>
-            view === "observer"
-                ? item.observer?.id === user.teacherId
-                : item.observee?.id === user.teacherId
-        )
-        : []
+    const mine = observations
 
     const today = toDateOnly(new Date().toLocaleDateString("en-CA"))
 
-    const upcoming = mine.filter(
-        (item) =>
-            item.status === "approved" &&
-            toDateOnly(item.scheduledDate) >= today
-    )
+    const upcoming = mine
+        .filter(
+            (item) =>
+                item.status === "approved" &&
+                toDateOnly(item.scheduledDate) >= today
+        )
+        .sort((a, b) =>
+            toDateOnly(a.scheduledDate).localeCompare(toDateOnly(b.scheduledDate))
+        )
 
     const completed = mine.filter((item) => item.status === "completed")
 
@@ -137,8 +70,26 @@ export default function FacultyDashboard() {
     const needsSignOff = mine.filter(
         (item) =>
             item.status === "approved" &&
-            toDateOnly(item.scheduledDate) < today
+            toDateOnly(item.scheduledDate) < today &&
+            (view === "observer"
+                ? !item.observerSignedOffAt
+                : !item.observeeSignedOffAt)
     )
+
+    if (loading || error) {
+        return (
+            <div>
+                <h1 className="mb-6 text-2xl font-semibold">
+                    Faculty Observation Dashboard
+                </h1>
+                <StateBlock
+                    loading={loading}
+                    error={error}
+                    onRetry={reload}
+                />
+            </div>
+        )
+    }
 
     return (
         <div>
@@ -182,42 +133,20 @@ export default function FacultyDashboard() {
                 <h2 className="mb-4 text-lg font-semibold">
                     Upcoming Confirmed Observations
                 </h2>
-                {loading ? (
-                    <p>Loading observations...</p>
-                ) : error ? (
-                    <p role="alert" className="text-red-600">{error.message}</p>
-                ) : (
-                    <ObservationRows rows={upcoming} view={view} />
-                )}
+                <ObservationRows rows={upcoming} view={view} />
             </section>
             <section className="mt-8">
                 <h2 className="mb-4 text-lg font-semibold">
                     Needs Sign-off
                 </h2>
-                {loading ? (
-                    <p>Loading observations...</p>
-                ) : error ? (
-                    <p role="alert" className="text-red-600">
-                        {error.message}
-                    </p>
-                ) : (
-                    <ObservationRows rows={needsSignOff} view={view} />
-                )}
+                <ObservationRows rows={needsSignOff} view={view} />
             </section>
 
             <section className="mt-8">
                 <h2 className="mb-4 text-lg font-semibold">
                     Postponed Observations
                 </h2>
-                {loading ? (
-                    <p>Loading observations...</p>
-                ) : error ? (
-                    <p role="alert" className="text-red-600">
-                        {error.message}
-                    </p>
-                ) : (
-                    <ObservationRows rows={postponed} view={view} />
-                )}
+                <ObservationRows rows={postponed} view={view} />
             </section>
 
             <section className="mt-8">
@@ -225,13 +154,7 @@ export default function FacultyDashboard() {
                     Pending Requests
                 </h2>
 
-                {loading ? (
-                    <p>Loading requests...</p>
-                ) : error ? (
-                    <p role="alert" className="text-red-600">
-                        {error.message}
-                    </p>
-                ) : pendingRequests.length === 0 ? (
+                {pendingRequests.length === 0 ? (
                     <p className="text-sm text-muted">
                         No pending requests.
                     </p>
@@ -262,7 +185,7 @@ export default function FacultyDashboard() {
                                     </div>
 
                                     <Link
-                                        to="/observations"
+                                        to={`/assessments/${view === "observer" ? request.assessmentId : request.id}`}
                                         className="text-blue-600 hover:underline"
                                     >
                                         View
@@ -278,13 +201,7 @@ export default function FacultyDashboard() {
                 <h2 className="mb-4 text-lg font-semibold">
                     Completed Observations
                 </h2>
-                {loading ? (
-                    <p>Loading observations...</p>
-                ) : error ? (
-                    <p role="alert" className="text-red-600">{error.message}</p>
-                ) : (
-                    <ObservationRows rows={completed} view={view} />
-                )}
+                <ObservationRows rows={completed} view={view} />
             </section>
         </div>
     )
