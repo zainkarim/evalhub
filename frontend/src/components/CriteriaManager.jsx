@@ -1,33 +1,44 @@
+import { ListChecks } from "lucide-react"
 import { useCallback, useState } from "react"
 import { api } from "../lib/api"
 import { useApi } from "../lib/useApi"
 import ObservationFeedback from "./ObservationFeedback"
 import ScaleMeter from "./ScaleMeter"
 import StateBlock from "./StateBlock"
+import {
+  Badge,
+  Button,
+  Callout,
+  Card,
+  CardBody,
+  CardHeader,
+  ConfirmDialog,
+  EmptyState,
+  Input,
+  Label,
+  StickyActionBar,
+  Table,
+  TableCard,
+  Td,
+  Textarea,
+  Th,
+} from "./ui"
+import { useToast } from "./ui/toast-context"
 
 const EMPTY = { name: "", description: "", maxScore: 5, weight: 1 }
-const field = "mt-1 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm"
-
-function Heading({ title, hint, children }) {
-  return (
-    <div className="mt-10 flex flex-wrap items-end justify-between gap-3 first:mt-0">
-      <div>
-        <h2 className="text-base font-semibold">{title}</h2>
-        {hint && <p className="mt-1 text-sm text-muted">{hint}</p>}
-      </div>
-      {children}
-    </div>
-  )
-}
+const EDIT_FORM_ID = "criterion-edit-form"
 
 // Name, scale, weight and guidance for one criterion. Used both for adding a
-// new one and, inside its row, for editing an existing one.
-function CriterionForm({ initial, submitLabel, busy, onSubmit, onCancel }) {
+// new one and, inside its row, for editing an existing one. While editing, the
+// Save / Cancel buttons live in the sticky bar (`formId` links them to this form),
+// so `actions` is false there.
+function CriterionForm({ initial, submitLabel, busy, onSubmit, formId, actions = true, submitVariant = "primary" }) {
   const [form, setForm] = useState(initial)
   const idPrefix = initial.id ? `edit-${initial.id}` : "new"
 
   return (
     <form
+      id={formId}
       onSubmit={(event) => {
         event.preventDefault()
         const name = form.name.trim()
@@ -42,24 +53,24 @@ function CriterionForm({ initial, submitLabel, busy, onSubmit, onCancel }) {
       className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_6rem]"
     >
       <div>
-        <label htmlFor={`${idPrefix}-name`} className="block text-xs text-muted">
+        <Label htmlFor={`${idPrefix}-name`} className="text-xs font-normal text-muted">
           Question shown to the observer
-        </label>
-        <input
+        </Label>
+        <Input
           id={`${idPrefix}-name`}
           value={form.name}
           onChange={(event) => setForm({ ...form, name: event.target.value })}
           maxLength={200}
           required
-          className={field}
+          className="mt-1"
           placeholder="Clarity of communication"
         />
       </div>
       <div>
-        <label htmlFor={`${idPrefix}-weight`} className="block text-xs text-muted">
+        <Label htmlFor={`${idPrefix}-weight`} className="text-xs font-normal text-muted">
           Weight
-        </label>
-        <input
+        </Label>
+        <Input
           id={`${idPrefix}-weight`}
           type="number"
           min="0"
@@ -67,39 +78,28 @@ function CriterionForm({ initial, submitLabel, busy, onSubmit, onCancel }) {
           value={form.weight}
           onChange={(event) => setForm({ ...form, weight: event.target.value })}
           required
-          className={field}
+          className="mt-1"
         />
       </div>
       <div className="sm:col-span-2">
-        <label htmlFor={`${idPrefix}-description`} className="block text-xs text-muted">
+        <Label htmlFor={`${idPrefix}-description`} className="text-xs font-normal text-muted">
           Guidance for the observer (optional)
-        </label>
-        <textarea
+        </Label>
+        <Textarea
           id={`${idPrefix}-description`}
           value={form.description}
           onChange={(event) => setForm({ ...form, description: event.target.value })}
           maxLength={2000}
           rows={2}
-          className={field}
+          className="mt-1"
           placeholder="What a high or a low rating means for this question."
         />
       </div>
       <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
-        <button
-          type="submit"
-          disabled={busy || !form.name.trim()}
-          className="rounded-md bg-utd-green px-4 py-2 text-sm font-medium text-primary-fg hover:bg-primary-hover disabled:opacity-50"
-        >
-          {submitLabel}
-        </button>
-        {onCancel && (
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-md border border-line bg-surface px-4 py-2 text-sm hover:border-ink"
-          >
-            Cancel
-          </button>
+        {actions && (
+          <Button type="submit" variant={submitVariant} disabled={busy || !form.name.trim()}>
+            {submitLabel}
+          </Button>
         )}
         <span className="flex items-center gap-2 text-xs text-muted">
           Observers will see <ScaleMeter max={5} />
@@ -115,6 +115,7 @@ function CriterionForm({ initial, submitLabel, busy, onSubmit, onCancel }) {
 // deleted (the backend returns 409); deactivate it instead, so completed
 // records keep their questions.
 function CriteriaManager() {
+  const toast = useToast()
   const call = useCallback(() => api.listCriteria({ includeInactive: true }), [])
   const { data, error, loading, reload } = useApi(call)
   const criteria = data?.data ?? []
@@ -126,6 +127,7 @@ function CriteriaManager() {
   const [actionError, setActionError] = useState("")
   const [notice, setNotice] = useState("")
   const [showPreview, setShowPreview] = useState(false)
+  const [deleting, setDeleting] = useState(null) // the criterion waiting for a delete confirm
 
   const run = async (action, message) => {
     setBusy(true)
@@ -133,7 +135,10 @@ function CriteriaManager() {
     setNotice("")
     try {
       await action()
-      if (message) setNotice(message)
+      if (message) {
+        setNotice(message)
+        toast.success(message)
+      }
       reload()
       return true
     } catch (err) {
@@ -161,8 +166,9 @@ function CriteriaManager() {
     if (ok) setEditingId(null)
   }
 
-  const remove = (criterion) => {
-    if (!window.confirm(`Delete "${criterion.name}"? This can't be undone.`)) return
+  const confirmRemove = () => {
+    const criterion = deleting
+    setDeleting(null)
     run(() => api.deleteCriterion(criterion.id), `Deleted "${criterion.name}".`).then((ok) => {
       if (ok && editingId === criterion.id) setEditingId(null)
     })
@@ -176,169 +182,184 @@ function CriteriaManager() {
         : `"${criterion.name}" is back on the form.`,
     )
 
-  const th = "px-4 py-3 font-medium"
-  const td = "px-4 py-3 align-top"
+  const editing = criteria.find((criterion) => criterion.id === editingId)
 
   return (
-    <div>
-      {(actionError || notice) && (
-        <p
-          role={actionError ? "alert" : "status"}
-          className={`mb-6 rounded-md border bg-surface px-4 py-3 text-sm ${
-            actionError ? "border-utd-orange/40" : "border-utd-green/30 text-utd-green-dark"
-          }`}
-        >
-          {actionError || notice}
-        </p>
+    <div className="space-y-6">
+      {actionError && (
+        <Callout tone="danger" role="alert">
+          {actionError}
+        </Callout>
       )}
+      {!actionError && notice && <Callout tone="success">{notice}</Callout>}
 
-      <Heading
-        title={`Questions on the form (${active.length} active)`}
-        hint="Observers answer these in this order using a 1–5 rating scale."
-      >
-        {active.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setShowPreview((current) => !current)}
-            aria-expanded={showPreview}
-            className="text-sm font-medium text-utd-green hover:underline"
-          >
-            {showPreview ? "Hide preview" : "Preview as the observer"}
-          </button>
-        )}
-      </Heading>
-
-      {showPreview && active.length > 0 && (
-        <div className="mt-3 rounded-md border border-dashed border-utd-green/40 bg-surface p-5">
-          <p className="mb-4 text-sm text-muted">
-            This is the form an observer fills in after the class. Nothing here is saved.
-          </p>
-          <ObservationFeedback criteria={active} preview />
-        </div>
-      )}
-
-      <div className="mt-3">
-        <StateBlock loading={loading} error={error} onRetry={reload}>
-          {data &&
-            (criteria.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-line bg-surface/60 px-5 py-8 text-center text-sm text-muted">
-                No questions yet. Add the first one below.
-              </p>
-            ) : (
-              <div className="overflow-x-auto rounded-lg border border-line bg-surface shadow-xs">
-                <table className="w-full text-left text-sm">
-                  <thead className="border-b border-line bg-canvas text-xs text-muted">
-                    <tr>
-                      <th className={th}>Question</th>
-                      <th className={th}>Scale</th>
-                      <th className={th}>Weight</th>
-                      <th className={th}>
-                        <span className="sr-only">Actions</span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {criteria.map((criterion) =>
-                      editingId === criterion.id ? (
-                        <tr key={criterion.id} className="border-b border-line bg-canvas last:border-0">
-                          <td colSpan={4} className="px-4 py-4">
-                            <CriterionForm
-                              initial={{
-                                id: criterion.id,
-                                name: criterion.name,
-                                description: criterion.description ?? "",
-                                maxScore: criterion.maxScore,
-                                weight: criterion.weight,
-                              }}
-                              submitLabel="Save changes"
-                              busy={busy}
-                              onSubmit={(body) => update(criterion, body)}
-                              onCancel={() => setEditingId(null)}
-                            />
-                          </td>
-                        </tr>
-                      ) : (
-                        <tr
-                          key={criterion.id}
-                          className={`border-b border-line last:border-0 ${
-                            criterion.isActive ? "" : "bg-canvas text-muted"
-                          }`}
-                        >
-                          <td className={td}>
-                            <span className="font-medium">{criterion.name}</span>
-                            {!criterion.isActive && (
-                              <span className="ml-2 rounded-full border border-line bg-surface px-2 py-0.5 text-[11px]">
-                                Off the form
-                              </span>
-                            )}
-                            {criterion.description && (
-                              <span className="mt-0.5 block text-xs text-muted">
-                                {criterion.description}
-                              </span>
-                            )}
-                          </td>
-                          <td className={`${td} whitespace-nowrap`}>
-                            <span className="flex items-center gap-2">
-                              <ScaleMeter max={5} />
-                              <span className="text-xs text-muted">1–5</span>
-                            </span>
-                          </td>
-                          <td className={`${td} tabular-nums`}>{criterion.weight}</td>
-                          <td className={`${td} whitespace-nowrap text-right`}>
-                            <span className="inline-flex gap-4">
-                              <button
-                                type="button"
-                                disabled={busy}
-                                onClick={() => {
-                                  setEditingId(criterion.id)
-                                  setActionError("")
-                                  setNotice("")
-                                }}
-                                className="font-medium text-utd-green hover:underline disabled:opacity-50"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                type="button"
-                                disabled={busy}
-                                onClick={() => toggleActive(criterion)}
-                                className="text-utd-green hover:underline disabled:opacity-50"
-                              >
-                                {criterion.isActive ? "Take off form" : "Put back on form"}
-                              </button>
-                              <button
-                                type="button"
-                                disabled={busy}
-                                onClick={() => remove(criterion)}
-                                className="text-muted hover:text-warning hover:underline disabled:opacity-50"
-                              >
-                                Delete
-                              </button>
-                            </span>
-                          </td>
-                        </tr>
-                      ),
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            ))}
-        </StateBlock>
-      </div>
-
-      <Heading
-        title="Add a question"
-        hint="New questions appear at the end of the form, for observations not yet signed."
-      />
-      <div className="mt-3 rounded-lg border border-line bg-surface p-5 shadow-xs">
-        <CriterionForm
-          key={addKey}
-          initial={EMPTY}
-          submitLabel="Add question"
-          busy={busy}
-          onSubmit={add}
+      <Card padded={false}>
+        <CardHeader
+          title={`Questions on the form (${active.length} active)`}
+          description="Observers answer these in this order using a 1–5 rating scale."
+          action={
+            active.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowPreview((current) => !current)}
+                aria-expanded={showPreview}
+                className="rounded-sm text-sm font-medium text-primary hover:underline"
+              >
+                {showPreview ? "Hide preview" : "Preview as the observer"}
+              </button>
+            )
+          }
         />
-      </div>
+        <CardBody className="pb-6">
+          {showPreview && active.length > 0 && (
+            <div className="mb-4 rounded-card border border-dashed border-primary/40 p-5">
+              <p className="mb-4 text-sm text-muted">
+                This is the form an observer fills in after the class. Nothing here is saved.
+              </p>
+              <ObservationFeedback criteria={active} preview />
+            </div>
+          )}
+
+          <StateBlock loading={loading} error={error} onRetry={reload} skeleton="table">
+            {data &&
+              (criteria.length === 0 ? (
+                <EmptyState
+                  icon={ListChecks}
+                  titleAs="p"
+                  title="No questions yet"
+                  text="Add the first one below."
+                />
+              ) : (
+                <TableCard>
+                  <Table minWidth="44rem">
+                    <thead>
+                      <tr>
+                        <Th>Question</Th>
+                        <Th>Scale</Th>
+                        <Th>Weight</Th>
+                        <Th>
+                          <span className="sr-only">Actions</span>
+                        </Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {criteria.map((criterion) =>
+                        editingId === criterion.id ? (
+                          <tr key={criterion.id} className="border-b border-line bg-surface-2 last:border-0">
+                            <td colSpan={4} className="px-4 py-4">
+                              <CriterionForm
+                                formId={EDIT_FORM_ID}
+                                actions={false}
+                                initial={{
+                                  id: criterion.id,
+                                  name: criterion.name,
+                                  description: criterion.description ?? "",
+                                  maxScore: criterion.maxScore,
+                                  weight: criterion.weight,
+                                }}
+                                busy={busy}
+                                onSubmit={(body) => update(criterion, body)}
+                              />
+                            </td>
+                          </tr>
+                        ) : (
+                          <tr
+                            key={criterion.id}
+                            className={`border-b border-line last:border-0 ${
+                              criterion.isActive ? "" : "bg-surface-2 text-muted"
+                            }`}
+                          >
+                            <Td>
+                              <span className="font-medium">{criterion.name}</span>
+                              {!criterion.isActive && (
+                                <Badge size="sm" className="ml-2">
+                                  Off the form
+                                </Badge>
+                              )}
+                              {criterion.description && (
+                                <span className="mt-0.5 block text-xs text-muted">{criterion.description}</span>
+                              )}
+                            </Td>
+                            <Td className="whitespace-nowrap">
+                              <span className="flex items-center gap-2">
+                                <ScaleMeter max={5} />
+                                <span className="text-xs text-muted">1–5</span>
+                              </span>
+                            </Td>
+                            <Td>{criterion.weight}</Td>
+                            <Td className="whitespace-nowrap text-right">
+                              <span className="inline-flex flex-wrap items-center justify-end gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={busy}
+                                  onClick={() => {
+                                    setEditingId(criterion.id)
+                                    setActionError("")
+                                    setNotice("")
+                                  }}
+                                >
+                                  Edit
+                                </Button>
+                                <Button variant="ghost" size="sm" disabled={busy} onClick={() => toggleActive(criterion)}>
+                                  {criterion.isActive ? "Take off form" : "Put back on form"}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={busy}
+                                  onClick={() => setDeleting(criterion)}
+                                  className="ml-3 text-danger! hover:bg-danger-soft"
+                                >
+                                  Delete
+                                </Button>
+                              </span>
+                            </Td>
+                          </tr>
+                        ),
+                      )}
+                    </tbody>
+                  </Table>
+                </TableCard>
+              ))}
+          </StateBlock>
+        </CardBody>
+      </Card>
+
+      <Card padded={false}>
+        <CardHeader
+          title="Add a question"
+          description="New questions appear at the end of the form, for observations not yet signed."
+        />
+        <CardBody className="pb-6">
+          <CriterionForm
+            key={addKey}
+            initial={EMPTY}
+            submitLabel="Add question"
+            submitVariant={editing ? "secondary" : "primary"}
+            busy={busy}
+            onSubmit={add}
+          />
+        </CardBody>
+      </Card>
+
+      {editing && (
+        <StickyActionBar back={{ label: "Cancel", onClick: () => setEditingId(null) }}>
+          <Button type="submit" form={EDIT_FORM_ID} loading={busy}>
+            Save changes
+          </Button>
+        </StickyActionBar>
+      )}
+
+      <ConfirmDialog
+        open={Boolean(deleting)}
+        tone="danger"
+        title={deleting ? `Delete "${deleting.name}"?` : "Delete question?"}
+        description="This can't be undone."
+        confirmLabel="Delete"
+        onCancel={() => setDeleting(null)}
+        onConfirm={confirmRemove}
+      />
     </div>
   )
 }

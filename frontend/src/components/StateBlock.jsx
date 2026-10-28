@@ -1,45 +1,64 @@
+import { Inbox } from "lucide-react"
+import { Button, Callout, EmptyState, Skeleton, SkeletonCard } from "./ui"
+
 // Loading, error and empty states shared by every page, so they all look and
-// behave the same.
-function StateBlock({ loading, error, empty, emptyMessage, onRetry, children }) {
-  if (loading) {
+// behave the same. `skeleton` picks the loading shape: "card" (default), "table"
+// (a card with a header and rows) or "form" (two columns of fields).
+function LoadingShape({ skeleton }) {
+  if (skeleton === "table") {
     return (
-      <div
-        role="status"
-        aria-label="Loading"
-        className="space-y-3 rounded-lg border border-line bg-surface p-5 shadow-xs"
-      >
-        {["w-1/3", "w-2/3", "w-1/2"].map((width) => (
-          <div key={width} className={`h-3 ${width} animate-pulse rounded-full bg-line/80`} />
+      <div role="status" className="rounded-card border border-line bg-surface p-4 shadow-xs">
+        <span className="sr-only">Loading…</span>
+        <Skeleton className="h-3 w-full" />
+        {Array.from({ length: 5 }, (_, index) => (
+          <div key={index} className="mt-4 flex items-center gap-4">
+            <Skeleton className="h-3 w-1/5" />
+            <Skeleton className="h-3 w-2/5" />
+            <Skeleton className="h-3 w-1/5" />
+          </div>
         ))}
       </div>
     )
   }
-
-  if (error) {
+  if (skeleton === "form") {
     return (
-      <div className="rounded-lg border border-line border-l-4 border-l-utd-orange bg-surface px-5 py-4 shadow-xs">
-        <p className="text-sm font-medium text-ink">Something went wrong</p>
-        <p className="mt-0.5 text-sm text-muted">{error.message}</p>
-        {onRetry && (
-          <button
-            type="button"
-            onClick={onRetry}
-            className="mt-3 rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-medium hover:border-ink"
-          >
-            Try again
-          </button>
-        )}
+      <div role="status" className="grid gap-4 rounded-card border border-line bg-surface p-6 shadow-xs sm:grid-cols-2">
+        <span className="sr-only">Loading…</span>
+        {Array.from({ length: 6 }, (_, index) => (
+          <div key={index} className="space-y-2">
+            <Skeleton className="h-3 w-1/4" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        ))}
       </div>
     )
   }
+  return <SkeletonCard lines={4} />
+}
 
-  if (empty) {
+function StateBlock({ loading, error, empty, emptyMessage, onRetry, skeleton = "card", children }) {
+  if (loading) return <LoadingShape skeleton={skeleton} />
+
+  if (error) {
     return (
-      <p className="rounded-lg border border-dashed border-line bg-surface/60 px-5 py-10 text-center text-sm text-muted">
-        {emptyMessage}
-      </p>
+      <Callout
+        tone="danger"
+        role="alert"
+        title="Something went wrong"
+        action={
+          onRetry && (
+            <Button variant="secondary" size="sm" onClick={onRetry}>
+              Try again
+            </Button>
+          )
+        }
+      >
+        {error.message}
+      </Callout>
     )
   }
+
+  if (empty) return <EmptyState icon={Inbox} title={emptyMessage} titleAs="p" />
 
   return children
 }

@@ -3,8 +3,11 @@ import { cx } from "./cx"
 // Shared form-control look, tokens only. Use with a Label whose htmlFor matches
 // the control's id. `invalid` sets aria-invalid (and the danger border); point
 // `aria-describedby` at a HelpText / ErrorText id so screen readers read them.
+// Controls fill their container unless the caller sets a width (w-auto, w-48, ...).
+const fill = (className) => (/(^|\s)w-/.test(className ?? "") ? "" : "w-full")
+
 const CONTROL =
-  "w-full rounded-md border border-line bg-surface px-3 text-sm text-ink placeholder:text-muted " +
+  "rounded-md border border-line bg-surface px-3 text-sm text-ink placeholder:text-muted " +
   "transition-[border-color] hover:border-ink focus-visible:border-primary " +
   "disabled:cursor-not-allowed disabled:opacity-60 aria-[invalid=true]:border-danger"
 
@@ -21,7 +24,7 @@ export function Input({ invalid = false, className, ref, ...rest }) {
     <input
       ref={ref}
       aria-invalid={invalid || undefined}
-      className={cx(CONTROL, "h-10", className)}
+      className={cx(CONTROL, fill(className), "h-10", className)}
       {...rest}
     />
   )
@@ -32,7 +35,7 @@ export function Select({ invalid = false, className, children, ref, ...rest }) {
     <select
       ref={ref}
       aria-invalid={invalid || undefined}
-      className={cx(CONTROL, "h-10 pr-8", className)}
+      className={cx(CONTROL, fill(className), "h-10 pr-8", className)}
       {...rest}
     >
       {children}
@@ -45,7 +48,7 @@ export function Textarea({ invalid = false, className, ref, ...rest }) {
     <textarea
       ref={ref}
       aria-invalid={invalid || undefined}
-      className={cx(CONTROL, "min-h-24 py-2", className)}
+      className={cx(CONTROL, fill(className), "min-h-24 py-2", className)}
       {...rest}
     />
   )

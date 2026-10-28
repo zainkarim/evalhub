@@ -9,6 +9,8 @@ const TONES = {
   danger: { pill: "bg-danger-soft text-danger ring-danger/30", dot: "bg-danger" },
   info: { pill: "bg-info-soft text-info ring-info/30", dot: "bg-info" },
   accent: { pill: "bg-accent-soft text-accent-ink ring-accent/30", dot: "bg-accent" },
+  // The one solid badge: a completed record is final and locked.
+  solid: { pill: "bg-primary text-primary-fg ring-primary", dot: "bg-primary-fg" },
 }
 
 const SIZES = {

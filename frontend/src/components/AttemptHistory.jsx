@@ -1,18 +1,22 @@
 import { ATTEMPT_EVENT, formatDate, formatDateTime, fullName } from "../lib/format"
+import { Card } from "./ui"
 
 const ROLE = { ac_member: "Assessment Committee", admin: "Administrator" }
 
 // The record of what was tried: who did what, when, and why. Attempts that don't
 // happen are never cancelled or deleted, so every entry stays here.
-function AttemptHistory({ attempts = [], title = "Attempt history" }) {
+// `headingAs` is the heading level of the title (h2 on its own page, h3 when it sits
+// inside another section); the attempt headings go one level below it.
+function AttemptHistory({ attempts = [], title = "Attempt history", headingAs: Heading = "h2" }) {
+  const GroupHeading = Heading === "h2" ? "h3" : "h4"
   const groups = new Map()
   for (const entry of attempts) {
     groups.set(entry.attemptNo, [...(groups.get(entry.attemptNo) ?? []), entry])
   }
 
   return (
-    <section className="mt-6 rounded-lg border border-line bg-surface p-6 shadow-xs">
-      <h2 className="text-base font-semibold">{title}</h2>
+    <Card as="section" className="mt-6">
+      <Heading className="text-base font-semibold">{title}</Heading>
       <p className="mt-1 text-sm text-muted">
         Every request, reply and postponement stays on the record. Nothing here is removed.
       </p>
@@ -22,13 +26,13 @@ function AttemptHistory({ attempts = [], title = "Attempt history" }) {
       ) : (
         [...groups.entries()].map(([attemptNo, entries]) => (
           <div key={attemptNo} className="mt-5">
-            <h3 className="text-xs font-semibold text-muted">Attempt {attemptNo}</h3>
+            <GroupHeading className="text-xs font-semibold text-muted">Attempt {attemptNo}</GroupHeading>
             <ul className="mt-3 ml-1.5 space-y-4 border-l border-line text-sm">
               {entries.map((entry) => (
                 <li key={entry.id} className="relative pl-5">
                   <span
                     aria-hidden="true"
-                    className="absolute top-1.5 -left-[5px] h-2.5 w-2.5 rounded-full border-2 border-surface bg-utd-green ring-1 ring-line"
+                    className="absolute top-1.5 -left-[5px] h-2.5 w-2.5 rounded-full border-2 border-surface bg-primary ring-1 ring-line"
                   />
                   <p>
                     <span className="font-medium">{ATTEMPT_EVENT[entry.type] ?? entry.type}</span>
@@ -50,7 +54,7 @@ function AttemptHistory({ attempts = [], title = "Attempt history" }) {
           </div>
         ))
       )}
-    </section>
+    </Card>
   )
 }
 
