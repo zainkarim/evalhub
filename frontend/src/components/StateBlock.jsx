@@ -1,4 +1,5 @@
 import { Inbox } from "lucide-react"
+import { m } from "motion/react"
 import { Button, Callout, EmptyState, Skeleton, SkeletonCard } from "./ui"
 
 // Loading, error and empty states shared by every page, so they all look and
@@ -60,7 +61,16 @@ function StateBlock({ loading, error, empty, emptyMessage, onRetry, skeleton = "
 
   if (empty) return <EmptyState icon={Inbox} title={emptyMessage} titleAs="p" />
 
-  return children
+  return (
+    <m.div
+      className="space-y-6"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.15, ease: "easeOut" }}
+    >
+      {children}
+    </m.div>
+  )
 }
 
 export default StateBlock

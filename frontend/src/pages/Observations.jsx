@@ -13,6 +13,7 @@ import {
   Input,
   PageHeader,
   Select,
+  StaggerItem,
   TabPanel,
   Table,
   TableCard,
@@ -36,12 +37,14 @@ import { useApi } from "../lib/useApi"
 import { nextStep } from "../lib/workflow"
 
 // A titled card for one list on the page.
-function Section({ title, hint, children }) {
+function Section({ title, hint, index, children }) {
   return (
-    <Card padded={false}>
-      <CardHeader title={title} description={hint} />
-      <CardBody className="pb-6">{children}</CardBody>
-    </Card>
+    <StaggerItem scope="observations" index={index}>
+      <Card padded={false}>
+        <CardHeader title={title} description={hint} />
+        <CardBody className="pb-6">{children}</CardBody>
+      </Card>
+    </StaggerItem>
   )
 }
 
@@ -241,7 +244,7 @@ function MyActivity({ user }) {
     <StateBlock loading={loading} error={error} onRetry={reload}>
       {data && (
         <div className="space-y-6">
-          <Section title="My sign-ups" hint="Each section you've signed up for, and what happens next.">
+          <Section index={0} title="My sign-ups" hint="Each section you've signed up for, and what happens next.">
             {data.signUps.length === 0 ? (
               <EmptyState
                 compact
@@ -292,6 +295,7 @@ function MyActivity({ user }) {
           </Section>
 
           <Section
+            index={1}
             title="Requests to observe a colleague"
             hint="Colleagues from your school who picked you as their observer. Each request offers several dates: confirm one, or decline. Requests expire after 48 hours."
           >
@@ -307,6 +311,7 @@ function MyActivity({ user }) {
           </Section>
 
           <Section
+            index={2}
             title="Observations I'm giving"
             hint="Classes you have agreed to observe. Sign off after the class takes place."
           >
@@ -318,6 +323,7 @@ function MyActivity({ user }) {
           </Section>
 
           <Section
+            index={3}
             title="Observations I'm receiving"
             hint="Colleagues observing your classes. You can see who and when."
           >

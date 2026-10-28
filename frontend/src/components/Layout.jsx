@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react"
+import { m, useReducedMotion } from "motion/react"
+import { useEffect, useLayoutEffect, useState } from "react"
 import { Outlet, useLocation, useNavigate } from "react-router-dom"
 import { useAuth } from "../context/auth-context"
 import { api, CHANGED_EVENT } from "../lib/api"
@@ -9,6 +10,7 @@ import Starfield from "./Starfield"
 import NotificationBell from "./NotificationBell"
 import ThemeToggle from "./ThemeToggle"
 import UserMenu from "./UserMenu"
+import { resetStagger } from "./ui"
 import { displayName, hasTeacherProfile, isAC, roleLabel } from "../lib/roles"
 
 // Faculty and committee members see different navigation. `badge` names the
@@ -29,8 +31,15 @@ function Layout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const reduceMotion = useReducedMotion()
   const committee = isAC(user)
   const [counts, setCounts] = useState({ requests: 0, alerts: 0, unread: 0 })
+
+  // A new page gets a fresh list entrance. This runs before the page's own effects
+  // record what they animated, so it never wipes them.
+  useLayoutEffect(() => {
+    resetStagger()
+  }, [location.pathname])
 
   // Refresh the nav counters when the person moves to another page or changes data.
   useEffect(() => {
@@ -123,7 +132,15 @@ function Layout() {
       </header>
 
       <main id="main-content" tabIndex={-1} className={`${CONTAINER} pt-8 pb-16 sm:pt-10`}>
-        <Outlet />
+        {/* Enter-only: the new page fades in and rises 6px. Nothing waits for an exit. */}
+        <m.div
+          key={location.pathname}
+          initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 6 }}
+          animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+          transition={{ duration: 0.18, ease: "easeOut" }}
+        >
+          <Outlet />
+        </m.div>
       </main>
     </div>
   )

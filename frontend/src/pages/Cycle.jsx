@@ -18,6 +18,7 @@ import {
   Label,
   PageHeader,
   Select,
+  StaggerItem,
   Table,
   TableCard,
   Td,
@@ -418,8 +419,11 @@ function Cycle() {
               </Select>
             </div>
 
-            <CycleDates term={current} onChanged={reload} />
+            <StaggerItem scope="cycle" index={0}>
+              <CycleDates term={current} onChanged={reload} />
+            </StaggerItem>
 
+            <StaggerItem scope="cycle" index={1}>
             <Card padded={false}>
               <CardHeader title="Start Observer Selection" />
               <CardBody className="pb-6">
@@ -451,7 +455,9 @@ function Cycle() {
                 )}
               </CardBody>
             </Card>
+            </StaggerItem>
 
+            <StaggerItem scope="cycle" index={2}>
             <Card padded={false}>
               <CardHeader
                 title={
@@ -466,7 +472,9 @@ function Cycle() {
                 <Alerts alerts={alerts} started={started} />
               </CardBody>
             </Card>
+            </StaggerItem>
 
+            <StaggerItem scope="cycle" index={3}>
             <Card padded={false}>
               <CardHeader
                 title="Sign-ups"
@@ -640,6 +648,7 @@ function Cycle() {
                 )}
               </CardBody>
             </Card>
+            </StaggerItem>
           </>
         ) : (
           data && <EmptyState titleAs="p" title="There are no terms taking sign-ups" />

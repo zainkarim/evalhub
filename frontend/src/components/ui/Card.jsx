@@ -16,7 +16,8 @@ export function Card({
       className={cx(
         "rounded-card border border-line bg-surface shadow-xs",
         padded && "p-6",
-        interactive && "block transition-[color,background-color,border-color,opacity] hover:border-ink",
+        interactive &&
+          "block transition-[color,background-color,border-color,opacity,transform,box-shadow] duration-150 hover:-translate-y-px hover:border-ink hover:shadow-sm motion-reduce:hover:translate-y-0",
         className,
       )}
       {...rest}

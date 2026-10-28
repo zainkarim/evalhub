@@ -17,11 +17,12 @@ const INTRO_MS = 3600
 
 // Fade + small rise when the block scrolls into view (once).
 function Reveal({ children, delay = 0, className }) {
+  const reduceMotion = useReducedMotion()
   return (
     <m.div
       className={className}
-      initial={{ opacity: 0, y: 12 }}
-      whileInView={{ opacity: 1, y: 0 }}
+      initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 12 }}
+      whileInView={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.3 }}
       transition={{ duration: 0.5, delay, ease: "easeOut" }}
     >

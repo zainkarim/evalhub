@@ -2,7 +2,7 @@ import { BellOff, UserX } from "lucide-react"
 import { useCallback, useState } from "react"
 import { Link } from "react-router-dom"
 import StateBlock from "../components/StateBlock"
-import { Button, Callout, Card, CardBody, EmptyState, PageHeader } from "../components/ui"
+import { Button, Callout, Card, CardBody, EmptyState, PageHeader, StaggerItem } from "../components/ui"
 import { useAuth } from "../context/auth-context"
 import { api } from "../lib/api"
 import { formatDateTime } from "../lib/format"
@@ -52,8 +52,8 @@ function Inbox() {
               </Button>
             </CardBody>
             <ul className="divide-y divide-line">
-              {items.map((item) => (
-                <li key={item.id} className="px-6 py-4 text-sm">
+              {items.map((item, index) => (
+                <StaggerItem as="li" scope="notifications" index={index} key={item.id} className="px-6 py-4 text-sm">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-medium">
@@ -90,7 +90,7 @@ function Inbox() {
                       </Button>
                     )}
                   </div>
-                </li>
+                </StaggerItem>
               ))}
             </ul>
           </Card>

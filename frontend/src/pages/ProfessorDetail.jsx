@@ -3,7 +3,20 @@ import { Link, useParams, useSearchParams } from "react-router-dom"
 import AttemptHistory from "../components/AttemptHistory"
 import StateBlock from "../components/StateBlock"
 import StatusBadge from "../components/StatusBadge"
-import { Badge, Button, Card, CardBody, CardHeader, EmptyState, PageHeader, Table, TableCard, Td, Th } from "../components/ui"
+import {
+  Badge,
+  Button,
+  Card,
+  CardBody,
+  CardHeader,
+  EmptyState,
+  PageHeader,
+  StaggerItem,
+  Table,
+  TableCard,
+  Td,
+  Th,
+} from "../components/ui"
 import { api } from "../lib/api"
 import { describeDue, DUE_STATUS } from "../lib/dueStatus"
 import {
@@ -116,6 +129,7 @@ function ProfessorDetail() {
               </dl>
             </Card>
 
+            <StaggerItem scope="professor" index={0}>
             <Card padded={false}>
               <CardHeader
                 title={`Observer load · ${formatTerm(data.term)}`}
@@ -147,7 +161,9 @@ function ProfessorDetail() {
                 </div>
               </CardBody>
             </Card>
+            </StaggerItem>
 
+            <StaggerItem scope="professor" index={1}>
             <Card padded={false}>
               <CardHeader
                 title="Courses"
@@ -193,7 +209,9 @@ function ProfessorDetail() {
                 )}
               </CardBody>
             </Card>
+            </StaggerItem>
 
+            <StaggerItem scope="professor" index={2}>
             <Card padded={false}>
               <CardHeader title="Observations" />
               <CardBody className="space-y-5 pb-6">
@@ -209,7 +227,9 @@ function ProfessorDetail() {
                 />
               </CardBody>
             </Card>
+            </StaggerItem>
 
+            <StaggerItem scope="professor" index={3}>
             <Card padded={false}>
               <CardHeader title={`Sign-up · ${formatTerm(data.term)}`} />
               <CardBody className="pb-6">
@@ -241,6 +261,7 @@ function ProfessorDetail() {
                 )}
               </CardBody>
             </Card>
+            </StaggerItem>
 
             {data.signUp && <AttemptHistory attempts={data.signUp.attempts} />}
           </>

@@ -5,7 +5,7 @@ import { cx } from "./cx"
 // transition-colors would also fade the focus ring in from the text colour
 // (outline-color), so the transition list is spelled out without it.
 const BASE =
-  "relative inline-flex items-center justify-center whitespace-nowrap rounded-md border font-medium transition-[color,background-color,border-color,opacity]"
+  "relative inline-flex items-center justify-center whitespace-nowrap rounded-md border font-medium transition-[color,background-color,border-color,opacity,transform] duration-150 active:scale-[0.98] motion-reduce:active:scale-100"
 
 const VARIANTS = {
   primary: "border-transparent bg-primary text-primary-fg hover:bg-primary-hover",
