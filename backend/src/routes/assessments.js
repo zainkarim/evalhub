@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
-import { query } from '../db/pool.js';
+import { pool, query } from '../db/pool.js';
 import { findTeacherConflict,  dayCodeFor } from '../lib/availability.js';
 import { AC_OR_ADMIN, requireRole } from '../middleware/auth.js';
 import { HttpError, notFound } from '../middleware/errors.js';
@@ -1033,26 +1033,48 @@ router.post(
       throw new HttpError(409, 'conflict', `You are no longer free at that time: ${observeeConflict.detail}`);
     }
 
-    const { rows: confirmed } = await query(
-      `UPDATE assessment_time_options
-          SET is_confirmed = TRUE, confirmed_teacher_id = $2
-        WHERE id = $1
-        RETURNING *`,
-      [optionId, teacherId],
-    );
+    // #78: confirm + decline must happen together, and declines must also
+    // cover other observers who accepted this SAME option -- the original
+    // query only declined offers on OTHER options, so another observer who
+    // accepted the chosen slot stayed 'accepted' and still saw themselves as
+    // available for it.
+    const client = await pool.connect();
+    let confirmedOption;
+    try {
+      await client.query('BEGIN');
 
-    // Every other offer on every other (still-open) option for this
-    // assessment is now moot -- decline them so a stale "accept" elsewhere
-    // can't be finalized into a second, conflicting confirmation.
-    await query(
-      `UPDATE time_option_offers
-          SET status = 'declined', updated_at = now()
-        WHERE option_id IN (SELECT id FROM assessment_time_options WHERE assessment_id = $1 AND id <> $2)
-          AND status <> 'declined'`,
-      [assessmentId, optionId],
-    );
+      const { rows: confirmed } = await client.query(
+        `UPDATE assessment_time_options
+            SET is_confirmed = TRUE, confirmed_teacher_id = $2
+          WHERE id = $1
+          RETURNING *`,
+        [optionId, teacherId],
+      );
+      confirmedOption = confirmed[0];
 
-    res.json(toTimeOption(confirmed[0]));
+      // Every other offer on every other (still-open) option for this
+      // assessment is now moot, as is any other observer's offer on this
+      // SAME option -- only the chosen teacherId's offer stays accepted.
+      await client.query(
+        `UPDATE time_option_offers
+            SET status = 'declined', updated_at = now()
+          WHERE status <> 'declined'
+            AND (
+              option_id IN (SELECT id FROM assessment_time_options WHERE assessment_id = $1 AND id <> $2)
+              OR (option_id = $2 AND teacher_id <> $3)
+            )`,
+        [assessmentId, optionId, teacherId],
+      );
+
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    res.json(toTimeOption(confirmedOption));
   },
 );
 
