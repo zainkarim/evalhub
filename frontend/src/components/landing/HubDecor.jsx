@@ -1,5 +1,6 @@
 import { m } from "motion/react"
 import { useId } from "react"
+import { cometTail } from "../brand/cometPath"
 import { STAR_PATH } from "../brand/GoldStar"
 
 // The decoration above "Hub" in the hero title: two tiny comets (gold head, short
@@ -7,18 +8,6 @@ import { STAR_PATH } from "../brand/GoldStar"
 // over the "Hub" box, drawn in 1/100 em (the box is 1em tall, y = 0 is its top; the
 // cap height sits at y 14 and the baseline at y 85), so it scales with the title.
 // Part of the final lockup (it stays); `intro` only adds the entrance. Decorative.
-
-function tail(hx, hy, tx, ty, w) {
-  const dx = tx - hx
-  const dy = ty - hy
-  const len = Math.hypot(dx, dy)
-  const nx = -dy / len
-  const ny = dx / len
-  const mx = hx + dx * 0.4
-  const my = hy + dy * 0.4
-  const f = (x, y) => `${x.toFixed(1)} ${y.toFixed(1)}`
-  return `M${f(hx + nx * w, hy + ny * w)}Q${f(mx + nx * w * 0.3, my + ny * w * 0.3)} ${f(tx, ty)}Q${f(mx - nx * w * 0.3, my - ny * w * 0.3)} ${f(hx - nx * w, hy - ny * w)}Z`
-}
 
 const COMETS = [
   { hx: 51, hy: 30, tx: 112, ty: -26, w: 4.6, r: 6.4, delay: 2.1 }, // in the gap of the cut "H"
@@ -62,7 +51,7 @@ function HubDecor({ intro }) {
               }
             : {})}
         >
-          <path d={tail(c.hx, c.hy, c.tx, c.ty, c.w)} fill={`url(#${id}${index})`} />
+          <path d={cometTail(c.hx, c.hy, c.tx, c.ty, c.w)} fill={`url(#${id}${index})`} />
           <circle cx={c.hx} cy={c.hy} r={c.r * 1.9} style={{ fill: "var(--c-gold)", opacity: 0.25 }} />
           <circle cx={c.hx} cy={c.hy} r={c.r} style={{ fill: "var(--c-gold)" }} />
           <circle cx={c.hx} cy={c.hy} r={c.r * 0.5} style={{ fill: "var(--c-gold-core)" }} />

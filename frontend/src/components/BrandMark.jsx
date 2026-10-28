@@ -12,7 +12,7 @@ function BrandMark({ to, size = 32, variant = "compact", className = "" }) {
   const content = (
     <>
       <LogoMark size={size} />
-      <Wordmark variant={variant} className={TEXT[size] ?? "text-xl"} />
+      <Wordmark variant={variant} tiny={size <= 32} className={TEXT[size] ?? "text-xl"} />
     </>
   )
   const classes = `flex shrink-0 items-center gap-2.5 rounded-md ${className}`
