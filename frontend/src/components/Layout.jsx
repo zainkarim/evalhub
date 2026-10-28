@@ -14,6 +14,7 @@ const links = [
   { to: "/cycle", label: "Cycle", committeeOnly: true, badge: "alerts" },
   { to: "/notifications", label: "Notifications", profileOnly: true, badge: "unread" },
   { to: "/evaluation-criteria", label: "Evaluation Criteria", committeeOnly: true },
+  { to: "/my-profile", label: "My Profile", profileOnly: true },
 ]
 
 function Layout() {
@@ -128,16 +129,18 @@ function Layout() {
               .filter((link) => committee || !link.committeeOnly)
               .filter((link) => !link.profileOnly || hasTeacherProfile(user))
               .map((link) => {
+                const to = link.to === "/my-profile"
+                  ? `/professors/${user.teacherId}/edit`
+                  : link.to
                 const count = counts[link.badge] ?? 0
                 return (
                   <NavLink
                     key={link.to}
-                    to={link.to}
+                    to={to}
                     className={({ isActive }) =>
-                      `relative flex h-full shrink-0 items-center gap-2 whitespace-nowrap px-3 ${
-                        isActive
-                          ? "font-semibold text-utd-green-dark after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-utd-green"
-                          : "text-muted hover:text-ink"
+                      `relative flex h-full shrink-0 items-center gap-2 whitespace-nowrap px-3 ${isActive
+                        ? "font-semibold text-utd-green-dark after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-utd-green"
+                        : "text-muted hover:text-ink"
                       }`
                     }
                   >

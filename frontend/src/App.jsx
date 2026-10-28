@@ -1,9 +1,9 @@
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
+import { BrowserRouter, Navigate, Route, Routes, useParams } from "react-router-dom"
 import Layout from "./components/Layout"
 import ProtectedRoute from "./components/ProtectedRoute"
 import { AuthProvider } from "./context/AuthContext"
 import { useAuth } from "./context/auth-context"
-import { AC_ROLES, isAC } from "./lib/roles"
+import { AC_ROLES, isAC, hasTeacherProfile } from "./lib/roles"
 import AssessmentDetail from "./pages/AssessmentDetail"
 import CourseDetail from "./pages/CourseDetail"
 import Courses from "./pages/Courses"
@@ -18,10 +18,28 @@ import ProfessorDetail from "./pages/ProfessorDetail"
 import ProfessorManagement from "./pages/ProfessorManagement"
 import Professors from "./pages/Professors"
 
+
 // Committee-only pages: anyone else gets a plain "limited to the committee"
 // message instead of the page (the navigation link is hidden for them too).
 function CommitteeRoute({ children }) {
   return <ProtectedRoute roles={AC_ROLES}>{children}</ProtectedRoute>
+}
+
+function ProfessorSelfEditRoute({ children }) {
+  const { user } = useAuth()
+  const { id } = useParams()
+
+  if (isAC(user)) return children
+
+  if (hasTeacherProfile(user) && String(user.teacherId) === id) {
+    return children
+  }
+
+  return (
+    <p className="p-10 text-sm text-muted">
+      You can only edit your own professor profile.
+    </p>
+  )
 }
 
 // Each role lands on the page it works from: the committee on the Cycle page.
@@ -65,9 +83,9 @@ function App() {
             <Route
               path="/professors/:id/edit"
               element={
-                <CommitteeRoute>
+                <ProfessorSelfEditRoute>
                   <ProfessorManagement />
-                </CommitteeRoute>
+                </ProfessorSelfEditRoute>
               }
             />
 
