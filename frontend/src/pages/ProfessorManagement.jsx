@@ -99,9 +99,10 @@ function ProfessorForm() {
 
   return (
     <div className="max-w-2xl">
+      <div className="sky-scrim w-fit max-w-full">
       <Link
         to={isEditing ? `/professors/${id}` : "/professors"}
-        className="text-sm text-muted hover:text-ink"
+        className="inline-block text-sm text-muted hover:text-ink"
       >
         Back
       </Link>
@@ -115,6 +116,7 @@ function ProfessorForm() {
           ? "Update faculty information."
           : "Add a faculty member to the evaluation roster."}
       </p>
+      </div>
 
       <form
         onSubmit={handleSubmit}

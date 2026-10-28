@@ -100,11 +100,13 @@ function Notifications() {
 
   return (
     <div>
+      <div className="sky-scrim w-fit max-w-full">
       <h1 className="text-2xl font-semibold tracking-tight">Notifications</h1>
       <p className="mt-1 text-sm text-muted">
         Messages about the observation cycle. They appear here only; email delivery is not
         implemented.
       </p>
+      </div>
       <div className="mt-6">
         {hasTeacherProfile(user) ? (
           <Inbox />

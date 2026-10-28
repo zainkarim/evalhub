@@ -374,12 +374,14 @@ function Cycle() {
 
   return (
     <div>
+      <div className="sky-scrim w-fit max-w-full">
       <h1 className="text-2xl font-semibold tracking-tight">Cycle</h1>
       <p className="mt-1 text-sm text-muted">
         The semester&apos;s dates, the single Start Observer Selection button, alerts for empty or
         short observer pools, and every sign-up. Professors choose their own observer and send
         the request themselves; the committee approves nothing.
       </p>
+      </div>
 
       <StateBlock loading={loading} error={error} onRetry={reload}>
         {data && current ? (

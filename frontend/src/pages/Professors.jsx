@@ -88,7 +88,7 @@ function Professors() {
   return (
     <div>
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+        <div className="sky-scrim">
           <h1 className="text-2xl font-semibold tracking-tight">Professors</h1>
           <p className="mt-1 text-sm text-muted">
             Active professors: who is due, who has signed up, and where their observation stands.

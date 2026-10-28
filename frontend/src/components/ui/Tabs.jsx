@@ -34,7 +34,7 @@ export function Tabs({ tabs, value, onChange, ariaLabel, idPrefix = "tabs", clas
       role="tablist"
       aria-label={ariaLabel}
       className={cx(
-        "flex gap-6 overflow-x-auto border-b border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        "flex gap-6 rounded-t-card bg-surface px-4 overflow-x-auto border-b border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         className,
       )}
     >

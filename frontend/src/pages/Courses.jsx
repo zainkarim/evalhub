@@ -97,12 +97,14 @@ function Courses() {
 
   return (
     <div>
+      <div className="sky-scrim w-fit max-w-full">
       <h1 className="text-2xl font-semibold tracking-tight">Courses</h1>
       <p className="mt-1 text-sm text-muted">
         {committee
           ? "All course sections, their instructors, and whether they have an observation sign-up."
           : "Your course sections available for observation sign-up."}
       </p>
+      </div>
 
       <div className="mt-6 flex flex-wrap gap-3">
         <input

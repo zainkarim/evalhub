@@ -12,11 +12,11 @@
    Brand colours are the official UT Dallas palette (brand.utdallas.edu). */
 :root,
 .light {
-  --c-bg: #f5f7f5;
+  --c-bg: #f8f3ea; /* warm cream: the midpoint of the light sky */
   --c-surface: #ffffff;
   --c-surface-2: #eef2ef;
   --c-ink: #16201c;
-  --c-muted: #5f6d67;
+  --c-muted: #5b6963; /* darkened a little so it holds 4.5:1 on a scrim with a star behind it */
   --c-line: #dde3df;
 
   --c-primary: #154734; /* UTD Green */
@@ -37,6 +37,21 @@
   --c-warning-soft: #fdf0e6;
   --c-danger-soft: #fdecea;
   --c-info-soft: #e6f2fa;
+
+  /* Starfield sky (see components/Starfield.jsx). Light = soft dawn, no glows. */
+  --c-sky-top: #faf7f0;
+  --c-sky-bottom: #f6efe3;
+  --c-glow-1: transparent;
+  --c-glow-2: transparent;
+  --c-star: 110 106 99; /* warm grey stars on the cream sky */
+  --c-comet-head: 232 117 0; /* UTD Orange comet head in light mode */
+
+  /* The whole sky (glows + gradient) as one background value, shared by the
+     starfield canvas and by .sky-scrim so a scrim matches the sky exactly. */
+  --sky-bg:
+    radial-gradient(60rem 40rem at 12% 8%, var(--c-glow-1), transparent 70%),
+    radial-gradient(55rem 38rem at 92% 100%, var(--c-glow-2), transparent 70%),
+    linear-gradient(to bottom, var(--c-sky-top), var(--c-sky-bottom));
 
   --shadow-rgb: 22 32 28;
   color-scheme: light;
@@ -68,6 +83,13 @@
   --c-warning-soft: #2d1c0f;
   --c-danger-soft: #2f1514;
   --c-info-soft: #10263a;
+
+  --c-sky-top: #060a10;
+  --c-sky-bottom: #0c1620;
+  --c-glow-1: color-mix(in srgb, var(--c-primary) 5%, transparent);
+  --c-glow-2: color-mix(in srgb, var(--c-accent) 4%, transparent);
+  --c-star: 255 255 255;
+  --c-comet-head: 255 255 255;
 
   --shadow-rgb: 0 0 0;
   color-scheme: dark;
@@ -192,6 +214,58 @@ tbody tr:hover {
 /* On the green brand bar the focus ring is white so it stays visible. */
 .brand-bar :focus-visible {
   outline-color: white;
+}
+
+/* The Starfield canvas: the sky itself is this CSS background (so a theme switch
+   costs no redraw); the canvas only paints stars and comets on top. */
+.starfield-sky {
+  background: var(--sky-bg);
+}
+
+/* Any text that sits directly on the sky must be inside a surface or a .sky-scrim.
+   Put ONE scrim around a whole header block (title + subtitle + back link), not on
+   each line. It is a copy of the sky (--sky-bg) at 90% behind the block,
+   faded out on all four sides by a mask, so there is no edge or box to see. It is a
+   pseudo-element, so it moves with the content when scrolling, and it sits behind
+   everything else on the page (z-index -1, above only the starfield).
+   The bleed past the text is limited to the page padding (12px phones, 20px from
+   640px) so it can never cause sideways scrolling; on wide screens there is room
+   for a wider, softer fade. The fade leaves 4px of solid colour around the text. */
+@layer components {
+  .sky-scrim {
+    --scrim-x: 12px;
+    --scrim-y: 40px;
+    position: relative;
+  }
+  @media (min-width: 640px) {
+    .sky-scrim {
+      --scrim-x: 20px;
+    }
+  }
+  @media (min-width: 1400px) {
+    .sky-scrim {
+      --scrim-x: 48px;
+    }
+  }
+  .sky-scrim::before {
+    --rx: calc(var(--scrim-x) - 4px);
+    --ry: calc(var(--scrim-y) - 4px);
+    content: "";
+    position: absolute;
+    inset: calc(var(--scrim-y) * -1) calc(var(--scrim-x) * -1);
+    z-index: -1;
+    pointer-events: none;
+    /* Same layers as the canvas, pinned to the viewport like the canvas is, so the
+       patch is the sky itself (only the stars under it are hidden). */
+    background: var(--sky-bg);
+    background-attachment: fixed;
+    opacity: 0.9;
+    mask-image:
+      linear-gradient(to right, transparent 0, rgb(0 0 0 / 0.12) calc(var(--rx) * 0.25), rgb(0 0 0 / 0.5) calc(var(--rx) * 0.5), rgb(0 0 0 / 0.88) calc(var(--rx) * 0.75), #000 var(--rx), #000 calc(100% - var(--rx)), rgb(0 0 0 / 0.88) calc(100% - var(--rx) * 0.75), rgb(0 0 0 / 0.5) calc(100% - var(--rx) * 0.5), rgb(0 0 0 / 0.12) calc(100% - var(--rx) * 0.25), transparent 100%),
+      linear-gradient(to bottom, transparent 0, rgb(0 0 0 / 0.12) calc(var(--ry) * 0.25), rgb(0 0 0 / 0.5) calc(var(--ry) * 0.5), rgb(0 0 0 / 0.88) calc(var(--ry) * 0.75), #000 var(--ry), #000 calc(100% - var(--ry)), rgb(0 0 0 / 0.88) calc(100% - var(--ry) * 0.75), rgb(0 0 0 / 0.5) calc(100% - var(--ry) * 0.5), rgb(0 0 0 / 0.12) calc(100% - var(--ry) * 0.25), transparent 100%);
+    mask-composite: intersect;
+    -webkit-mask-composite: source-in;
+  }
 }
 
 /* People who ask for less transparency get a solid header. */

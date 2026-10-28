@@ -355,7 +355,7 @@ function Observations() {
   return (
     <div>
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+        <div className="sky-scrim">
           <h1 className="text-2xl font-semibold tracking-tight">
             {committee ? "Observation Requests" : "My Observations"}
           </h1>
@@ -377,7 +377,7 @@ function Observations() {
       </div>
 
       {committee && mine && (
-        <div className="mt-6 flex gap-6 border-b border-line text-sm" role="tablist">
+        <div className="mt-6 flex gap-6 border-b border-line bg-surface px-4 text-sm" role="tablist">
           {tabs.map((item) => (
             <button
               key={item.id}

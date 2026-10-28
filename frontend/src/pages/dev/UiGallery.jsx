@@ -1,5 +1,6 @@
 import { ArrowRight, Inbox, Plus, Save, Trash } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
+import Starfield from "../../components/Starfield"
 import ThemeToggle from "../../components/ThemeToggle"
 import {
   Badge,
@@ -330,7 +331,8 @@ function UiGallery() {
   const [pageBar, setPageBar] = useState(true)
 
   return (
-    <div data-gallery="evalhub-ui-gallery-dev-only" className="min-h-screen bg-bg font-sans text-ink">
+    <div data-gallery="evalhub-ui-gallery-dev-only" className="min-h-screen font-sans text-ink">
+      <Starfield variant="app" />
       <header className="brand-bar bg-brand text-white">
         <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-4 px-4 py-4 sm:px-6">
           <div className="min-w-0">

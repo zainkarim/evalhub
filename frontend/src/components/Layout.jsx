@@ -5,6 +5,7 @@ import { api, CHANGED_EVENT } from "../lib/api"
 import BrandMark from "./BrandMark"
 import MainNav from "./MainNav"
 import MobileNav from "./MobileNav"
+import Starfield from "./Starfield"
 import NotificationBell from "./NotificationBell"
 import ThemeToggle from "./ThemeToggle"
 import UserMenu from "./UserMenu"
@@ -83,7 +84,8 @@ function Layout() {
       .join("") || "?"
 
   return (
-    <div className="min-h-screen bg-bg font-sans text-ink">
+    <div className="min-h-screen font-sans text-ink">
+      <Starfield variant="app" />
       <a
         href="#main-content"
         onClick={(event) => {
