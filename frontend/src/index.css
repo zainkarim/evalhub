@@ -70,7 +70,7 @@
      "Hub" is darker than the brand orange so the large letters keep 3:1 on the cream sky. */
   --wm-silver: linear-gradient(to bottom, #3a434b 14%, #28312d 50%, #16201c 85%);
   --wm-silver-solid: #28312d;
-  --wm-hub: linear-gradient(to bottom, #d46508 14%, #c25a0c 52%, #a8480c 85%);
+  --wm-hub: linear-gradient(to bottom, #cc6008 14%, #bd560c 52%, #a8480c 85%);
   --wm-hub-solid: #b25210;
   --wm-hub-glow: drop-shadow(0 0 10px rgb(232 117 0 / 0.18));
 
