@@ -17,6 +17,7 @@ import Observations from "./pages/Observations"
 import ProfessorDetail from "./pages/ProfessorDetail"
 import ProfessorManagement from "./pages/ProfessorManagement"
 import Professors from "./pages/Professors"
+import FacultyDashboard from "./pages/FacultyDashboard"
 
 
 // Committee-only pages: anyone else gets a plain "limited to the committee"
@@ -100,6 +101,7 @@ function App() {
 
             <Route path="/courses" element={<Courses />} />
             <Route path="/courses/:id" element={<CourseDetail />} />
+            <Route path="/dashboard" element={<FacultyDashboard />} />
             <Route path="/observations" element={<Observations />} />
             <Route path="/observation-signup" element={<ObservationSignup />} />
             <Route path="/assessments/:id" element={<AssessmentDetail />} />
