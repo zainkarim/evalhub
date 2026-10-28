@@ -3,6 +3,8 @@ import { api } from "../lib/api"
 import { formatDate, fullName, meetingDates } from "../lib/format"
 import { useApi } from "../lib/useApi"
 import PostponeControl from "./PostponeControl"
+import { Badge, Button, Callout, Card, Label, Select } from "./ui"
+import { useToast } from "./ui/toast-context"
 
 // TODO(BLOCKED: requirements §4.3 step 6 and §8): when the committee assigns an
 // observer manually, must the pick come from the eligible pool, or can it be any
@@ -10,6 +12,7 @@ import PostponeControl from "./PostponeControl"
 // behaviour (a candidate-list member, or a committee member as step-in) and must
 // not be read as the answer.
 function AssignObserver({ assessment, onChanged }) {
+  const toast = useToast()
   const call = useCallback(() => api.stepInOptions(assessment.id), [assessment.id])
   const { data: options } = useApi(call)
   const [observerId, setObserverId] = useState("")
@@ -32,6 +35,7 @@ function AssignObserver({ assessment, onChanged }) {
         candidateListId: fromList ? assessment.candidateList.id : undefined,
         scheduledDate: date,
       })
+      toast.success("Observer assigned and the observation scheduled.")
       onChanged()
     } catch (err) {
       setError(err.message)
@@ -43,9 +47,9 @@ function AssignObserver({ assessment, onChanged }) {
     <form onSubmit={submit}>
       <h3 className="text-sm font-medium">
         Assign an observer manually{" "}
-        <span className="ml-1 rounded bg-surface-2 px-1.5 py-0.5 text-[11px] font-normal text-muted">
+        <Badge size="sm" className="ml-1">
           stretch goal
-        </span>
+        </Badge>
       </h3>
       <p className="mt-1 text-sm text-muted">
         For an empty or short pool, or when the professor&apos;s requests didn&apos;t work out.
@@ -53,14 +57,14 @@ function AssignObserver({ assessment, onChanged }) {
       </p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <div>
-          <label htmlFor="assign-observer" className="block text-xs text-muted">
+          <Label htmlFor="assign-observer" className="text-xs font-normal text-muted">
             Observer
-          </label>
-          <select
+          </Label>
+          <Select
             id="assign-observer"
             value={observerId}
             onChange={(event) => setObserverId(event.target.value)}
-            className="mt-1 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm"
+            className="mt-1"
           >
             <option value="">Select observer</option>
             {assessment.candidates.length > 0 && (
@@ -81,38 +85,29 @@ function AssignObserver({ assessment, onChanged }) {
                 ))}
               </optgroup>
             )}
-          </select>
+          </Select>
         </div>
         <div>
-          <label htmlFor="assign-date" className="block text-xs text-muted">
+          <Label htmlFor="assign-date" className="text-xs font-normal text-muted">
             Class date to observe
-          </label>
-          <select
-            id="assign-date"
-            value={date}
-            onChange={(event) => setDate(event.target.value)}
-            className="mt-1 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm"
-          >
+          </Label>
+          <Select id="assign-date" value={date} onChange={(event) => setDate(event.target.value)} className="mt-1">
             <option value="">Select a date</option>
             {dates.map((value) => (
               <option key={value} value={value}>
                 {formatDate(value)}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
-      <button
-        type="submit"
-        disabled={!observerId || !date || busy}
-        className="mt-3 rounded-md bg-utd-green px-4 py-2 text-sm font-medium text-primary-fg hover:bg-primary-hover disabled:opacity-50"
-      >
+      <Button type="submit" className="mt-3" disabled={!observerId || !date} loading={busy}>
         {busy ? "Assigning…" : "Assign observer"}
-      </button>
+      </Button>
       {error && (
-        <p role="alert" className="mt-3 rounded-md border border-utd-orange/40 bg-surface px-3 py-2 text-sm">
+        <Callout tone="danger" role="alert" className="mt-3">
           {error}
-        </p>
+        </Callout>
       )}
     </form>
   )
@@ -130,7 +125,7 @@ function CommitteeActions({ assessment, onChanged }) {
   if (!canAssign && !canPostpone) return null
 
   return (
-    <section className="mt-6 rounded-lg border border-line bg-surface p-6 shadow-xs">
+    <Card as="section" className="mt-6">
       <h2 className="text-base font-semibold">Committee actions</h2>
 
       {canAssign && (
@@ -152,7 +147,7 @@ function CommitteeActions({ assessment, onChanged }) {
           />
         </div>
       )}
-    </section>
+    </Card>
   )
 }
 

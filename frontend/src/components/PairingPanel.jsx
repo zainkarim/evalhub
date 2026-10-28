@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom"
 import {
   formatDate,
   formatDateTime,
@@ -8,6 +7,7 @@ import {
 } from "../lib/format"
 import { Field } from "./SectionInfo"
 import StatusBadge from "./StatusBadge"
+import { Button, Callout, Card } from "./ui"
 
 // One observer ↔ observee attempt: who, when, and sign-off state. Scheduled is
 // not Completed: Completed means the class happened and both signed off.
@@ -17,7 +17,7 @@ function PairingPanel({ observation, viewer, title = "Observer pairing" }) {
   const action = observation.status === "approved" && isParty ? "Sign off" : "Open record"
 
   return (
-    <section className="mt-6 rounded-lg border border-line bg-surface p-6 shadow-xs">
+    <Card as="section" className="mt-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <h2 className="text-base font-semibold">
           {title} · attempt {observation.attemptNo}
@@ -46,20 +46,17 @@ function PairingPanel({ observation, viewer, title = "Observer pairing" }) {
       </dl>
 
       {observation.status === "postponed" && (
-        <p className="mt-4 rounded-md border border-line bg-canvas px-4 py-3 text-sm">
+        <Callout tone="info" className="mt-4">
           This attempt was postponed. The reason is in the attempt history below.
-        </p>
+        </Callout>
       )}
 
       {(isParty || viewer?.role !== "faculty") && (
-        <Link
-          to={`/records/${observation.id}`}
-          className="mt-5 inline-block rounded-md border border-line px-4 py-2 text-sm font-medium text-utd-green hover:border-ink"
-        >
+        <Button variant="secondary" className="mt-5" to={`/records/${observation.id}`}>
           {action}
-        </Link>
+        </Button>
       )}
-    </section>
+    </Card>
   )
 }
 

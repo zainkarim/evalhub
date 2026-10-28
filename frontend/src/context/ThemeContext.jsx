@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { THEME_STORAGE_KEY, THEME_VALUES, ThemeContext } from "./theme-context"
 
 const DARK_QUERY = "(prefers-color-scheme: dark)"
-// The browser toolbar colour; matches --c-brand in index.css.
+// The browser toolbar colour (UTD Green, the same as --c-primary in light mode).
 const BAR_COLOR = { light: "#154734", dark: "#154734" }
 
 // Storage can throw (private window, blocked site data), so never trust it.

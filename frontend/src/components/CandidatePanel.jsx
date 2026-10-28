@@ -1,9 +1,7 @@
 import { ALERT, formatRank, fullName, OFFER_STATUS } from "../lib/format"
 import { waitingCopy } from "../lib/workflow"
 import StatusBadge from "./StatusBadge"
-
-const th = "px-4 py-3 font-medium"
-const td = "px-4 py-3"
+import { Callout, Card, Table, TableCard, Td, Th } from "./ui"
 
 // Candidates with their rank and school, and whether they have been asked yet.
 function CandidateTable({ candidates, offers = [] }) {
@@ -11,14 +9,14 @@ function CandidateTable({ candidates, offers = [] }) {
     offers.filter((offer) => offer.observerId === id).sort((a, b) => b.id - a.id)[0]
 
   return (
-    <div className="relative overflow-x-auto rounded-lg border border-line bg-surface shadow-xs">
-      <table className="w-full text-left text-sm">
-        <thead className="border-b border-line bg-canvas text-xs text-muted">
+    <TableCard>
+      <Table minWidth="30rem">
+        <thead>
           <tr>
-            <th className={th}>Professor</th>
-            <th className={th}>Rank</th>
-            <th className={th}>School</th>
-            <th className={th}>Request</th>
+            <Th>Professor</Th>
+            <Th>Rank</Th>
+            <Th>School</Th>
+            <Th>Request</Th>
           </tr>
         </thead>
         <tbody>
@@ -26,22 +24,22 @@ function CandidateTable({ candidates, offers = [] }) {
             const offer = latestOffer(candidate.id)
             return (
               <tr key={candidate.id} className="border-b border-line last:border-0">
-                <td className={td}>{fullName(candidate)}</td>
-                <td className={td}>{formatRank(candidate.rank)}</td>
-                <td className={td}>{candidate.school}</td>
-                <td className={td}>
+                <Td>{fullName(candidate)}</Td>
+                <Td>{formatRank(candidate.rank)}</Td>
+                <Td>{candidate.school}</Td>
+                <Td>
                   {offer ? (
                     <StatusBadge status={offer.status} map={OFFER_STATUS} />
                   ) : (
                     <span className="text-muted">Not asked</span>
                   )}
-                </td>
+                </Td>
               </tr>
             )
           })}
         </tbody>
-      </table>
-    </div>
+      </Table>
+    </TableCard>
   )
 }
 
@@ -52,7 +50,7 @@ function CandidatePanel({ assessment, committee, owner }) {
   const { candidateList: list, candidates, signupDeadline } = assessment
 
   return (
-    <section className="mt-6 rounded-lg border border-line bg-surface p-6 shadow-xs">
+    <Card as="section" className="mt-6">
       <h2 className="text-base font-semibold">Observer candidates</h2>
 
       {!list ? (
@@ -82,14 +80,11 @@ function CandidatePanel({ assessment, committee, owner }) {
           )}
 
           {list.listSize === 0 ? (
-            <div className="mt-4 rounded-md border border-utd-orange/40 bg-canvas px-4 py-3 text-sm">
-              <p className="font-medium">No eligible observers found.</p>
-              <p className="mt-1 text-muted">
-                {owner
-                  ? "The committee has been alerted and will assign someone."
-                  : "This is on the committee's alerts. Assign an observer below."}
-              </p>
-            </div>
+            <Callout tone="warning" title="No eligible observers found." className="mt-4">
+              {owner
+                ? "The committee has been alerted and will assign someone."
+                : "This is on the committee's alerts. Assign an observer below."}
+            </Callout>
           ) : (
             <div className="mt-4">
               <CandidateTable candidates={candidates} offers={assessment.offers} />
@@ -97,8 +92,7 @@ function CandidatePanel({ assessment, committee, owner }) {
           )}
         </>
       )}
-
-    </section>
+    </Card>
   )
 }
 

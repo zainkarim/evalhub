@@ -10,6 +10,7 @@ import SectionInfo from "../components/SectionInfo"
 import StateBlock from "../components/StateBlock"
 import Stepper from "../components/Stepper"
 import StatusBadge from "../components/StatusBadge"
+import { Callout, Card, PageHeader } from "../components/ui"
 import { useAuth } from "../context/auth-context"
 import { api } from "../lib/api"
 import {
@@ -49,55 +50,56 @@ function AssessmentDetail() {
 
   return (
     <div>
-      <Link to="/observations" className="text-sm text-muted hover:text-ink">
-        Back to observations
-      </Link>
+      <PageHeader
+        backTo={{ to: "/observations", label: "Back to observations" }}
+        title={
+          assessment
+            ? `${courseLabel(assessment.section.course)} · Section ${assessment.section.sectionNumber}`
+            : "Sign-up"
+        }
+        subtitle={
+          assessment && (
+            <>
+              {assessment.section.course.title}
+              {committeeView && (
+                <span className="mt-1 block">
+                  Professor:{" "}
+                  <Link
+                    to={`/professors/${assessment.teacherId}`}
+                    className="font-medium text-primary hover:underline"
+                  >
+                    {fullName(assessment.teacher)}
+                  </Link>
+                  <span>
+                    {" "}
+                    · {formatRank(assessment.teacher.rank)} · {assessment.teacher.school}
+                  </span>
+                </span>
+              )}
+            </>
+          )
+        }
+        action={assessment && <StatusBadge status={assessment.status} map={ASSESSMENT_STATUS} />}
+      />
 
-      <div className="mt-4">
+      {/* Every block below starts with its own top margin; the first one doesn't need it. */}
+      <div className="mt-6 [&>:first-child]:mt-0">
         <StateBlock loading={loading} error={error} onRetry={reload}>
           {assessment && (
             <>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h1 className="text-2xl font-semibold tracking-tight">
-                    {courseLabel(assessment.section.course)} · Section{" "}
-                    {assessment.section.sectionNumber}
-                  </h1>
-                  <p className="mt-1 text-muted">{assessment.section.course.title}</p>
-                  {committeeView && (
-                    <p className="mt-1 text-sm">
-                      Professor:{" "}
-                      <Link
-                        to={`/professors/${assessment.teacherId}`}
-                        className="font-medium text-utd-green hover:underline"
-                      >
-                        {fullName(assessment.teacher)}
-                      </Link>
-                      <span className="text-muted">
-                        {" "}
-                        · {formatRank(assessment.teacher.rank)} · {assessment.teacher.school}
-                      </span>
-                    </p>
-                  )}
-                </div>
-                <StatusBadge status={assessment.status} map={ASSESSMENT_STATUS} />
-              </div>
-
-              {assessment.alert && committeeView ? (
-                <p className="mt-5 rounded-md border border-utd-orange/40 bg-surface px-4 py-3 text-sm">
-                  <span className="font-medium text-warning">
-                    {ALERT[assessment.alert].label}.{" "}
-                  </span>
-                  {ALERT[assessment.alert].text}
-                </p>
-              ) : (
-                <p className="mt-5 text-sm text-muted">
-                  {owner ? "Next: " : "Status: "}
-                  <span className="font-medium text-ink">{nextStep(assessment)}</span>
-                </p>
-              )}
-
-              <Stepper assessment={assessment} />
+              <Card>
+                {assessment.alert && committeeView ? (
+                  <Callout tone="warning" title={`${ALERT[assessment.alert].label}.`}>
+                    {ALERT[assessment.alert].text}
+                  </Callout>
+                ) : (
+                  <p className="text-sm text-muted">
+                    {owner ? "Next: " : "Status: "}
+                    <span className="font-medium text-ink">{nextStep(assessment)}</span>
+                  </p>
+                )}
+                <Stepper assessment={assessment} />
+              </Card>
 
               <SectionInfo
                 section={assessment.section}
@@ -107,31 +109,25 @@ function AssessmentDetail() {
 
               {shown && <PairingPanel observation={shown} viewer={user} />}
 
-              <CandidatePanel
-                assessment={assessment}
-                committee={committeeView}
-                owner={owner}
-              />
+              <CandidatePanel assessment={assessment} committee={committeeView} owner={owner} />
 
               {committeeView && (
-                <section className="mt-6 rounded-lg border border-line bg-surface p-6 shadow-xs">
+                <Card as="section" className="mt-6">
                   <h2 className="text-base font-semibold">Request and schedule</h2>
                   <div className="mt-3">
                     <ObserverSummary assessment={assessment} showCandidates={false} />
                   </div>
-                </section>
+                </Card>
               )}
 
               {canRequest && <RequestPanel assessment={assessment} onChanged={reload} />}
 
-              {committeeView && (
-                <CommitteeActions assessment={assessment} onChanged={reload} />
-              )}
+              {committeeView && <CommitteeActions assessment={assessment} onChanged={reload} />}
               {committee && owner && (
-                <p className="mt-6 rounded-lg border border-line bg-surface px-5 py-4 text-sm text-muted shadow-xs">
+                <Card className="mt-6 text-sm text-muted">
                   This is your own sign-up, so another committee member handles any manual
                   assignment.
-                </p>
+                </Card>
               )}
 
               <AttemptHistory attempts={assessment.attempts} />

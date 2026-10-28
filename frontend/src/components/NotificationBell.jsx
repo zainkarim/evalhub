@@ -17,6 +17,7 @@ function NotificationBell() {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const wrapper = useRef(null)
+  const trigger = useRef(null)
 
   // Refresh on navigation and after any change in the app (every POST/PATCH,
   // including marking notifications read, fires CHANGED_EVENT).
@@ -41,19 +42,25 @@ function NotificationBell() {
     }
   }, [location.pathname])
 
-  // Close on a click outside the panel or on Escape.
+  // Same behaviour as the account menu: a click or focus outside closes the panel,
+  // and Escape closes it and puts focus back on the bell.
   useEffect(() => {
     if (!open) return undefined
     const onClick = (event) => {
       if (wrapper.current && !wrapper.current.contains(event.target)) setOpen(false)
     }
     const onKey = (event) => {
-      if (event.key === "Escape") setOpen(false)
+      if (event.key === "Escape") {
+        setOpen(false)
+        trigger.current?.focus()
+      }
     }
     document.addEventListener("mousedown", onClick)
+    document.addEventListener("focusin", onClick)
     document.addEventListener("keydown", onKey)
     return () => {
       document.removeEventListener("mousedown", onClick)
+      document.removeEventListener("focusin", onClick)
       document.removeEventListener("keydown", onKey)
     }
   }, [open])
@@ -86,6 +93,7 @@ function NotificationBell() {
   return (
     <div ref={wrapper} className="relative">
       <button
+        ref={trigger}
         type="button"
         onClick={() => setOpen((current) => !current)}
         aria-haspopup="true"
@@ -106,7 +114,7 @@ function NotificationBell() {
         <div
           role="dialog"
           aria-label="Notifications"
-          className="fixed inset-x-4 top-[4.25rem] z-50 overflow-hidden rounded-lg border border-line bg-surface text-ink shadow-lg sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80"
+          className="fixed inset-x-4 top-[4.25rem] z-50 overflow-hidden rounded-card border border-line bg-surface text-ink shadow-lg sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80"
         >
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <h3 className="text-sm font-semibold">Notifications</h3>

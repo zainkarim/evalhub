@@ -333,11 +333,11 @@ function UiGallery() {
   return (
     <div data-gallery="evalhub-ui-gallery-dev-only" className="min-h-screen font-sans text-ink">
       <Starfield variant="app" />
-      <header className="brand-bar bg-brand text-white">
+      <header className="border-b border-line bg-surface text-ink">
         <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-4 px-4 py-4 sm:px-6">
           <div className="min-w-0">
             <h1 className="text-lg font-semibold tracking-tight">UI kit gallery</h1>
-            <p className="text-xs text-white/90">Dev only. This page is not part of the production build.</p>
+            <p className="text-xs text-muted">Dev only. This page is not part of the production build.</p>
           </div>
           <label className="ml-auto flex items-center gap-2 text-sm">
             <input type="checkbox" checked={pageBar} onChange={(event) => setPageBar(event.target.checked)} />

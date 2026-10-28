@@ -22,7 +22,6 @@
   --c-primary: #154734; /* UTD Green */
   --c-primary-hover: #1d5c44;
   --c-primary-fg: #ffffff;
-  --c-brand: #154734; /* the header bar: always dark enough for white text */
   --c-accent: #e87500; /* UTD Orange: fills, underlines, dots (dark text on it) */
   --c-accent-ink: #b25210; /* darker orange for orange TEXT (4.5:1 on light surfaces) */
   --c-accent-fg: #1a0c02;
@@ -68,7 +67,6 @@
   --c-primary: #5fe0b7; /* UTD secondary (silverleaf) */
   --c-primary-hover: #86ebcb;
   --c-primary-fg: #04140b;
-  --c-brand: #154734;
   --c-accent: #e87500;
   --c-accent-ink: #e87500;
   --c-accent-fg: #1a0c02;
@@ -106,7 +104,6 @@
   --color-primary: var(--c-primary);
   --color-primary-hover: var(--c-primary-hover);
   --color-primary-fg: var(--c-primary-fg);
-  --color-brand: var(--c-brand);
   --color-accent: var(--c-accent);
   --color-accent-ink: var(--c-accent-ink);
   --color-accent-fg: var(--c-accent-fg);
@@ -121,13 +118,6 @@
   --color-warning-soft: var(--c-warning-soft);
   --color-danger-soft: var(--c-danger-soft);
   --color-info-soft: var(--c-info-soft);
-
-  /* Old names, kept so existing pages keep working until they are migrated
-     (removed in Step 8). utd-green-dark was only ever used as text by now. */
-  --color-canvas: var(--c-bg);
-  --color-utd-green: var(--c-primary);
-  --color-utd-green-dark: var(--c-success);
-  --color-utd-orange: var(--c-accent);
 
   /* Inter Variable is bundled by @fontsource-variable/inter (no CDN). Falls back
      to the system UI font while loading. */
@@ -212,11 +202,6 @@ tbody tr:hover {
    just be noise. (Tailwind's outline-none can't win against the unlayered rule above.) */
 #main-content:focus-visible {
   outline: none;
-}
-
-/* On the green brand bar the focus ring is white so it stays visible. */
-.brand-bar :focus-visible {
-  outline-color: white;
 }
 
 /* The Starfield canvas: the sky itself is this CSS background (so a theme switch

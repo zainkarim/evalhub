@@ -6,7 +6,7 @@ function EmptyState({ icon: Icon, title, text, action, compact = false, titleAs:
   return (
     <div
       className={cx(
-        "rounded-card border border-dashed border-line bg-surface/60 text-center",
+        "rounded-card border border-dashed border-line bg-surface text-center",
         compact ? "px-4 py-6" : "px-6 py-12",
         className,
       )}

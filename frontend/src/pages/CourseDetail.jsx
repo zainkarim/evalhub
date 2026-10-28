@@ -1,6 +1,7 @@
 import { useCallback } from "react"
-import { Link, useParams } from "react-router-dom"
+import { useParams } from "react-router-dom"
 import StateBlock from "../components/StateBlock"
+import { Card, CardBody, CardHeader, EmptyState, PageHeader, Table, TableCard, Td, Th } from "../components/ui"
 import { api } from "../lib/api"
 import { formatTerm } from "../lib/format"
 import { useApi } from "../lib/useApi"
@@ -39,100 +40,54 @@ function CourseDetail() {
   const { data: course, error, loading, reload } = useApi(call)
 
   return (
-    <div>
-      <Link
-        to="/courses"
-        className="text-sm text-muted hover:text-ink"
-      >
-        Back to courses
-      </Link>
+    <div className="space-y-6">
+      <PageHeader
+        backTo={{ to: "/courses", label: "Back to courses" }}
+        title={course ? `${course.subject} ${course.courseNumber}` : "Course"}
+        subtitle={course?.title}
+      />
 
-      <div className="mt-4">
-        <StateBlock
-          loading={loading}
-          error={error}
-          onRetry={reload}
-        >
-          {course && (
-            <>
-              <h1 className="text-2xl font-semibold tracking-tight">
-                {course.subject} {course.courseNumber}
-              </h1>
-
-              <p className="mt-1 text-muted">
-                {course.title}
-              </p>
-
-              <section className="mt-8 rounded-lg border border-line bg-surface p-6 shadow-xs">
-                <h2 className="text-base font-semibold">
-                  Course Sections
-                </h2>
-
-                {course.sections?.length ? (
-                  <div className="relative mt-4 overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                      <thead className="border-b border-line text-xs text-muted">
-                        <tr>
-                          <th className="px-3 py-2 font-medium">
-                            Term
-                          </th>
-                          <th className="px-3 py-2 font-medium">
-                            Section
-                          </th>
-                          <th className="px-3 py-2 font-medium">
-                            Meeting Days
-                          </th>
-                          <th className="px-3 py-2 font-medium">
-                            Meeting Time
-                          </th>
-                          <th className="px-3 py-2 font-medium">
-                            Location
-                          </th>
+      <StateBlock loading={loading} error={error} onRetry={reload} skeleton="table">
+        {course && (
+          <Card padded={false}>
+            <CardHeader title="Course Sections" />
+            <CardBody className="pb-6">
+              {course.sections?.length ? (
+                <TableCard>
+                  <Table minWidth="36rem">
+                    <thead>
+                      <tr>
+                        <Th>Term</Th>
+                        <Th>Section</Th>
+                        <Th>Meeting Days</Th>
+                        <Th>Meeting Time</Th>
+                        <Th>Location</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {course.sections.map((section) => (
+                        <tr key={section.id} className="border-b border-line last:border-0">
+                          <Td>{section.termName}</Td>
+                          <Td>{section.sectionNumber}</Td>
+                          <Td>{section.meetingDays ?? "—"}</Td>
+                          <Td>
+                            {section.startTime && section.endTime
+                              ? `${section.startTime}–${section.endTime}`
+                              : "—"}
+                          </Td>
+                          <Td>{section.location ?? "—"}</Td>
                         </tr>
-                      </thead>
-
-                      <tbody>
-                        {course.sections.map((section) => (
-                          <tr
-                            key={section.id}
-                            className="border-b border-line last:border-0"
-                          >
-                            <td className="px-3 py-3">
-                              {section.termName}
-                            </td>
-
-                            <td className="px-3 py-3">
-                              {section.sectionNumber}
-                            </td>
-
-                            <td className="px-3 py-3">
-                              {section.meetingDays ?? "—"}
-                            </td>
-
-                            <td className="px-3 py-3">
-                              {section.startTime && section.endTime
-                                ? `${section.startTime}–${section.endTime}`
-                                : "—"}
-                            </td>
-
-                            <td className="px-3 py-3">
-                              {section.location ?? "—"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <p className="mt-4 text-sm text-muted">
-                    No sections currently available for this course.
-                  </p>
-                )}
-              </section>
-            </>
-          )}
-        </StateBlock>
-      </div>
+                      ))}
+                    </tbody>
+                  </Table>
+                </TableCard>
+              ) : (
+                <EmptyState compact titleAs="p" title="No sections currently available for this course" />
+              )}
+            </CardBody>
+          </Card>
+        )}
+      </StateBlock>
     </div>
   )
 }
