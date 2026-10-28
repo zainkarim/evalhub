@@ -13,6 +13,33 @@ import { Button, Card } from "../components/ui"
 import { useAuth } from "../context/auth-context"
 
 const INTRO_MS = 3500
+const TITLE_FONT = '700 1em "Space Grotesk Variable"'
+const FONT_WAIT_MS = 300
+
+// True once the title font can be drawn. The intro waits for it (at most FONT_WAIT_MS), so
+// the letters are never measured, parked and animated in a fallback font and then swapped.
+function useTitleFont(needed) {
+  const [ready, setReady] = useState(() => {
+    if (!needed || !document.fonts) return true
+    try {
+      return document.fonts.check(TITLE_FONT)
+    } catch {
+      return true
+    }
+  })
+  useEffect(() => {
+    if (ready) return undefined
+    let live = true
+    const done = () => live && setReady(true)
+    const timer = window.setTimeout(done, FONT_WAIT_MS)
+    document.fonts.load(TITLE_FONT).then(done, done)
+    return () => {
+      live = false
+      window.clearTimeout(timer)
+    }
+  }, [ready])
+  return ready
+}
 
 // Fade + small rise when the block scrolls into view (once).
 function Reveal({ children, delay = 0, className }) {
@@ -58,6 +85,7 @@ function LandingPage() {
   const reduced = useReducedMotion()
   const [playing, setPlaying] = useState(() => !reduced)
   const [skipped, setSkipped] = useState(false)
+  const fontReady = useTitleFont(playing)
 
   const skip = useCallback(() => {
     setSkipped(true)
@@ -65,20 +93,23 @@ function LandingPage() {
   }, [])
 
   useEffect(() => {
-    // Wait for the session check: nothing is on screen until it is done.
-    if (!playing || restoring) return undefined
+    // Wait for the session check and the font: nothing is on screen until both are done.
+    if (!playing || restoring || !fontReady) return undefined
     const timer = window.setTimeout(() => setPlaying(false), INTRO_MS)
     return () => window.clearTimeout(timer)
-  }, [playing, restoring])
+  }, [playing, restoring, fontReady])
 
   if (restoring) return <div className="min-h-screen" />
   if (user) return <Navigate to="/" replace />
 
   return (
     <div className="relative overflow-x-clip font-sans text-ink">
-      <Starfield variant="hero" />
-      {/* Changing the key rebuilds the page in its final state (that is how a skip lands). */}
-      <div key={skipped ? "final" : "intro"}>
+      {/* No starfield comet until the intro is over: the big intro comet is the only one. */}
+      <Starfield variant="hero" quietMs={INTRO_MS + 1500} />
+      {/* Changing the key rebuilds the page in its final state (that is how a skip lands).
+          Until the font is ready only the sky shows, then the page is first painted in the
+          intro's start state (no flash of the final title). */}
+      {fontReady && <div key={skipped ? "final" : "intro"}>
         <a
           href="#main-content"
           onClick={(event) => {
@@ -170,7 +201,7 @@ function LandingPage() {
             </div>
           </div>
         </footer>
-      </div>
+      </div>}
     </div>
   )
 }

@@ -95,7 +95,7 @@ function parseHex(value, fallback) {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
 }
 
-export function createStarfield(canvas, { variant = "app" } = {}) {
+export function createStarfield(canvas, { variant = "app", quietMs = 0 } = {}) {
   const config = VARIANTS[variant] ?? VARIANTS.app
   const ctx = canvas.getContext("2d")
   const allStars = makeStars(config.max)
@@ -119,6 +119,7 @@ export function createStarfield(canvas, { variant = "app" } = {}) {
   let resizeTimer = 0
   let destroyed = false
   let reduced = reducedQuery.matches
+  const quietUntil = performance.now() + quietMs // no comet before this moment
 
   const devStats = import.meta.env.DEV ? { frames: 0, drawMs: 0, comets: 0 } : null
   if (devStats) canvas.__starfieldStats = devStats
@@ -272,7 +273,7 @@ export function createStarfield(canvas, { variant = "app" } = {}) {
   function scheduleComet(now) {
     const [min, max] = config.comet
     const scale = theme === "light" ? 2 : 1 // rarer in light mode
-    nextCometAt = now + randomBetween(min, max) * scale
+    nextCometAt = Math.max(now + randomBetween(min, max) * scale, quietUntil)
   }
 
   function startComet(now) {

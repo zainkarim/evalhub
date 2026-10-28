@@ -5,7 +5,8 @@ import GoldStar from "../brand/GoldStar"
 // they never sit over a letter). Each one scales in 0 -> 1.15 -> 1 while turning about
 // 15 degrees, holds, then twinkles out once; they are staggered by ~110 ms. Intro
 // only: they are not rendered in the final state. Decorative (aria-hidden); the
-// motion is transform and opacity only.
+// motion is transform and opacity only (will-change is on while they exist, which is
+// only during the intro).
 const SPARKLES = [
   { top: "-9%", left: "3%", size: 16 },
   { top: "-12%", left: "46%", size: 9 },
@@ -24,7 +25,7 @@ function Sparkles({ start = 1.5 }) {
       {SPARKLES.map((item, index) => (
         <m.span
           key={index}
-          className="absolute"
+          className="absolute will-change-transform"
           style={{ top: item.top, left: item.left }}
           initial={{ opacity: 0, scale: 0, rotate: -15 }}
           animate={{

@@ -54,7 +54,7 @@
      Decorative only, never text. The glow tokens are complete drop-shadow() values. */
   --c-gold: #d98a12;
   --c-gold-core: #f7c25a;
-  --c-gold-glow: drop-shadow(0 0 4px rgb(217 138 18 / 0.25));
+  --c-gold-halo: 0.22; /* opacity of the soft halo behind a sparkle (a gradient, not a filter) */
   --c-logo-glow: 0; /* the soft halo around the logo comet: dark mode only */
 
   /* Logo (components/brand): the E, the constellation lines, and the flat "Hub"
@@ -72,7 +72,10 @@
   --wm-silver-solid: #28312d;
   --wm-hub: linear-gradient(to bottom, #cc6008 14%, #bd560c 52%, #a8480c 85%);
   --wm-hub-solid: #b25210;
-  --wm-hub-glow: drop-shadow(0 0 10px rgb(232 117 0 / 0.18));
+  /* The glow behind "Hub" is a pre-blurred copy of the letters (.wm-glow-layer), not a
+     drop-shadow filter: it is blurred once and only its opacity ever changes. */
+  --wm-glow-blur: 0.05em;
+  --wm-glow-opacity: 0.22;
 
   /* The whole sky (glows + gradient) as one background value, shared by the
      starfield canvas and by .sky-scrim so a scrim matches the sky exactly. */
@@ -121,7 +124,7 @@
 
   --c-gold: #fcaa2d;
   --c-gold-core: #ffe2a8;
-  --c-gold-glow: drop-shadow(0 0 6px rgb(252 170 45 / 0.6));
+  --c-gold-halo: 0.5;
   --c-logo-glow: 0.5;
 
   --c-logo-e-top: #26845f;
@@ -134,7 +137,8 @@
   --wm-silver-solid: #e6e9ec;
   --wm-hub: linear-gradient(to bottom, #f7b04f 14%, #e87500 52%, #c2580a 85%);
   --wm-hub-solid: #e87500;
-  --wm-hub-glow: drop-shadow(0 0 18px rgb(232 117 0 / 0.45));
+  --wm-glow-blur: 0.09em;
+  --wm-glow-opacity: 0.55;
 
   --shadow-rgb: 0 0 0;
   color-scheme: dark;
@@ -299,9 +303,13 @@ tbody tr:hover {
     background-image: var(--wm-hub);
   }
 }
-/* The glow lives on the parent of the (clipped) letters, so the cut does not clip it. */
-.wm-hub-glow {
-  filter: var(--wm-hub-glow);
+/* The glow behind the hero "Hub": a copy of the letters (cut H included) in UTD orange,
+   blurred once (a static filter on a layer that never changes) and faded in with its
+   opacity. Nothing ever animates a filter, so the intro costs no per-frame blur. */
+.wm-glow-layer {
+  color: rgb(232 117 0);
+  filter: blur(var(--wm-glow-blur));
+  opacity: var(--wm-glow-opacity);
 }
 @media (forced-colors: active) {
   .wm-silver,
@@ -310,8 +318,8 @@ tbody tr:hover {
     color: CanvasText;
     -webkit-text-fill-color: currentcolor;
   }
-  .wm-hub-glow {
-    filter: none;
+  .wm-glow-layer {
+    display: none;
   }
 }
 

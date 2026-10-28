@@ -19,7 +19,7 @@ function Comet({ from, to, length, delay = 0.2, duration = 1.6 }) {
       height={height}
       viewBox="0 0 300 16"
       preserveAspectRatio="none"
-      className="pointer-events-none fixed left-0 top-0 z-10 overflow-visible"
+      className="pointer-events-none fixed left-0 top-0 z-10 overflow-visible will-change-transform"
       style={{ originX: 1, originY: 0.5 }}
       initial={{ x: from.x - length, y: from.y - height / 2, rotate: angle }}
       animate={{ x: to.x - length, y: to.y - height / 2, rotate: angle }}

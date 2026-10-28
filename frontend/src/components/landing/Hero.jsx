@@ -8,23 +8,21 @@ import Sparkles from "./Sparkles"
 
 const EVAL = "Eval".split("")
 const HUB = "Hub".split("")
-const INTRO_SCALE = 1.45
 
 // One letter of the title. Every letter is its own inline-block with line-height 1 (see
 // .wm-letter in index.css), so the vertical gradient is identical across the word. With
-// `playing` it blurs and rises in; the "Hub" letters start dim and ignite (the glow on
-// their wrapper follows their opacity).
+// `playing` it rises in and fades in (opacity and a transform, nothing else: no filter
+// is ever animated); the "Hub" letters start dim and ignite with an opacity ramp.
 function Letter({ char, index, playing, hub }) {
   const start = hub ? 1.45 : 1.1
   return (
     <m.span
       aria-hidden="true"
       className={`wm-letter ${hub ? "wm-hub" : "wm-silver"} ${hub && index === 0 ? "wm-h" : ""}`}
-      initial={playing ? { opacity: 0, y: 12, filter: "blur(8px)" } : false}
+      initial={playing ? { opacity: 0, y: 12 } : false}
       animate={{
         opacity: hub && playing ? [0, 0.35, 1] : 1,
         y: 0,
-        filter: "blur(0px)",
       }}
       transition={{
         delay: start + index * (hub ? 0.08 : 0.07),
@@ -40,11 +38,12 @@ function Letter({ char, index, playing, hub }) {
 
 // The first screen. Its final state is what the DOM always contains (h1,
 // headline, subtext, buttons). While the intro plays, `playing` is true and:
-//  - the wordmark group is parked in the middle of the screen and a bit larger
-//    (a transform, set before the first paint), then slides to its own place at
-//    2.8 s (Web Animations API, transform only, so nothing reflows);
+//  - the lockup is parked in the middle of the screen at its final size (a translate,
+//    set before the first paint), then slides up to its own place at 2.8 s (Web
+//    Animations API). It is only ever translated, never scaled, so the text is
+//    rasterised once and never goes soft and snaps sharp;
 //  - the letters, tagline, sparkles and the rest of the hero fade in on a timeline.
-// With `playing` false (skipped, seen before, or reduced motion) nothing animates.
+// With `playing` false (skipped, reduced motion) nothing animates.
 function Hero({ playing }) {
   const groupRef = useRef(null)
 
@@ -52,12 +51,25 @@ function Hero({ playing }) {
     if (!playing) return undefined
     const element = groupRef.current
     const rect = element.getBoundingClientRect()
-    const dy = window.innerHeight / 2 - (rect.top + rect.height / 2)
+    // Whole pixels, so the layer is never resampled between the start and the end.
+    const dy = Math.round(window.innerHeight / 2 - (rect.top + rect.height / 2))
+    // will-change only while it moves. React runs effects twice in development: the cleanup
+    // cancels and clears everything, so a second run starts from scratch.
+    const release = () => {
+      element.style.removeProperty("will-change")
+      if (!element.getAttribute("style")) element.removeAttribute("style") // same DOM as a skipped page
+    }
+    element.style.willChange = "transform"
     const animation = element.animate(
-      [{ transform: `translateY(${dy}px) scale(${INTRO_SCALE})` }, { transform: "none" }],
+      [{ transform: `translateY(${dy}px)` }, { transform: "none" }],
       { delay: 2800, duration: 700, easing: "cubic-bezier(0.3, 0, 0.2, 1)", fill: "both" },
     )
-    return () => animation.cancel()
+    animation.onfinish = release
+    return () => {
+      animation.onfinish = null
+      animation.cancel()
+      release()
+    }
   }, [playing])
 
   const scrollToHowItWorks = (event) => {
@@ -96,7 +108,23 @@ function Hero({ playing }) {
                   <Letter key={index} char={char} index={index} playing={playing} />
                 ))}
               </span>
-              <span aria-hidden="true" className="wm-hub-glow relative inline-block align-baseline">
+              <span aria-hidden="true" className="relative isolate inline-block align-baseline">
+                {/* The glow: a pre-blurred copy of the letters behind them (see .wm-glow-layer);
+                    only its opacity fades in, after the letters ignite. */}
+                <m.span
+                  className="pointer-events-none absolute inset-0 -z-10"
+                  initial={playing ? { opacity: 0 } : false}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 1.9, duration: 0.5, ease: "easeOut" }}
+                >
+                  <span className="wm-glow-layer absolute inset-0">
+                    {HUB.map((char, index) => (
+                      <span key={index} className={`wm-letter ${index === 0 ? "wm-h" : ""}`}>
+                        {char}
+                      </span>
+                    ))}
+                  </span>
+                </m.span>
                 {HUB.map((char, index) => (
                   <Letter key={index} char={char} index={index} playing={playing} hub />
                 ))}

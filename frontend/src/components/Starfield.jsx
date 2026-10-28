@@ -8,11 +8,12 @@ import { createStarfield } from "../lib/starfield"
 //
 // variant "hero" is the denser sky for the login page. Text on top of the sky
 // needs a surface or a .sky-scrim (checked in dev by lib/skyTextCheck.js).
-function Starfield({ variant = "app" }) {
+// `quietMs` holds back the first comet for that long (the landing intro has its own).
+function Starfield({ variant = "app", quietMs = 0 }) {
   const canvasRef = useRef(null)
 
   useEffect(() => {
-    const engine = createStarfield(canvasRef.current, { variant })
+    const engine = createStarfield(canvasRef.current, { variant, quietMs })
     // Dev only: the check is imported lazily, so it never reaches the production bundle.
     let stopCheck = () => {}
     let cancelled = false
@@ -26,7 +27,7 @@ function Starfield({ variant = "app" }) {
       stopCheck()
       engine.destroy()
     }
-  }, [variant])
+  }, [variant, quietMs])
 
   return (
     <canvas
