@@ -1,3 +1,4 @@
+import { Suspense, lazy } from "react"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 import Layout from "./components/Layout"
 import ProtectedRoute from "./components/ProtectedRoute"
@@ -30,12 +31,26 @@ function Home() {
   return <Navigate to={isAC(user) ? "/cycle" : "/observations"} replace />
 }
 
+// Dev-only UI kit gallery. The guard makes the import dead code in a production
+// build, so the page never ships.
+const UiGallery = import.meta.env.DEV ? lazy(() => import("./pages/dev/UiGallery")) : null
+
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
+          {import.meta.env.DEV && (
+            <Route
+              path="/dev/ui"
+              element={
+                <Suspense fallback={null}>
+                  <UiGallery />
+                </Suspense>
+              }
+            />
+          )}
 
           <Route
             element={

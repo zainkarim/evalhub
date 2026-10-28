@@ -9,7 +9,8 @@
    the Tailwind names mapped below (bg-surface, text-muted, ...), so a theme
    change needs no per-component work. Contrast was checked at >= 4.5:1 for
    ink/muted on bg/surface/surface-2 and primary-fg on primary. */
-:root {
+:root,
+.light {
   --c-bg: #f5f7f5;
   --c-surface: #ffffff;
   --c-surface-2: #eef2ef;
@@ -21,13 +22,15 @@
   --c-primary-hover: #006b36;
   --c-primary-fg: #ffffff;
   --c-brand: #006b36; /* the header bar: always dark enough for white text */
-  --c-accent: #c75b12; /* UTD orange: highlights only */
+  --c-accent: #b25210; /* UTD orange (#c75b12 darkened to reach 4.5:1 on every light surface) */
   --c-accent-fg: #ffffff;
+  --c-accent-soft: #fdf3ea;
 
   --c-success: #006b36;
   --c-warning: #a84a0c;
   --c-danger: #b42318;
   --c-info: #075985;
+  --c-danger-fg: #ffffff;
   --c-success-soft: #e8f5ee;
   --c-warning-soft: #fdf0e6;
   --c-danger-soft: #fdecea;
@@ -51,11 +54,13 @@
   --c-brand: #0b4a2b;
   --c-accent: #f2812f;
   --c-accent-fg: #1a0c02;
+  --c-accent-soft: #2d1c0f;
 
   --c-success: #4cc98a;
   --c-warning: #f2994a;
   --c-danger: #ff8a80;
   --c-info: #6cb8ee;
+  --c-danger-fg: #2a0705;
   --c-success-soft: #12281d;
   --c-warning-soft: #2d1c0f;
   --c-danger-soft: #2f1514;
@@ -79,10 +84,12 @@
   --color-brand: var(--c-brand);
   --color-accent: var(--c-accent);
   --color-accent-fg: var(--c-accent-fg);
+  --color-accent-soft: var(--c-accent-soft);
 
   --color-success: var(--c-success);
   --color-warning: var(--c-warning);
   --color-danger: var(--c-danger);
+  --color-danger-fg: var(--c-danger-fg);
   --color-info: var(--c-info);
   --color-success-soft: var(--c-success-soft);
   --color-warning-soft: var(--c-warning-soft);
