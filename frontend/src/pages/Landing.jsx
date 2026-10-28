@@ -75,7 +75,7 @@ function LandingPage() {
   if (user) return <Navigate to="/" replace />
 
   return (
-    <div className="relative font-sans text-ink">
+    <div className="relative overflow-x-clip font-sans text-ink">
       <Starfield variant="hero" />
       {/* Changing the key rebuilds the page in its final state (that is how a skip lands). */}
       <div key={skipped ? "final" : "intro"}>
