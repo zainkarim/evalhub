@@ -237,7 +237,11 @@ function MyActivity({ user }) {
   const call = useCallback(async () => {
     const [signUps, incoming, observations] = await Promise.all([
       api.myAssessments(),
-      api.incomingRequests(),
+            // GET /time-options/incoming isn't on the real backend yet (#74); treat 404 as no requests.
+      api.incomingRequests().catch((err) => {
+        if (err.status === 404) return { data: [] }
+        throw err
+      }),
       api.listObservations(),
     ])
     const mine = (observations.data ?? []).filter((item) =>
@@ -281,9 +285,11 @@ function MyActivity({ user }) {
                     {data.signUps.map((item) => (
                       <tr key={item.id} className="border-b border-line last:border-0">
                         <td className={td}>
-                          {courseLabel(item.section.course)}
+                                                    {item.section ? courseLabel(item.section.course) : (item.courseCode ?? "Unknown course")}
                           <span className="block text-muted">
-                            {formatTerm(item.section.term)} · Section {item.section.sectionNumber}
+                            {item.section
+                              ? `${formatTerm(item.section.term)} · Section ${item.section.sectionNumber}`
+                              : (item.sectionCode ?? "—")}
                           </span>
                         </td>
                         <td className={td}>
