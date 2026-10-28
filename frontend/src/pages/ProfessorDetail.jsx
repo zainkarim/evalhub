@@ -55,7 +55,7 @@ function ObservationList({ title, empty, rows }) {
           {rows.map((row) => (
             <li key={row.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
               <span className="min-w-0">
-                <Link to={`/records/${row.id}`} className="font-medium text-primary hover:underline">
+                <Link to={`/records/${row.id}`} className="font-medium text-primary-ink hover:underline">
                   {row.course}
                 </Link>
                 <span className="text-muted">
@@ -146,7 +146,7 @@ function ProfessorDetail() {
                     aria-valuenow={Math.min(load.count, load.cap)}
                   >
                     <div
-                      className={`h-2 rounded ${load.count >= load.cap ? "bg-accent" : "bg-primary"}`}
+                      className={`h-2 rounded ${load.count >= load.cap ? "bg-accent" : "bg-primary-ink"}`}
                       style={{ width: `${Math.min(load.count / load.cap, 1) * 100}%` }}
                     />
                   </div>
@@ -238,7 +238,7 @@ function ProfessorDetail() {
                     <span className="min-w-0">
                       <Link
                         to={`/assessments/${data.signUp.assessmentId}`}
-                        className="font-medium text-primary hover:underline"
+                        className="font-medium text-primary-ink hover:underline"
                       >
                         {summary.signUp.course} · Section {summary.signUp.section}
                       </Link>

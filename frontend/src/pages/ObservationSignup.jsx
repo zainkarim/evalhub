@@ -288,7 +288,7 @@ function ObservationSignup() {
                   This section already has an observation sign-up.{" "}
                   <Link
                     to={`/assessments/${selected.signUp.id}`}
-                    className="font-medium text-primary hover:underline"
+                    className="font-medium text-primary-ink hover:underline"
                   >
                     View it
                   </Link>

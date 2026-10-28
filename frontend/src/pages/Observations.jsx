@@ -118,7 +118,7 @@ function AllSignUps() {
               {rows.map((item) => (
                 <tr key={item.id} className="border-b border-line last:border-0">
                   <Td>
-                    <Link to={`/professors/${item.teacherId}`} className="font-medium text-primary hover:underline">
+                    <Link to={`/professors/${item.teacherId}`} className="font-medium text-primary-ink hover:underline">
                       {fullName(item.teacher)}
                     </Link>
                   </Td>
@@ -153,7 +153,7 @@ function AllSignUps() {
                   <Td>
                     <Link
                       to={`/assessments/${item.id}`}
-                      className="whitespace-nowrap font-medium text-primary hover:underline"
+                      className="whitespace-nowrap font-medium text-primary-ink hover:underline"
                     >
                       Open
                     </Link>
@@ -219,7 +219,7 @@ function MyActivity({ user }) {
                         <Td>
                           <Link
                             to={`/assessments/${item.id}`}
-                            className="whitespace-nowrap font-medium text-primary hover:underline"
+                            className="whitespace-nowrap font-medium text-primary-ink hover:underline"
                           >
                             Open
                           </Link>

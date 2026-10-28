@@ -105,7 +105,7 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
             aria-label="Questions rated"
           >
             <span
-              className="block h-full rounded-full bg-primary transition-[width] duration-300 motion-reduce:transition-none"
+              className="block h-full rounded-full bg-primary-ink transition-[width] duration-300 motion-reduce:transition-none"
               style={{ width: `${percent}%` }}
             />
           </span>
@@ -153,7 +153,7 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
                     return (
                       <label
                         key={step}
-                        className={`flex h-9 w-10 items-center justify-center border-l border-line text-sm tabular-nums first:border-l-0 has-[:focus-visible]:relative has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-primary ${
+                        className={`flex h-9 w-10 items-center justify-center border-l border-line text-sm tabular-nums first:border-l-0 has-[:focus-visible]:relative has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-primary-ink ${
                           selected
                             ? "bg-primary font-semibold text-primary-fg"
                             : preview

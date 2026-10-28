@@ -22,7 +22,7 @@ function Cell({ column, row, termId }) {
     case "name":
       return (
         <div className="min-w-[11rem]">
-          <Link to={`/professors/${row.id}?termId=${termId}`} className="font-medium text-primary hover:underline">
+          <Link to={`/professors/${row.id}?termId=${termId}`} className="font-medium text-primary-ink hover:underline">
             {row.firstName} {row.lastName}
           </Link>
           <span className="block break-words text-muted">{row.email}</span>
@@ -60,7 +60,7 @@ function Cell({ column, row, termId }) {
       return (
         <>
           <StatusBadge status={row.isActive ? "active" : "inactive"} map={ACTIVE_STATUS} />
-          <Link to={`/professors/${row.id}/edit`} className="mt-1 block text-xs font-medium text-primary hover:underline">
+          <Link to={`/professors/${row.id}/edit`} className="mt-1 block text-xs font-medium text-primary-ink hover:underline">
             Edit
             <span className="sr-only">
               {" "}

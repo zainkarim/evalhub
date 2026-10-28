@@ -21,7 +21,7 @@ function SectionInfo({ section, instructor, className = "" }) {
       <Field label="Course">
         <Link
           to={`/courses/${section.course?.id}`}
-          className="font-medium text-primary hover:underline"
+          className="font-medium text-primary-ink hover:underline"
         >
           {courseLabel(section.course)}
         </Link>

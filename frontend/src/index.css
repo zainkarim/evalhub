@@ -19,9 +19,14 @@
   --c-muted: #5b6963; /* darkened a little so it holds 4.5:1 on a scrim with a star behind it */
   --c-line: #dde3df;
 
+  /* The green has two roles. primary = FILLS (buttons, selected days, pills, logo E);
+     primary-ink = green used as text, icons, links, borders and focus rings. In light
+     mode they are the same UTD Green; in dark mode the fill is a deep green and the
+     ink a soft sage that holds contrast on the dark surfaces. */
   --c-primary: #154734; /* UTD Green */
   --c-primary-hover: #1d5c44;
   --c-primary-fg: #ffffff;
+  --c-primary-ink: #154734;
   --c-accent: #e87500; /* UTD Orange: fills, underlines, dots (dark text on it) */
   --c-accent-ink: #b25210; /* darker orange for orange TEXT (4.5:1 on light surfaces) */
   --c-accent-fg: #1a0c02;
@@ -64,27 +69,28 @@
   --c-muted: #9aa9a2;
   --c-line: #26343d;
 
-  --c-primary: #5fe0b7; /* UTD secondary (silverleaf) */
-  --c-primary-hover: #86ebcb;
-  --c-primary-fg: #04140b;
+  --c-primary: #1f6f52; /* deep UTD-family green (white text on it: ~6:1) */
+  --c-primary-hover: #26805f;
+  --c-primary-fg: #ffffff;
+  --c-primary-ink: #6aa98a; /* soft sage for text, icons, borders and rings */
   --c-accent: #e87500;
   --c-accent-ink: #e87500;
   --c-accent-fg: #1a0c02;
   --c-accent-soft: #2d1c0f;
 
-  --c-success: #4cc98a;
+  --c-success: #7dbb78; /* a calm leaf green, apart from the sage primary-ink */
   --c-warning: #f2994a;
   --c-danger: #ff8a80;
   --c-info: #6cb8ee;
   --c-danger-fg: #2a0705;
-  --c-success-soft: #12281d;
+  --c-success-soft: #15271a;
   --c-warning-soft: #2d1c0f;
   --c-danger-soft: #2f1514;
   --c-info-soft: #10263a;
 
   --c-sky-top: #060a10;
   --c-sky-bottom: #0c1620;
-  --c-glow-1: color-mix(in srgb, var(--c-primary) 5%, transparent);
+  --c-glow-1: color-mix(in srgb, var(--c-primary) 14%, transparent);
   --c-glow-2: color-mix(in srgb, var(--c-accent) 4%, transparent);
   --c-star: 255 255 255;
   --c-comet-head: 255 255 255;
@@ -104,6 +110,7 @@
   --color-primary: var(--c-primary);
   --color-primary-hover: var(--c-primary-hover);
   --color-primary-fg: var(--c-primary-fg);
+  --color-primary-ink: var(--c-primary-ink);
   --color-accent: var(--c-accent);
   --color-accent-ink: var(--c-accent-ink);
   --color-accent-fg: var(--c-accent-fg);
@@ -157,7 +164,7 @@ html {
 }
 
 ::selection {
-  background-color: color-mix(in srgb, var(--c-primary) 22%, transparent);
+  background-color: color-mix(in srgb, var(--c-primary-ink) 25%, transparent);
 }
 
 /* Page titles: slightly tighter, so they read as titles, not big body text. */
@@ -194,7 +201,7 @@ tbody tr:hover {
 }
 
 :focus-visible {
-  outline: 2px solid var(--c-primary);
+  outline: 2px solid var(--c-primary-ink);
   outline-offset: 2px;
 }
 

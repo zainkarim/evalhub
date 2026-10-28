@@ -203,7 +203,7 @@ function CriteriaManager() {
                 type="button"
                 onClick={() => setShowPreview((current) => !current)}
                 aria-expanded={showPreview}
-                className="rounded-sm text-sm font-medium text-primary hover:underline"
+                className="rounded-sm text-sm font-medium text-primary-ink hover:underline"
               >
                 {showPreview ? "Hide preview" : "Preview as the observer"}
               </button>
@@ -212,7 +212,7 @@ function CriteriaManager() {
         />
         <CardBody className="pb-6">
           {showPreview && active.length > 0 && (
-            <div className="mb-4 rounded-card border border-dashed border-primary/40 p-5">
+            <div className="mb-4 rounded-card border border-dashed border-primary-ink/40 p-5">
               <p className="mb-4 text-sm text-muted">
                 This is the form an observer fills in after the class. Nothing here is saved.
               </p>

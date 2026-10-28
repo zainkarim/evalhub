@@ -53,7 +53,7 @@ function IncomingRequest({ request, onChanged }) {
           <div className="min-w-0">
             <p className="font-medium">
               {fullName(request.observee)} asked you to observe{" "}
-              <span className="text-primary">{courseLabel(request.section.course)}</span>
+              <span className="text-primary-ink">{courseLabel(request.section.course)}</span>
             </p>
             <p className="mt-0.5 text-muted">
               {request.section.course.title} · Section {request.section.sectionNumber} ·{" "}
@@ -77,7 +77,7 @@ function IncomingRequest({ request, onChanged }) {
                 return (
                   <label
                     key={option.id}
-                    className={`flex cursor-pointer items-center gap-3 rounded-card border border-line px-3 py-2.5 tabular-nums has-[:checked]:border-primary has-[:checked]:bg-surface-2 ${
+                    className={`flex cursor-pointer items-center gap-3 rounded-card border border-line px-3 py-2.5 tabular-nums has-[:checked]:border-primary-ink has-[:checked]:bg-surface-2 ${
                       past ? "cursor-not-allowed opacity-50" : "hover:border-ink"
                     }`}
                   >
@@ -88,7 +88,7 @@ function IncomingRequest({ request, onChanged }) {
                       checked={String(optionId) === String(option.id)}
                       disabled={past}
                       onChange={() => setOptionId(option.id)}
-                      className="h-4 w-4 accent-primary"
+                      className="h-4 w-4 accent-primary-ink"
                     />
                     <span>
                       {formatDate(option.proposedDate)} ·{" "}
@@ -147,7 +147,7 @@ function IncomingRequest({ request, onChanged }) {
         {request.status === "confirmed" && confirmed && (
           <p className="mt-2 text-xs text-muted">
             You confirmed {formatDate(confirmed.proposedDate)}. See{" "}
-            <Link to="/observations" className="text-primary hover:underline">
+            <Link to="/observations" className="text-primary-ink hover:underline">
               Observations I&apos;m giving
             </Link>
             .

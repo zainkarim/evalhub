@@ -133,7 +133,7 @@ function DatePicker({
                         className={cx(
                           "flex min-h-10 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm",
                           "transition-[color,background-color,border-color] duration-150",
-                          checked ? "border-primary bg-surface font-medium" : "border-line bg-surface hover:border-ink",
+                          checked ? "border-primary-ink bg-surface font-medium" : "border-line bg-surface hover:border-ink",
                           blocked && "cursor-not-allowed bg-surface-2 text-muted hover:border-line",
                         )}
                       >
@@ -142,10 +142,10 @@ function DatePicker({
                           checked={checked}
                           disabled={blocked}
                           onChange={() => onToggle(value)}
-                          className="h-4 w-4 shrink-0 accent-primary"
+                          className="h-4 w-4 shrink-0 accent-primary-ink"
                         />
                         <span className="min-w-0 flex-1">{shortDate(value)}</span>
-                        {checked && <Check aria-hidden="true" className="h-4 w-4 shrink-0 text-primary" />}
+                        {checked && <Check aria-hidden="true" className="h-4 w-4 shrink-0 text-primary-ink" />}
                       </label>
                     </li>
                   )
@@ -172,7 +172,7 @@ function DatePicker({
                       onClick={() => onToggle(date)}
                       aria-label={`Remove ${shortDate(date)}`}
                       title="Remove this date"
-                      className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-primary bg-surface px-3 text-xs hover:bg-surface-2"
+                      className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-primary-ink bg-surface px-3 text-xs hover:bg-surface-2"
                     >
                       {shortDate(date)}
                       <X aria-hidden="true" className="h-3 w-3" />
@@ -183,7 +183,7 @@ function DatePicker({
                   <button
                     type="button"
                     onClick={onClear}
-                    className="min-h-8 px-1 text-xs font-medium text-primary hover:underline"
+                    className="min-h-8 px-1 text-xs font-medium text-primary-ink hover:underline"
                   >
                     Clear all
                   </button>

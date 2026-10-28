@@ -74,7 +74,7 @@ function Inbox() {
                         <Link
                           to={item.link}
                           onClick={() => !item.readAt && api.markNotificationRead(item.id)}
-                          className="mt-2 inline-block font-medium text-primary hover:underline"
+                          className="mt-2 inline-block font-medium text-primary-ink hover:underline"
                         >
                           Open
                         </Link>

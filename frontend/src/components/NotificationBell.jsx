@@ -123,7 +123,7 @@ function NotificationBell() {
                 type="button"
                 disabled={busy}
                 onClick={markAll}
-                className="text-xs font-medium text-primary hover:underline disabled:opacity-50"
+                className="text-xs font-medium text-primary-ink hover:underline disabled:opacity-50"
               >
                 Mark all as read
               </button>

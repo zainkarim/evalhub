@@ -49,6 +49,28 @@ function Row({ label, children }) {
   )
 }
 
+// Swatches of the green roles: fills carry white text, ink is used for text, icons and borders.
+const SWATCHES = [
+  { name: "primary", note: "fill", box: "bg-primary text-primary-fg" },
+  { name: "primary-hover", note: "fill, hover", box: "bg-primary-hover text-primary-fg" },
+  { name: "primary-ink", note: "text, icons, borders", box: "border-2 border-primary-ink bg-surface text-primary-ink" },
+  { name: "success", note: "status", box: "bg-success-soft text-success" },
+]
+
+function GreenSwatches() {
+  return (
+    <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {SWATCHES.map(({ name, note, box }) => (
+        <li key={name} className="space-y-1.5">
+          <div className={`flex h-14 items-center justify-center rounded-card text-lg font-semibold ${box}`}>Aa</div>
+          <p className="text-xs font-medium">{name}</p>
+          <p className="text-xs text-muted">{note}</p>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 function ButtonRows() {
   return (
     <div className="space-y-5">
@@ -113,6 +135,10 @@ function Showcase({ theme, onToast }) {
 
   return (
     <div className="space-y-10">
+      <Section title="Green roles" note="primary fills buttons and selected days; primary-ink is the green for text, icons, borders and focus rings.">
+        <GreenSwatches />
+      </Section>
+
       <Section title="Button" note="One primary per view. Loading keeps the width and the keyboard focus.">
         <ButtonRows />
       </Section>

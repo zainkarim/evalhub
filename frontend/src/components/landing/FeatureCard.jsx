@@ -6,7 +6,7 @@ function FeatureCard({ icon: Icon, title, children }) {
     <Card className="h-full">
       <span
         aria-hidden="true"
-        className="flex h-11 w-11 items-center justify-center rounded-full bg-surface-2 text-primary"
+        className="flex h-11 w-11 items-center justify-center rounded-full bg-surface-2 text-primary-ink"
       >
         <Icon className="h-5 w-5" />
       </span>

@@ -8,7 +8,7 @@ const fill = (className) => (/(^|\s)w-/.test(className ?? "") ? "" : "w-full")
 
 const CONTROL =
   "rounded-md border border-line bg-surface px-3 text-sm text-ink placeholder:text-muted " +
-  "transition-[border-color] hover:border-ink focus-visible:border-primary " +
+  "transition-[border-color] hover:border-ink focus-visible:border-primary-ink " +
   "disabled:cursor-not-allowed disabled:opacity-60 aria-[invalid=true]:border-danger"
 
 export function Label({ className, children, ...rest }) {

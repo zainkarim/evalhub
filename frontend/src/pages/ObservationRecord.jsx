@@ -146,7 +146,7 @@ function ObservationRecord() {
                   <p className="mt-4 text-sm">
                     <Link
                       to={`/assessments/${observation.assessmentId}`}
-                      className="font-medium text-primary hover:underline"
+                      className="font-medium text-primary-ink hover:underline"
                     >
                       View the full sign-up
                     </Link>
@@ -236,7 +236,7 @@ function ObservationRecord() {
                         checked={confirmed}
                         onChange={(event) => setConfirmed(event.target.checked)}
                         disabled={!dateArrived}
-                        className="mt-1 h-4 w-4 accent-primary"
+                        className="mt-1 h-4 w-4 accent-primary-ink"
                       />
                       <span>
                         {isObserver

@@ -189,8 +189,8 @@ function DateCalendar({ classDates, dates, onToggle, maxDates, deadline, termEnd
                       className={cx(
                         "relative flex h-11 w-full min-w-0 flex-col items-center justify-center rounded-md border text-sm",
                         "transition-[color,background-color,border-color] duration-150",
-                        selected && "border-primary bg-primary font-semibold text-primary-fg",
-                        !selected && eligible && !full && "border-primary/40 bg-surface font-medium text-ink hover:bg-surface-2",
+                        selected && "border-primary-ink bg-primary font-semibold text-primary-fg",
+                        !selected && eligible && !full && "border-primary-ink/40 bg-surface font-medium text-ink hover:bg-surface-2",
                         !selected && eligible && full && "border-line bg-surface-2 text-muted",
                         !selected && !eligible && "border-transparent text-muted/60",
                         pastDeadline && !selected && "bg-surface-2 line-through",
@@ -222,10 +222,10 @@ function DateCalendar({ classDates, dates, onToggle, maxDates, deadline, termEnd
 
       <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
         <span className="flex items-center gap-1.5">
-          <span aria-hidden="true" className="h-3 w-3 rounded-sm border border-primary/40 bg-surface" /> Class meeting
+          <span aria-hidden="true" className="h-3 w-3 rounded-sm border border-primary-ink/40 bg-surface" /> Class meeting
         </span>
         <span className="flex items-center gap-1.5">
-          <span aria-hidden="true" className="h-3 w-3 rounded-sm bg-primary" /> Offered
+          <span aria-hidden="true" className="h-3 w-3 rounded-sm border border-primary-ink bg-primary" /> Offered
         </span>
         <span className="flex items-center gap-1.5">
           <span aria-hidden="true" className="h-3 w-3 rounded-sm ring-2 ring-inset ring-ink" /> Today

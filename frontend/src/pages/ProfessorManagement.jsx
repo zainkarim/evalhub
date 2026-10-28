@@ -220,7 +220,7 @@ function ProfessorForm() {
               name="isActive"
               checked={form.isActive}
               onChange={handleChange}
-              className="h-4 w-4 accent-primary"
+              className="h-4 w-4 accent-primary-ink"
             />
             <span className="font-medium">Active faculty member</span>
           </label>

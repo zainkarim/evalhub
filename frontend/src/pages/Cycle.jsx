@@ -94,7 +94,7 @@ function Details({ id }) {
           <ObserverSummary assessment={data} />
           <AttemptHistory attempts={data.attempts} headingAs="h3" />
           <p className="mt-4">
-            <Link to={`/assessments/${id}`} className="text-sm font-medium text-primary hover:underline">
+            <Link to={`/assessments/${id}`} className="text-sm font-medium text-primary-ink hover:underline">
               Open the full sign-up
             </Link>
           </p>
@@ -586,7 +586,7 @@ function Cycle() {
                                     <Td>
                                       <Link
                                         to={`/professors/${item.teacherId}`}
-                                        className="font-medium text-primary hover:underline"
+                                        className="font-medium text-primary-ink hover:underline"
                                       >
                                         {fullName(item.teacher)}
                                       </Link>

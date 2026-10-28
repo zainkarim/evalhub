@@ -159,7 +159,7 @@ function Courses() {
               {visibleCourses?.map((course) => (
                 <tr key={course.id} className="border-b border-line last:border-0">
                   <Td>
-                    <Link to={`/courses/${course.courseId}`} className="font-medium text-primary hover:underline">
+                    <Link to={`/courses/${course.courseId}`} className="font-medium text-primary-ink hover:underline">
                       {course.courseNumber}
                     </Link>
                     <span className="block text-muted">{course.title}</span>
@@ -180,7 +180,7 @@ function Courses() {
                         <StatusBadge status={course.signUp.status} map={ASSESSMENT_STATUS} />
                         <Link
                           to={`/assessments/${course.signUp.id}`}
-                          className="mt-1 block whitespace-nowrap text-xs font-medium text-primary hover:underline"
+                          className="mt-1 block whitespace-nowrap text-xs font-medium text-primary-ink hover:underline"
                         >
                           View
                         </Link>
@@ -189,7 +189,7 @@ function Courses() {
                       <Link
                         to="/observation-signup"
                         state={{ sectionId: course.id }}
-                        className="whitespace-nowrap font-medium text-primary hover:underline"
+                        className="whitespace-nowrap font-medium text-primary-ink hover:underline"
                       >
                         Select for Observation
                       </Link>
