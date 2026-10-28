@@ -1,4 +1,3 @@
-import { mockRequest } from "./mockServer"
 
 const BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "")
 
@@ -6,6 +5,15 @@ const BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "")
 // (lib/mockServer.js) so the whole UI runs without the API. Set VITE_API_URL in
 // .env.local to talk to the real server.
 const USE_MOCKS = import.meta.env.VITE_USE_MOCKS === "true" || BASE_URL === ""
+
+// The in-browser mock is loaded on demand, and only when this build can use it.
+// The condition is spelled out with plain env checks so a build for the real
+// backend (VITE_API_URL set, mocks not forced) drops the import and ships no
+// demo data.
+const loadMock =
+  import.meta.env.VITE_USE_MOCKS === "true" || !import.meta.env.VITE_API_URL
+    ? () => import("./mockServer")
+    : null
 
 const TOKEN_KEY = "evalhub.token"
 
@@ -31,7 +39,10 @@ async function request(path, options = {}) {
 }
 
 async function send(path, { method = "GET", body, auth = true } = {}) {
-  if (USE_MOCKS) return mockRequest(path, { method, body, token: getToken() })
+  if (USE_MOCKS && loadMock) {
+    const { mockRequest } = await loadMock()
+    return mockRequest(path, { method, body, token: getToken() })
+  }
 
   const headers = { "Content-Type": "application/json" }
   const token = getToken()
