@@ -140,7 +140,7 @@ function ObservationRecord() {
                             Rate each criterion and add your notes, then save. You can change
                             your answers until you sign off below.
                           </p>
-                          <ObservationFeedback observationId={observation.id} />
+                          <ObservationFeedback key={observation.id} observationId={observation.id} />
                         </>
                       ) : (
                         <p className="text-sm text-muted">
