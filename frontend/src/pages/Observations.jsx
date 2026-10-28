@@ -30,11 +30,12 @@ import {
   formatDate,
   formatTerm,
   fullName,
-  OBSERVATION_STATUS,
 } from "../lib/format"
 import { hasTeacherProfile, isAC } from "../lib/roles"
 import { useApi } from "../lib/useApi"
 import { nextStep } from "../lib/workflow"
+import ObservationRows from "../components/ObservationRows"
+import { loadObservationActivity } from "../lib/observationActivity"
 
 // A titled card for one list on the page.
 function Section({ title, hint, index, children }) {
@@ -169,75 +170,12 @@ function AllSignUps() {
 
 // --------------------------------------------------------------- professor --
 
-function ObservationRows({ rows, mode }) {
-  return (
-    <TableCard>
-      <Table minWidth="40rem">
-        <thead>
-          <tr>
-            <Th>Course</Th>
-            <Th>{mode === "given" ? "Observing" : "Observer"}</Th>
-            <Th>Date</Th>
-            <Th>Status</Th>
-            <Th>
-              <span className="sr-only">Open</span>
-            </Th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((observation) => (
-            <tr key={observation.id} className="border-b border-line last:border-0">
-              <Td>
-                {courseLabel(observation.section.course)}
-                <span className="block text-muted">
-                  {formatTerm(observation.section.term)} · Section {observation.section.sectionNumber}
-                </span>
-              </Td>
-              <Td>{fullName(mode === "given" ? observation.observee : observation.observer)}</Td>
-              <Td>{formatDate(observation.scheduledDate)}</Td>
-              <Td>
-                <StatusBadge status={observation.status} map={OBSERVATION_STATUS} />
-                {observation.status === "approved" && (
-                  <span className="mt-1 block text-xs text-muted">
-                    {(mode === "given" ? observation.observerSignedOffAt : observation.observeeSignedOffAt)
-                      ? "You signed off"
-                      : "Your sign-off is pending"}
-                  </span>
-                )}
-              </Td>
-              <Td>
-                <Link
-                  to={`/records/${observation.id}`}
-                  className="whitespace-nowrap font-medium text-primary hover:underline"
-                >
-                  {observation.status === "approved" ? "Sign off" : "View"}
-                </Link>
-              </Td>
-            </tr>
-          ))}
-        </tbody>
-      </Table>
-    </TableCard>
-  )
-}
 
 function MyActivity({ user }) {
-  const call = useCallback(async () => {
-    const [signUps, incoming, observations] = await Promise.all([
-      api.myAssessments(),
-      api.incomingRequests(),
-      api.listObservations(),
-    ])
-    const mine = (observations.data ?? []).filter((item) =>
-      [item.observer.id, item.observee.id].includes(user.teacherId),
-    )
-    return {
-      signUps: signUps.data ?? [],
-      incoming: incoming.data ?? [],
-      given: mine.filter((item) => item.observer.id === user.teacherId),
-      received: mine.filter((item) => item.observee.id === user.teacherId),
-    }
-  }, [user.teacherId])
+  const call = useCallback(
+    () => loadObservationActivity(user.teacherId),
+    [user.teacherId]
+  )
   const { data, error, loading, reload } = useApi(call)
 
   return (

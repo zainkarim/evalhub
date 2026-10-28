@@ -1,10 +1,10 @@
 import { Suspense, lazy } from "react"
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
+import { BrowserRouter, Navigate, Route, Routes, useParams } from "react-router-dom"
 import Layout from "./components/Layout"
 import ProtectedRoute from "./components/ProtectedRoute"
 import { AuthProvider } from "./context/AuthContext"
 import { useAuth } from "./context/auth-context"
-import { AC_ROLES, isAC } from "./lib/roles"
+import { AC_ROLES, isAC, hasTeacherProfile } from "./lib/roles"
 import { ScreenFallback } from "./components/RouteFallback"
 
 // Every page is its own chunk, downloaded when the route is first visited (the
@@ -15,6 +15,7 @@ const CourseDetail = lazy(() => import("./pages/CourseDetail"))
 const Courses = lazy(() => import("./pages/Courses"))
 const Cycle = lazy(() => import("./pages/Cycle"))
 const EvaluationCriteria = lazy(() => import("./pages/EvaluationCriteria"))
+const FacultyDashboard = lazy(() => import("./pages/FacultyDashboard"))
 const Landing = lazy(() => import("./pages/Landing"))
 const Login = lazy(() => import("./pages/Login"))
 const Notifications = lazy(() => import("./pages/Notifications"))
@@ -29,6 +30,23 @@ const Professors = lazy(() => import("./pages/Professors"))
 // message instead of the page (the navigation link is hidden for them too).
 function CommitteeRoute({ children }) {
   return <ProtectedRoute roles={AC_ROLES}>{children}</ProtectedRoute>
+}
+
+function ProfessorSelfEditRoute({ children }) {
+  const { user } = useAuth()
+  const { id } = useParams()
+
+  if (isAC(user)) return children
+
+  if (hasTeacherProfile(user) && String(user.teacherId) === id) {
+    return children
+  }
+
+  return (
+    <p className="p-10 text-sm text-muted">
+      You can only edit your own professor profile.
+    </p>
+  )
 }
 
 // Each role lands on the page it works from: the committee on the Cycle page.
@@ -88,9 +106,9 @@ function App() {
             <Route
               path="/professors/:id/edit"
               element={
-                <CommitteeRoute>
+                <ProfessorSelfEditRoute>
                   <ProfessorManagement />
-                </CommitteeRoute>
+                </ProfessorSelfEditRoute>
               }
             />
 
@@ -105,6 +123,7 @@ function App() {
 
             <Route path="/courses" element={<Courses />} />
             <Route path="/courses/:id" element={<CourseDetail />} />
+            <Route path="/dashboard" element={<FacultyDashboard />} />
             <Route path="/observations" element={<Observations />} />
             <Route path="/observation-signup" element={<ObservationSignup />} />
             <Route path="/assessments/:id" element={<AssessmentDetail />} />

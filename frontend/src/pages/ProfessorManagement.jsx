@@ -5,6 +5,8 @@ import { Button, Callout, Card, Input, Label, PageHeader, Select, StickyActionBa
 import { useToast } from "../components/ui/toast-context"
 import { api } from "../lib/api"
 import { useApi } from "../lib/useApi"
+import { useAuth } from "../context/auth-context"
+import { isAC } from "../lib/roles"
 
 const EMPTY_FORM = {
   firstName: "",
@@ -20,6 +22,8 @@ function ProfessorForm() {
   const navigate = useNavigate()
   const toast = useToast()
   const isEditing = Boolean(id)
+  const { user } = useAuth()
+  const committee = isAC(user)
 
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
@@ -74,9 +78,13 @@ function ProfessorForm() {
 
     try {
       if (isEditing) {
-        await api.updateProfessor(id, form)
+        const updates = committee
+          ? form
+          : { rank: form.rank }
+
+        await api.updateProfessor(id, updates)
         toast.success("Professor saved.")
-        navigate(`/professors/${id}`)
+        navigate(committee ? `/professors/${id}` : "/observations")
       } else {
         const professor = await api.createProfessor(form)
         toast.success("Professor added.")
@@ -89,14 +97,18 @@ function ProfessorForm() {
     }
   }
 
-  const backTo = isEditing ? `/professors/${id}` : "/professors"
-  const header = (
+  // Faculty editing their own profile come from, and go back to, Observations.
+  const backTo = committee ? (isEditing ? `/professors/${id}` : "/professors") : "/observations"
+  // If the professor can't be loaded there is no profile page to go back to.
+  const errorBackTo = committee ? "/professors" : "/observations"
+  const makeHeader = (to) => (
     <PageHeader
-      backTo={{ to: backTo, label: "Back" }}
+      backTo={{ to, label: "Back" }}
       title={isEditing ? "Edit Professor" : "Add Professor"}
       subtitle={isEditing ? "Update faculty information." : "Add a faculty member to the evaluation roster."}
     />
   )
+  const header = makeHeader(backTo)
 
   if (loading) {
     return (
@@ -109,7 +121,7 @@ function ProfessorForm() {
   if (isEditing && loadError) {
     return (
       <div className="space-y-6">
-        {header}
+        {makeHeader(errorBackTo)}
         <Callout tone="danger" role="alert">
           {loadError.message}
         </Callout>
@@ -138,6 +150,7 @@ function ProfessorForm() {
               value={form.firstName}
               onChange={handleChange}
               required
+              disabled={!committee}
               className="mt-1.5"
             />
           </div>
@@ -151,6 +164,7 @@ function ProfessorForm() {
               value={form.lastName}
               onChange={handleChange}
               required
+              disabled={!committee}
               className="mt-1.5"
             />
           </div>
@@ -165,6 +179,7 @@ function ProfessorForm() {
             value={form.email}
             onChange={handleChange}
             required
+            disabled={!committee}
             className="mt-1.5"
           />
         </div>
@@ -178,6 +193,7 @@ function ProfessorForm() {
             value={form.school}
             onChange={handleChange}
             required
+            disabled={!committee}
             className="mt-1.5"
           />
         </div>
@@ -191,7 +207,7 @@ function ProfessorForm() {
           </Select>
         </div>
 
-        {isEditing && (
+        {isEditing && committee && (
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"

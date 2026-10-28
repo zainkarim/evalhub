@@ -17,12 +17,14 @@ import { displayName, hasTeacherProfile, isAC, roleLabel } from "../lib/roles"
 // Faculty and committee members see different navigation. `badge` names the
 // live counter shown next to the link.
 const links = [
+  { to: "/dashboard", label: "Dashboard" },
   { to: "/professors", label: "Professors", committeeOnly: true },
   { to: "/courses", label: "Courses" },
   { to: "/observations", label: "Observations", badge: "requests" },
   { to: "/cycle", label: "Cycle", committeeOnly: true, badge: "alerts" },
   { to: "/notifications", label: "Notifications", profileOnly: true, badge: "unread" },
   { to: "/evaluation-criteria", label: "Evaluation Criteria", committeeOnly: true },
+  { to: "/my-profile", label: "My Profile", profileOnly: true },
 ]
 
 // Header and page content share one container, so their edges line up.
@@ -80,9 +82,13 @@ function Layout() {
   }
 
   // Same two filters as always: committee-only links and links that need a teacher profile.
+  // "My Profile" points at the person's own professor edit page.
   const visibleLinks = links
     .filter((link) => committee || !link.committeeOnly)
     .filter((link) => !link.profileOnly || hasTeacherProfile(user))
+    .map((link) =>
+      link.to === "/my-profile" ? { ...link, to: `/professors/${user.teacherId}/edit` } : link,
+    )
 
   const name = displayName(user)
   const initials =
