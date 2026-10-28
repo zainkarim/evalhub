@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Navigate, useLocation, useNavigate } from "react-router-dom"
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom"
 import { useAuth } from "../context/auth-context"
 import { USE_MOCKS } from "../lib/api"
 import { resetMockData } from "../lib/mockServer"
@@ -62,6 +62,9 @@ function Login() {
 
       <section className="flex items-center px-8 py-12 md:px-16">
         <div className="w-full max-w-sm">
+          <Link to="/welcome" className="mb-6 inline-block text-sm font-medium text-utd-green hover:underline">
+            ← Back to welcome
+          </Link>
           <h2 className="text-2xl font-semibold tracking-tight">Sign in</h2>
           <p className="mt-1 text-sm text-muted">Use your UTD email address.</p>
 

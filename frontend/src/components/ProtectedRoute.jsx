@@ -10,6 +10,9 @@ function ProtectedRoute({ children, roles }) {
   }
 
   if (!user) {
+    // Logged-out visitors to the bare site address see the public landing page;
+    // deep links to protected pages still go to the sign-in page.
+    if (location.pathname === "/") return <Navigate to="/welcome" replace />
     return <Navigate to="/login" state={{ from: location.pathname }} replace />
   }
 

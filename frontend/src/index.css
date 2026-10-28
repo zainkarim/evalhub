@@ -131,6 +131,9 @@
 
   /* Inter Variable is bundled by @fontsource-variable/inter (no CDN). Falls back
      to the system UI font while loading. */
+  /* Space Grotesk: the wordmark, landing headings and the login title only. */
+  --font-display: "Space Grotesk Variable", var(--font-sans);
+
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
     Roboto, Helvetica, Arial, sans-serif;
 

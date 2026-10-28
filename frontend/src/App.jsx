@@ -10,6 +10,7 @@ import CourseDetail from "./pages/CourseDetail"
 import Courses from "./pages/Courses"
 import Cycle from "./pages/Cycle"
 import EvaluationCriteria from "./pages/EvaluationCriteria"
+import Landing from "./pages/Landing"
 import Login from "./pages/Login"
 import Notifications from "./pages/Notifications"
 import ObservationRecord from "./pages/ObservationRecord"
@@ -40,6 +41,7 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
+          <Route path="/welcome" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           {import.meta.env.DEV && (
             <Route
