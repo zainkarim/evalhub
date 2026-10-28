@@ -55,3 +55,140 @@ describe('access control', () => {
     assert.equal((await ctx.api('POST', '/auth/register', { as: USERS.ac, body })).status, 403);
   });
 });
+
+describe('teacher rank self-service (#50)', () => {
+  const teacher = async (id) => {
+    const [row] = await ctx.sql(
+      'SELECT * FROM teachers WHERE id = $1',
+      [id],
+    );
+    return row;
+  };
+
+  // Failed requests must leave every teacher unchanged, including timestamps.
+  const roster = () => ctx.sql('SELECT * FROM teachers ORDER BY id');
+
+  test('PATCH requires a valid token', async () => {
+    const before = await roster();
+    const body = { rank: 'full_professor' };
+
+    for (const options of [{ body }, { body, token: 'not.a.jwt' }]) {
+      const res = await ctx.api('PATCH', '/teachers/3', options);
+      assert.equal(res.status, 401);
+      assert.deepEqual(await roster(), before);
+    }
+  });
+
+  test('faculty can update their own rank and retrieve the saved value', async () => {
+    const before = await teacher(3);
+    const rank = before.rank === 'full_professor'
+      ? 'associate_professor'
+      : 'full_professor';
+
+    const res = await ctx.api('PATCH', '/teachers/3', {
+      as: USERS.faculty,
+      body: { rank },
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.id, 3);
+    assert.equal(res.body.rank, rank);
+
+    const after = await teacher(3);
+    assert.equal(after.rank, rank);
+
+    // Only rank and the automatic updated_at timestamp may change.
+    const {
+      rank: oldRank, updated_at: oldTime, ...beforeOtherFields
+    } = before;
+    const {
+      rank: newRank, updated_at: newTime, ...afterOtherFields
+    } = after;
+    assert.deepEqual(afterOtherFields, beforeOtherFields);
+
+    const get = await ctx.api('GET', '/teachers/3', {
+      as: USERS.faculty,
+    });
+    assert.equal(get.status, 200);
+    assert.equal(get.body.rank, rank);
+  });
+
+  test('faculty cannot update another teacher', async () => {
+    const before = await roster();
+    const res = await ctx.api('PATCH', '/teachers/1', {
+      as: USERS.faculty,
+      body: { rank: 'full_professor' },
+    });
+
+    assert.equal(res.status, 403);
+    assert.deepEqual(await roster(), before);
+  });
+
+  test('faculty extra fields are rejected without partial updates', async () => {
+    const before = await roster();
+    const own = await teacher(3);
+    const rank = own.rank === 'full_professor'
+      ? 'associate_professor'
+      : 'full_professor';
+
+    const forbiddenFields = {
+      firstName: 'Changed',
+      lastName: 'Changed',
+      email: 'changed@example.edu',
+      school: 'OTHER',
+      department: 'OTHER',
+      isActive: !own.is_active,
+      teacherId: 1,
+      role: 'admin',
+      unexpected: true,
+    };
+
+    for (const [field, value] of Object.entries(forbiddenFields)) {
+      const res = await ctx.api('PATCH', '/teachers/3', {
+        as: USERS.faculty,
+        body: { rank, [field]: value },
+      });
+      assert.equal(res.status, 400, `Must reject field: ${field}`);
+      assert.deepEqual(await roster(), before);
+    }
+  });
+
+  test('faculty empty or invalid updates are rejected', async () => {
+    const before = await roster();
+    const bodies = [
+      {},
+      { rank: 'dean' },
+      { rank: null },
+      { rank: 123 },
+      { isActive: false },
+    ];
+
+    for (const body of bodies) {
+      const res = await ctx.api('PATCH', '/teachers/3', {
+        as: USERS.faculty,
+        body,
+      });
+      assert.equal(res.status, 400, JSON.stringify(body));
+      assert.deepEqual(await roster(), before);
+    }
+  });
+
+  test('AC and admin retain permission to update other teacher fields', async () => {
+    for (const as of [USERS.ac, USERS.admin]) {
+      const before = await teacher(3);
+      const body = {
+        firstName: before.first_name === 'Updated' ? 'Revised' : 'Updated',
+        isActive: !before.is_active,
+      };
+
+      const res = await ctx.api('PATCH', '/teachers/3', { as, body });
+      assert.equal(res.status, 200);
+      assert.equal(res.body.firstName, body.firstName);
+      assert.equal(res.body.isActive, body.isActive);
+
+      const after = await teacher(3);
+      assert.equal(after.first_name, body.firstName);
+      assert.equal(after.is_active, body.isActive);
+      assert.equal(after.rank, before.rank);
+    }
+  });
+});
