@@ -57,7 +57,7 @@ export function Tabs({ tabs, value, onChange, ariaLabel, idPrefix = "tabs", clas
             className={cx(
               "relative -mb-px whitespace-nowrap py-2.5 text-sm font-medium focus-visible:-outline-offset-2",
               "after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:rounded-full",
-              selected ? "text-ink after:bg-accent" : "text-muted after:bg-transparent hover:text-ink",
+              selected ? "text-ink after:bg-accent-ink" : "text-muted after:bg-transparent hover:text-ink",
             )}
           >
             {tab.label}

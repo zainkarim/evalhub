@@ -4,8 +4,8 @@ import { THEME_VALUES, useTheme } from "../context/theme-context"
 const LABELS = { light: "light", dark: "dark", system: "system" }
 const ICONS = { light: Sun, dark: Moon, system: Monitor }
 
-// One icon button that cycles light -> dark -> system. Sized for the green brand
-// bar (white on low opacity), 36px square so it fits at 390px.
+// One icon button that cycles light -> dark -> system. 36px square, so it fits
+// next to the bell and the account button at 390px.
 function ThemeToggle() {
   const { preference, cycle } = useTheme()
   const next = THEME_VALUES[(THEME_VALUES.indexOf(preference) + 1) % THEME_VALUES.length]
@@ -17,7 +17,7 @@ function ThemeToggle() {
       onClick={cycle}
       aria-label={label}
       title={label}
-      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/30 text-white/90 hover:bg-white/10 hover:text-white"
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted hover:bg-surface-2 hover:text-ink"
     >
       <Icon aria-hidden="true" className="h-4 w-4" />
     </button>

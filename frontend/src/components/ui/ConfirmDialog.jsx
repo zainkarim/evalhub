@@ -1,17 +1,12 @@
 import { AnimatePresence, m } from "motion/react"
-import { useEffect, useId, useRef } from "react"
+import { useId, useRef } from "react"
 import Button from "./Button"
+import { useModalDialog } from "./useModalDialog"
 
-// "Are you sure?" built on the native <dialog>: showModal() gives us the focus
-// trap, an inert page behind it and the top layer for free.
-//
-// Closing is two-step so the exit animation can play: the parent sets `open` to
-// false, the panel animates out, and only then (onExitComplete) do we call
-// dialog.close() and put focus back where it was. Focus starts on Cancel, the
-// safe choice, even for a danger confirm.
-//
-// The <dialog> itself fills the viewport (transparent) so a click that lands on
-// it, not on the panel, is a backdrop click. The dim layer is pointer-events-none.
+// "Are you sure?" built on the native <dialog> (focus trap, inert page, top
+// layer). The open/close/exit-animation lifecycle is in useModalDialog. Focus
+// starts on Cancel, the safe choice, even for a danger confirm. The dim layer is
+// pointer-events-none so a click on the transparent <dialog> is a backdrop click.
 function ConfirmDialog({
   open,
   title,
@@ -23,38 +18,15 @@ function ConfirmDialog({
   onConfirm,
   onCancel,
 }) {
-  const dialogRef = useRef(null)
   const cancelRef = useRef(null)
-  const openerRef = useRef(null)
-  const openRef = useRef(open)
-  const pressedOnBackdrop = useRef(false)
-  const closedByUs = useRef(false)
   const titleId = useId()
   const descriptionId = useId()
-
-  useEffect(() => {
-    openRef.current = open
-    const dialog = dialogRef.current
-    if (!open || !dialog) return
-    if (!dialog.open) {
-      openerRef.current = document.activeElement
-      dialog.showModal()
-    }
-    cancelRef.current?.focus()
-  }, [open])
-
-  const handleExitComplete = () => {
-    // The dim layer and the panel both report an exit; a late report after the
-    // dialog was reopened must not close it again.
-    if (openRef.current) return
-    const dialog = dialogRef.current
-    if (dialog?.open) {
-      closedByUs.current = true
-      dialog.close()
-    }
-    openerRef.current?.focus?.()
-    openerRef.current = null
-  }
+  const { dialogRef, dialogProps, handleExitComplete } = useModalDialog({
+    open,
+    onRequestClose: onCancel,
+    initialFocusRef: cancelRef,
+    canDismiss: !loading,
+  })
 
   return (
     <dialog
@@ -63,29 +35,7 @@ function ConfirmDialog({
       aria-labelledby={titleId}
       aria-describedby={description ? descriptionId : undefined}
       className="m-0 h-dvh max-h-none w-dvw max-w-none items-center justify-center bg-transparent p-0 text-ink backdrop:bg-transparent open:flex"
-      // Esc: keep the dialog open and let the parent drive the close, so the
-      // exit animation runs.
-      onCancel={(event) => {
-        event.preventDefault()
-        if (!loading) onCancel?.()
-      }}
-      // The browser closed it by itself (e.g. a second Esc): tell the parent. The
-      // event from our own close() is ignored, even if it arrives late.
-      onClose={() => {
-        if (closedByUs.current) {
-          closedByUs.current = false
-          return
-        }
-        if (openRef.current) onCancel?.()
-      }}
-      onPointerDown={(event) => {
-        pressedOnBackdrop.current = event.target === dialogRef.current
-      }}
-      onClick={(event) => {
-        const onBackdrop = event.target === dialogRef.current && pressedOnBackdrop.current
-        pressedOnBackdrop.current = false
-        if (onBackdrop && !loading) onCancel?.()
-      }}
+      {...dialogProps}
     >
       <AnimatePresence onExitComplete={handleExitComplete}>
         {open && (

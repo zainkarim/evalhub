@@ -8,7 +8,7 @@ const TONES = {
   warning: { pill: "bg-warning-soft text-warning ring-warning/30", dot: "bg-warning" },
   danger: { pill: "bg-danger-soft text-danger ring-danger/30", dot: "bg-danger" },
   info: { pill: "bg-info-soft text-info ring-info/30", dot: "bg-info" },
-  accent: { pill: "bg-accent-soft text-accent ring-accent/30", dot: "bg-accent" },
+  accent: { pill: "bg-accent-soft text-accent-ink ring-accent/30", dot: "bg-accent" },
 }
 
 const SIZES = {

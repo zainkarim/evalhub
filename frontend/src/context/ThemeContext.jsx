@@ -3,7 +3,7 @@ import { THEME_STORAGE_KEY, THEME_VALUES, ThemeContext } from "./theme-context"
 
 const DARK_QUERY = "(prefers-color-scheme: dark)"
 // The browser toolbar colour; matches --c-brand in index.css.
-const BAR_COLOR = { light: "#006b36", dark: "#0b4a2b" }
+const BAR_COLOR = { light: "#154734", dark: "#154734" }
 
 // Storage can throw (private window, blocked site data), so never trust it.
 function readStored() {
