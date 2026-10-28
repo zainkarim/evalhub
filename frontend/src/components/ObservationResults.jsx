@@ -19,7 +19,7 @@ function ObservationResults({ observationId }) {
           <p className="text-sm text-muted">The observer hasn&apos;t filled in the form yet.</p>
         ) : (
           <>
-            <ol className="divide-y divide-line rounded-md border border-line bg-surface">
+            <ol className="divide-y divide-line rounded-card border border-line bg-surface">
               {rows.map((row) => (
                 <li
                   key={row.id}
@@ -37,7 +37,7 @@ function ObservationResults({ observationId }) {
               ))}
             </ol>
             {data.notes && (
-              <div className="mt-4 rounded-md border border-line bg-canvas px-4 py-3">
+              <div className="mt-4 rounded-card border border-line bg-surface-2 px-4 py-3">
                 <p className="text-xs font-medium text-muted">Observer&apos;s notes</p>
                 <p className="mt-1 whitespace-pre-line text-sm">{data.notes}</p>
               </div>

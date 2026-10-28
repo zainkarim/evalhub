@@ -1,10 +1,15 @@
 import { useState } from "react"
+import { Button, Callout, ConfirmDialog, Label, Textarea } from "./ui"
+import { useToast } from "./ui/toast-context"
 
 // Replaces cancel / "it didn't happen" / reschedule. Nothing is cancelled or
 // deleted: the attempt is marked Postponed with who, when and why on the record,
 // and a new attempt can be scheduled afterwards (same semester where possible).
+// The final button asks once more, because the postponement goes on the record.
 function PostponeControl({ label = "Postpone this attempt", prompt, onSubmit, onDone }) {
+  const toast = useToast()
   const [open, setOpen] = useState(false)
+  const [confirming, setConfirming] = useState(false)
   const [reason, setReason] = useState("")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
@@ -16,6 +21,7 @@ function PostponeControl({ label = "Postpone this attempt", prompt, onSubmit, on
       await onSubmit(reason.trim())
       setOpen(false)
       setReason("")
+      toast.success("Attempt postponed and recorded.")
       onDone()
     } catch (err) {
       setError(err.message)
@@ -27,24 +33,18 @@ function PostponeControl({ label = "Postpone this attempt", prompt, onSubmit, on
   return (
     <div>
       {!open ? (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-ink"
-        >
+        <Button variant="secondary" onClick={() => setOpen(true)}>
           {label}…
-        </button>
+        </Button>
       ) : (
-        <div className="rounded-md border border-line bg-canvas p-4">
-          <label htmlFor="postpone-reason" className="block text-sm font-medium">
-            {prompt ?? "Why is this being postponed?"}
-          </label>
-          <textarea
+        <div className="rounded-card border border-line bg-surface-2 p-4">
+          <Label htmlFor="postpone-reason">{prompt ?? "Why is this being postponed?"}</Label>
+          <Textarea
             id="postpone-reason"
             value={reason}
             onChange={(event) => setReason(event.target.value)}
             rows={3}
-            className="mt-2 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm"
+            className="mt-2"
             placeholder="Illness, a schedule conflict…"
           />
           <p className="mt-2 text-xs text-muted">
@@ -52,29 +52,38 @@ function PostponeControl({ label = "Postpone this attempt", prompt, onSubmit, on
             new attempt can be scheduled.
           </p>
           <div className="mt-3 flex gap-3">
-            <button
-              type="button"
-              disabled={!reason.trim() || busy}
-              onClick={submit}
-              className="rounded-md bg-utd-orange px-3 py-1.5 text-sm font-medium text-accent-fg disabled:opacity-50"
+            <Button
+              variant="danger"
+              disabled={!reason.trim()}
+              loading={busy}
+              onClick={() => setConfirming(true)}
             >
               {busy ? "Saving…" : "Postpone and record"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-ink"
-            >
+            </Button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>
               Back
-            </button>
+            </Button>
           </div>
         </div>
       )}
       {error && (
-        <p role="alert" className="mt-3 rounded-md border border-utd-orange/40 bg-surface px-3 py-2 text-sm">
+        <Callout tone="danger" role="alert" className="mt-3">
           {error}
-        </p>
+        </Callout>
       )}
+
+      <ConfirmDialog
+        open={confirming}
+        tone="danger"
+        title="Postpone this attempt?"
+        description="It is marked Postponed and recorded with your name, the time and the reason. Nothing is deleted, and a new attempt can be scheduled."
+        confirmLabel="Postpone and record"
+        onCancel={() => setConfirming(false)}
+        onConfirm={() => {
+          setConfirming(false)
+          submit()
+        }}
+      />
     </div>
   )
 }

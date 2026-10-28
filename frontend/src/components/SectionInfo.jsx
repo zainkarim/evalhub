@@ -16,12 +16,12 @@ function SectionInfo({ section, instructor, className = "" }) {
   if (!section) return null
   return (
     <dl
-      className={`grid grid-cols-2 gap-x-8 gap-y-4 rounded-lg border border-line bg-surface p-5 sm:grid-cols-3 ${className} shadow-xs`}
+      className={`grid grid-cols-2 gap-x-8 gap-y-4 rounded-card border border-line bg-surface p-5 shadow-xs sm:grid-cols-3 ${className}`}
     >
       <Field label="Course">
         <Link
           to={`/courses/${section.course?.id}`}
-          className="font-medium text-utd-green hover:underline"
+          className="font-medium text-primary hover:underline"
         >
           {courseLabel(section.course)}
         </Link>

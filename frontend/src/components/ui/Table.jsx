@@ -4,12 +4,14 @@ import { cx } from "./cx"
 // shadows showing there is more), so the page never scrolls sideways; give
 // `maxHeight` to also scroll vertically with the header row staying put.
 // Numbers line up (tabular-nums) and rows highlight on hover (index.css).
-export function TableCard({ maxHeight = false, label = "Table", className, children }) {
+export function TableCard({ maxHeight = false, label, className, children }) {
   return (
     <div
       // A scrollable area must be reachable by keyboard (arrow keys scroll it).
       tabIndex={0}
-      role="region"
+      // Several tables on one page would all be a "Table" landmark, so a name is
+      // only given when the caller passes a distinct `label`.
+      role={label ? "region" : undefined}
       aria-label={label}
       className={cx(
         "scroll-shadow-x relative overflow-auto rounded-card border border-line shadow-xs",

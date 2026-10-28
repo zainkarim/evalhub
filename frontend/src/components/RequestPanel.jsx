@@ -12,6 +12,8 @@ import {
   todayISO,
 } from "../lib/format"
 import StatusBadge from "./StatusBadge"
+import { Button, Callout, Card, Input, Label, Select } from "./ui"
+import { useToast } from "./ui/toast-context"
 
 const MIN_DATES = 4
 const MAX_DATES = 8
@@ -34,7 +36,7 @@ function StepTitle({ number, done, children }) {
       <span
         aria-hidden="true"
         className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
-          done ? "bg-utd-green text-primary-fg" : "border border-line text-muted"
+          done ? "bg-primary text-primary-fg" : "border border-line text-muted"
         }`}
       >
         {done ? "✓" : number}
@@ -54,6 +56,7 @@ function StepTitle({ number, done, children }) {
 // end of term when no deadline is set), and Send stays disabled unless every
 // chosen date is one of them.
 function RequestPanel({ assessment, onChanged }) {
+  const toast = useToast()
   const [observerId, setObserverId] = useState("")
   const [dates, setDates] = useState([])
   const [dateView, setDateView] = useState("calendar")
@@ -87,11 +90,12 @@ function RequestPanel({ assessment, onChanged }) {
   const moveMonth = (delta) =>
     setCalendarMonth(monthKey(new Date(calendarYear, calendarMonthNumber - 1 + delta, 1)))
 
-  const run = async (action) => {
+  const run = async (action, message) => {
     setBusy(true)
     setError("")
     try {
       await action()
+      if (message) toast.success(message)
       setObserverId("")
       setDates([])
       setReason("")
@@ -131,7 +135,7 @@ function RequestPanel({ assessment, onChanged }) {
         dates.map((proposedDate) => ({ proposedDate, startTime: from, endTime: to })),
       )
       await api.sendRequest(assessment.id, Number(observerId))
-    })
+    }, "Request sent.")
   }
 
   if (candidates.length === 0) return null
@@ -142,7 +146,7 @@ function RequestPanel({ assessment, onChanged }) {
       onClick={() => setDateView(value)}
       aria-pressed={dateView === value}
       className={`px-4 py-1.5 text-sm ${
-        dateView === value ? "bg-brand font-medium text-white" : "bg-surface text-muted hover:text-ink"
+        dateView === value ? "bg-primary font-medium text-primary-fg" : "bg-surface text-muted hover:text-ink"
       }`}
     >
       {label}
@@ -150,7 +154,7 @@ function RequestPanel({ assessment, onChanged }) {
   )
 
   return (
-    <section className="mt-6 rounded-lg border border-line bg-surface p-6 shadow-xs">
+    <Card as="section" className="mt-6">
       <h2 className="text-base font-semibold">
         {nextAttempt ? "Schedule a new attempt" : "Ask one observer"}
       </h2>
@@ -172,28 +176,27 @@ function RequestPanel({ assessment, onChanged }) {
               </li>
             ))}
           </ul>
-          <div className="mt-4 rounded-md border border-line bg-canvas p-4">
-            <label htmlFor="withdraw-reason" className="block text-sm font-medium">
-              Ask someone else instead? (reason optional)
-            </label>
-            <input
+          <div className="mt-4 rounded-card border border-line bg-surface-2 p-4">
+            <Label htmlFor="withdraw-reason">Ask someone else instead? (reason optional)</Label>
+            <Input
               id="withdraw-reason"
               value={reason}
               onChange={(event) => setReason(event.target.value)}
-              className="mt-2 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm"
+              className="mt-2"
               placeholder="Why you are withdrawing this request"
             />
             <p className="mt-2 text-xs text-muted">
               Withdrawing is recorded in the attempt history; nothing is deleted.
             </p>
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
+              className="mt-3"
               disabled={busy}
-              onClick={() => run(() => api.withdrawRequest(assessment.id, reason.trim()))}
-              className="mt-3 rounded-md border border-line bg-surface px-3 py-1.5 text-sm hover:border-ink disabled:opacity-60"
+              onClick={() => run(() => api.withdrawRequest(assessment.id, reason.trim()), "Request withdrawn.")}
             >
               Withdraw request
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
@@ -210,14 +213,14 @@ function RequestPanel({ assessment, onChanged }) {
               <StepTitle number={1} done={Boolean(observerId) && timesOk}>
                 Choose the observer
               </StepTitle>
-              <label htmlFor="observer" className="mt-3 block text-xs text-muted">
+              <Label htmlFor="observer" className="mt-3 text-xs font-normal text-muted">
                 From your candidate list
-              </label>
-              <select
+              </Label>
+              <Select
                 id="observer"
                 value={observerId}
                 onChange={(event) => setObserverId(event.target.value)}
-                className="mt-1 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm"
+                className="mt-1"
               >
                 <option value="">Select one observer</option>
                 {candidates.map((candidate) => (
@@ -225,7 +228,7 @@ function RequestPanel({ assessment, onChanged }) {
                     {fullName(candidate)} · {formatRank(candidate.rank)}
                   </option>
                 ))}
-              </select>
+              </Select>
 
               {sectionHasTimes ? (
                 <p className="mt-3 text-xs text-muted">
@@ -236,27 +239,27 @@ function RequestPanel({ assessment, onChanged }) {
               ) : (
                 <div className="mt-4 flex flex-wrap gap-4">
                   <div>
-                    <label htmlFor="start-time" className="block text-xs text-muted">
+                    <Label htmlFor="start-time" className="text-xs font-normal text-muted">
                       Class starts
-                    </label>
-                    <input
+                    </Label>
+                    <Input
                       id="start-time"
                       type="time"
                       value={startTime}
                       onChange={(event) => setStartTime(event.target.value)}
-                      className="mt-1 rounded-md border border-line bg-surface px-3 py-2 text-sm"
+                      className="mt-1 w-auto"
                     />
                   </div>
                   <div>
-                    <label htmlFor="end-time" className="block text-xs text-muted">
+                    <Label htmlFor="end-time" className="text-xs font-normal text-muted">
                       Class ends
-                    </label>
-                    <input
+                    </Label>
+                    <Input
                       id="end-time"
                       type="time"
                       value={endTime}
                       onChange={(event) => setEndTime(event.target.value)}
-                      className="mt-1 rounded-md border border-line bg-surface px-3 py-2 text-sm"
+                      className="mt-1 w-auto"
                     />
                   </div>
                 </div>
@@ -288,25 +291,25 @@ function RequestPanel({ assessment, onChanged }) {
               </p>
 
               {classDates.length === 0 ? (
-                <p className="mt-4 rounded-md border border-line bg-canvas px-4 py-5 text-muted">
+                <p className="mt-4 rounded-card border border-line bg-surface-2 px-4 py-5 text-muted">
                   No class meetings are left before the observation deadline.
                 </p>
               ) : dateView === "quick" ? (
                 <div className="mt-4">
                   <div className="flex flex-wrap gap-2">
                     {[4, 6, 8].map((count) => (
-                      <button
+                      <Button
                         key={count}
-                        type="button"
+                        variant="secondary"
+                        size="sm"
                         disabled={classDates.length < count}
                         onClick={() => quickPick(count)}
-                        className="rounded-md border border-line bg-surface px-3 py-1.5 hover:border-primary disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         Next {count} classes
-                      </button>
+                      </Button>
                     ))}
                   </div>
-                  <div className="mt-3 grid max-h-64 grid-cols-2 gap-x-6 gap-y-1.5 overflow-y-auto rounded-md border border-line bg-canvas p-3 sm:grid-cols-3">
+                  <div className="mt-3 grid max-h-64 grid-cols-2 gap-x-6 gap-y-1.5 overflow-y-auto rounded-card border border-line bg-surface-2 p-3 sm:grid-cols-3">
                     {classDates.map((value) => {
                       const checked = dates.includes(value)
                       return (
@@ -316,6 +319,7 @@ function RequestPanel({ assessment, onChanged }) {
                             checked={checked}
                             disabled={!checked && dates.length >= MAX_DATES}
                             onChange={() => toggle(value)}
+                            className="h-4 w-4 accent-primary"
                           />
                           {shortDate(value)}
                         </label>
@@ -324,29 +328,29 @@ function RequestPanel({ assessment, onChanged }) {
                   </div>
                 </div>
               ) : (
-                <div className="mt-4 rounded-md border border-line p-4">
+                <div className="mt-4 rounded-card border border-line p-4">
                   <div className="mb-3 flex items-center justify-between">
-                    <button
-                      type="button"
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={() => moveMonth(-1)}
                       disabled={!firstMonth || calendarMonth <= firstMonth}
-                      className="rounded-md border border-line px-3 py-1 disabled:cursor-not-allowed disabled:opacity-40"
                       aria-label="Previous month"
                     >
                       ←
-                    </button>
+                    </Button>
                     <p className="font-semibold" aria-live="polite">
                       {firstDay.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
                     </p>
-                    <button
-                      type="button"
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={() => moveMonth(1)}
                       disabled={!lastMonth || calendarMonth >= lastMonth}
-                      className="rounded-md border border-line px-3 py-1 disabled:cursor-not-allowed disabled:opacity-40"
                       aria-label="Next month"
                     >
                       →
-                    </button>
+                    </Button>
                   </div>
 
                   <div className="grid grid-cols-7 gap-1 text-center">
@@ -382,21 +386,21 @@ function RequestPanel({ assessment, onChanged }) {
                           onClick={() => toggle(day)}
                           className={`relative flex h-11 flex-col items-center justify-center rounded-md text-sm ${
                             selected
-                              ? "bg-brand font-semibold text-white"
+                              ? "bg-primary font-semibold text-primary-fg"
                               : eligible
-                                ? "border border-utd-green/40 bg-surface font-medium hover:bg-utd-green/10"
+                                ? "border border-primary/40 bg-surface font-medium hover:bg-primary/10"
                                 : pastDeadline
-                                  ? "bg-canvas text-muted/50 line-through"
+                                  ? "bg-surface-2 text-muted/50 line-through"
                                   : "text-muted/50"
                           } ${day === today && !selected ? "underline underline-offset-4" : ""} ${
-                            isDeadline ? "ring-1 ring-utd-orange ring-inset" : ""
+                            isDeadline ? "ring-1 ring-accent ring-inset" : ""
                           } disabled:cursor-not-allowed`}
                         >
                           {Number(day.slice(-2))}
                           {isDeadline && (
                             <span
                               className={`hidden text-[9px] leading-none font-medium sm:block ${
-                                selected ? "text-white" : "text-warning"
+                                selected ? "text-primary-fg" : "text-warning"
                               }`}
                             >
                               deadline
@@ -409,14 +413,14 @@ function RequestPanel({ assessment, onChanged }) {
 
                   <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
                     <span className="flex items-center gap-1.5">
-                      <span className="h-3 w-3 rounded-sm border border-utd-green/40 bg-surface" /> Class meeting
+                      <span className="h-3 w-3 rounded-sm border border-primary/40 bg-surface" /> Class meeting
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <span className="h-3 w-3 rounded-sm bg-brand" /> Offered
+                      <span className="h-3 w-3 rounded-sm bg-primary" /> Offered
                     </span>
                     {observationDeadline && (
                       <span className="flex items-center gap-1.5">
-                        <span className="h-3 w-3 rounded-sm ring-1 ring-utd-orange ring-inset" /> Deadline
+                        <span className="h-3 w-3 rounded-sm ring-1 ring-accent ring-inset" /> Deadline
                       </span>
                     )}
                   </p>
@@ -432,7 +436,7 @@ function RequestPanel({ assessment, onChanged }) {
             </StepTitle>
             <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 flex-1">
-                <p className={datesValid ? "text-utd-green-dark" : "text-muted"}>
+                <p className={datesValid ? "text-success" : "text-muted"}>
                   {chosenObserver ? fullName(chosenObserver) : "No observer chosen"},{" "}
                   {dates.length} of {MIN_DATES}–{MAX_DATES} dates
                   {dates.length > 0 && dates.length < MIN_DATES
@@ -446,7 +450,7 @@ function RequestPanel({ assessment, onChanged }) {
                         key={date}
                         type="button"
                         onClick={() => toggle(date)}
-                        className="rounded-full border border-primary bg-surface px-3 py-1 text-xs hover:bg-canvas"
+                        className="rounded-full border border-primary bg-surface px-3 py-1 text-xs hover:bg-surface-2"
                         aria-label={`Remove ${shortDate(date)}`}
                         title="Remove this date"
                       >
@@ -456,21 +460,16 @@ function RequestPanel({ assessment, onChanged }) {
                     <button
                       type="button"
                       onClick={() => setDates([])}
-                      className="px-1 text-xs font-medium text-utd-green-dark hover:underline"
+                      className="px-1 text-xs font-medium text-primary hover:underline"
                     >
                       Clear all
                     </button>
                   </div>
                 )}
               </div>
-              <button
-                type="button"
-                disabled={!ready || busy}
-                onClick={send}
-                className="w-full shrink-0 rounded-md bg-utd-green px-5 py-2 text-sm font-medium text-primary-fg hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-              >
+              <Button disabled={!ready} loading={busy} onClick={send} className="w-full shrink-0 sm:w-auto">
                 {busy ? "Sending…" : "Send request"}
-              </button>
+              </Button>
             </div>
             <p className="mt-3 text-xs text-muted">
               One request goes to one observer and expires after 48 hours without a reply. The
@@ -481,11 +480,11 @@ function RequestPanel({ assessment, onChanged }) {
       )}
 
       {error && (
-        <p role="alert" className="mt-3 rounded-md border border-utd-orange/40 bg-surface px-3 py-2 text-sm">
+        <Callout tone="danger" role="alert" className="mt-3">
           {error}
-        </p>
+        </Callout>
       )}
-    </section>
+    </Card>
   )
 }
 

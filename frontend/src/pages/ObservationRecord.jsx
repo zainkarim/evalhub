@@ -7,6 +7,18 @@ import PostponeControl from "../components/PostponeControl"
 import SectionInfo, { Field } from "../components/SectionInfo"
 import StateBlock from "../components/StateBlock"
 import StatusBadge from "../components/StatusBadge"
+import {
+  Button,
+  Callout,
+  Card,
+  CardBody,
+  CardHeader,
+  ConfirmDialog,
+  Label,
+  PageHeader,
+  Textarea,
+} from "../components/ui"
+import { useToast } from "../components/ui/toast-context"
 import { useAuth } from "../context/auth-context"
 import { api } from "../lib/api"
 import {
@@ -23,10 +35,10 @@ import { useApi } from "../lib/useApi"
 
 function SignOffCard({ label, name, at }) {
   return (
-    <div className="rounded-md border border-line bg-canvas px-4 py-3 text-sm">
+    <div className="rounded-card border border-line bg-surface-2 px-4 py-3 text-sm">
       <p className="text-xs text-muted">{label}</p>
       <p className="mt-0.5 font-medium">{name}</p>
-      <p className={at ? "mt-1 text-utd-green-dark" : "mt-1 text-muted"}>
+      <p className={at ? "mt-1 text-success" : "mt-1 text-muted"}>
         {at ? `✓ Signed off ${formatDateTime(at)}` : "Not signed off yet"}
       </p>
     </div>
@@ -40,20 +52,23 @@ function SignOffCard({ label, name, at }) {
 function ObservationRecord() {
   const { id } = useParams()
   const { user } = useAuth()
+  const toast = useToast()
   const call = useCallback(() => api.getObservation(id), [id])
   const { data: observation, error, loading, reload } = useApi(call)
 
   const [confirmed, setConfirmed] = useState(false)
+  const [confirmingSignOff, setConfirmingSignOff] = useState(false)
   const [comment, setComment] = useState("")
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState("")
 
-  const run = async (action) => {
+  const run = async (action, message) => {
     setBusy(true)
     setActionError("")
     try {
       await action()
       setConfirmed(false)
+      if (message) toast.success(message)
       reload()
     } catch (err) {
       setActionError(err.message)
@@ -83,40 +98,40 @@ function ObservationRecord() {
   const observerSigned = Boolean(observation?.observerSignedOffAt)
   const canViewResults = committee || isObserver || (isObservee && observerSigned)
 
+  const doSignOff = () =>
+    run(
+      () => api.signOffObservation(observation.id, isObservee ? comment : undefined),
+      "You signed off on this observation.",
+    )
+
   return (
-    <div>
-      <Link to="/observations" className="text-sm text-muted hover:text-ink">
-        Back to observations
-      </Link>
+    <div className="space-y-6">
+      <PageHeader
+        backTo={{ to: "/observations", label: "Back to observations" }}
+        title="Observation record"
+        subtitle={
+          observation
+            ? `${courseLabel(observation.section.course)} · ${observation.section.course.title}`
+            : undefined
+        }
+        action={observation && <StatusBadge status={status} map={OBSERVATION_STATUS} />}
+      />
 
-      <div className="mt-4">
-        <StateBlock loading={loading} error={error} onRetry={reload}>
-          {observation && (
-            <>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h1 className="text-2xl font-semibold tracking-tight">
-                    Observation record
-                  </h1>
-                  <p className="mt-1 text-muted">
-                    {courseLabel(observation.section.course)} · {observation.section.course.title}
-                  </p>
-                </div>
-                <StatusBadge status={status} map={OBSERVATION_STATUS} />
-              </div>
+      <StateBlock loading={loading} error={error} onRetry={reload}>
+        {observation && (
+          <>
+            {locked && (
+              <Callout tone="success" title="This record is complete and view-only.">
+                Once both people sign off, nobody — including the committee — can change it.
+              </Callout>
+            )}
 
-              {locked && (
-                <p className="mt-5 rounded-md border border-line bg-surface px-4 py-3 text-sm">
-                  <span className="font-medium">This record is complete and view-only.</span>{" "}
-                  Once both people sign off, nobody — including the committee — can change it.
-                </p>
-              )}
+            <SectionInfo section={observation.section} />
 
-              <SectionInfo section={observation.section} className="mt-6" />
-
-              <section className="mt-6 rounded-lg border border-line bg-surface p-6 shadow-xs">
-                <h2 className="text-base font-semibold">Who and when</h2>
-                <dl className="mt-4 grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-3">
+            <Card padded={false}>
+              <CardHeader title="Who and when" />
+              <CardBody className="pb-6">
+                <dl className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-3">
                   <Field label="Observer">
                     {fullName(observation.observer)}
                     {observation.isAcStepin && (
@@ -127,48 +142,60 @@ function ObservationRecord() {
                   <Field label="Observation date">{formatDate(observation.scheduledDate)}</Field>
                   <Field label="Attempt">{observation.attemptNo}</Field>
                 </dl>
-              </section>
+                {(committee || isObservee) && (
+                  <p className="mt-4 text-sm">
+                    <Link
+                      to={`/assessments/${observation.assessmentId}`}
+                      className="font-medium text-primary hover:underline"
+                    >
+                      View the full sign-up
+                    </Link>
+                  </p>
+                )}
+              </CardBody>
+            </Card>
 
-              {status !== "postponed" && (
-                <section className="mt-6 rounded-lg border border-line bg-surface p-6 shadow-xs">
-                  <h2 className="text-base font-semibold">Observation form</h2>
-                  <div className="mt-4">
-                    {formOpen ? (
-                      dateArrived ? (
-                        <>
-                          <p className="mb-4 text-sm text-muted">
-                            Rate each criterion and add your notes, then save. You can change
-                            your answers until you sign off below.
-                          </p>
-                          <ObservationFeedback observationId={observation.id} />
-                        </>
-                      ) : (
-                        <p className="text-sm text-muted">
-                          The form opens on {formatDate(observation.scheduledDate)}, once the
-                          class has taken place.
-                        </p>
-                      )
-                    ) : canViewResults ? (
+            {status !== "postponed" && (
+              <Card padded={false}>
+                <CardHeader title="Observation form" />
+                <CardBody className="pb-6">
+                  {formOpen ? (
+                    dateArrived ? (
                       <>
-                        {!observerSigned && (
-                          <p className="mb-3 text-sm text-muted">
-                            These ratings are not final until the observer signs off.
-                          </p>
-                        )}
-                        <ObservationResults observationId={observation.id} />
+                        <p className="mb-4 text-sm text-muted">
+                          Rate each criterion and add your notes, then save. You can change
+                          your answers until you sign off below.
+                        </p>
+                        <ObservationFeedback observationId={observation.id} />
                       </>
                     ) : (
                       <p className="text-sm text-muted">
-                        The ratings become available once the observer signs off.
+                        The form opens on {formatDate(observation.scheduledDate)}, once the
+                        class has taken place.
                       </p>
-                    )}
-                  </div>
-                </section>
-              )}
+                    )
+                  ) : canViewResults ? (
+                    <>
+                      {!observerSigned && (
+                        <p className="mb-3 text-sm text-muted">
+                          These ratings are not final until the observer signs off.
+                        </p>
+                      )}
+                      <ObservationResults observationId={observation.id} />
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted">
+                      The ratings become available once the observer signs off.
+                    </p>
+                  )}
+                </CardBody>
+              </Card>
+            )}
 
-              <section className="mt-6 rounded-lg border border-line bg-surface p-6 shadow-xs">
-                <h2 className="text-base font-semibold">Sign-off</h2>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <Card padded={false}>
+              <CardHeader title="Sign-off" />
+              <CardBody className="pb-6">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <SignOffCard
                     label="Observer"
                     name={fullName(observation.observer)}
@@ -182,7 +209,7 @@ function ObservationRecord() {
                 </div>
 
                 {observation.observeeComment && (
-                  <p className="mt-4 rounded-md border border-line bg-canvas px-4 py-3 text-sm">
+                  <p className="mt-4 rounded-card border border-line bg-surface-2 px-4 py-3 text-sm">
                     <span className="font-medium">Observee&apos;s perspective:</span>{" "}
                     {observation.observeeComment}
                   </p>
@@ -200,9 +227,7 @@ function ObservationRecord() {
                     className="mt-5 border-t border-line pt-5"
                     onSubmit={(event) => {
                       event.preventDefault()
-                      run(() =>
-                        api.signOffObservation(observation.id, isObservee ? comment : undefined),
-                      )
+                      if (confirmed && dateArrived) setConfirmingSignOff(true)
                     }}
                   >
                     <label className="flex items-start gap-3 text-sm">
@@ -211,7 +236,7 @@ function ObservationRecord() {
                         checked={confirmed}
                         onChange={(event) => setConfirmed(event.target.checked)}
                         disabled={!dateArrived}
-                        className="mt-1"
+                        className="mt-1 h-4 w-4 accent-primary"
                       />
                       <span>
                         {isObserver
@@ -222,16 +247,14 @@ function ObservationRecord() {
 
                     {isObservee && (
                       <div className="mt-4">
-                        <label htmlFor="perspective" className="block text-sm font-medium">
-                          Your perspective (optional)
-                        </label>
-                        <textarea
+                        <Label htmlFor="perspective">Your perspective (optional)</Label>
+                        <Textarea
                           id="perspective"
                           value={comment}
                           onChange={(event) => setComment(event.target.value)}
                           rows={3}
                           disabled={!dateArrived}
-                          className="mt-2 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm disabled:bg-surface-2"
+                          className="mt-2"
                           placeholder="Add context or your own view of the observation."
                         />
                       </div>
@@ -244,13 +267,14 @@ function ObservationRecord() {
                       </p>
                     )}
 
-                    <button
+                    <Button
                       type="submit"
-                      disabled={!confirmed || busy || !dateArrived}
-                      className="mt-4 rounded-md bg-utd-green px-4 py-2 text-sm font-medium text-primary-fg hover:bg-primary-hover disabled:opacity-50"
+                      className="mt-4"
+                      disabled={!confirmed || !dateArrived}
+                      loading={busy}
                     >
                       {busy ? "Signing off…" : "Sign off"}
-                    </button>
+                    </Button>
                     <p className="mt-2 text-xs text-muted">
                       After both of you sign off, this record can&apos;t be edited by anyone.
                     </p>
@@ -268,48 +292,46 @@ function ObservationRecord() {
                     view-only access here.
                   </p>
                 )}
-              </section>
+              </CardBody>
+            </Card>
 
-              {canAct && (
-                <section className="mt-6 rounded-lg border border-line bg-surface p-6 shadow-xs">
-                  <h2 className="text-base font-semibold">Plans changed?</h2>
-                  <p className="mt-1 mb-3 text-sm text-muted">
-                    If the class can&apos;t be observed on this date, postpone this attempt. The
-                    reason is recorded, nothing is deleted, and a new attempt can be scheduled
-                    in the same semester.
-                  </p>
+            {canAct && (
+              <Card padded={false}>
+                <CardHeader
+                  title="Plans changed?"
+                  description="If the class can't be observed on this date, postpone this attempt. The reason is recorded, nothing is deleted, and a new attempt can be scheduled in the same semester."
+                />
+                <CardBody className="pb-6">
                   <PostponeControl
                     onSubmit={(reason) => api.postponeObservation(observation.id, reason)}
                     onDone={reload}
                   />
-                </section>
-              )}
+                </CardBody>
+              </Card>
+            )}
 
-              {actionError && (
-                <p
-                  role="alert"
-                  className="mt-4 rounded-md border border-utd-orange/40 bg-surface px-3 py-2 text-sm"
-                >
-                  {actionError}
-                </p>
-              )}
+            {actionError && (
+              <Callout tone="danger" role="alert">
+                {actionError}
+              </Callout>
+            )}
 
-              <AttemptHistory attempts={observation.attempts} />
+            <AttemptHistory attempts={observation.attempts} />
+          </>
+        )}
+      </StateBlock>
 
-              {(committee || isObservee) && (
-                <p className="mt-6 text-sm">
-                  <Link
-                    to={`/assessments/${observation.assessmentId}`}
-                    className="font-medium text-utd-green hover:underline"
-                  >
-                    View the full sign-up
-                  </Link>
-                </p>
-              )}
-            </>
-          )}
-        </StateBlock>
-      </div>
+      <ConfirmDialog
+        open={confirmingSignOff}
+        title="Sign off on this observation?"
+        description="Once both people have signed off, the record is complete and nobody can change it."
+        confirmLabel="Sign off"
+        onCancel={() => setConfirmingSignOff(false)}
+        onConfirm={() => {
+          setConfirmingSignOff(false)
+          doSignOff()
+        }}
+      />
     </div>
   )
 }

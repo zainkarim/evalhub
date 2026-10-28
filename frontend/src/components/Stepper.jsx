@@ -15,12 +15,12 @@ function Stepper({ assessment }) {
           <li key={label} aria-current={active ? "step" : undefined}>
             <div
               className={`h-1 rounded-full ${
-                done ? "bg-utd-green" : active ? "bg-utd-orange" : "bg-line"
+                done ? "bg-success" : active ? "bg-accent ring-2 ring-accent/30" : "bg-line"
               }`}
             />
             <p
               className={`mt-2 flex items-center gap-1 text-xs ${
-                active ? "font-semibold text-ink" : done ? "text-utd-green-dark" : "text-muted"
+                active ? "font-semibold text-ink" : done ? "text-success" : "text-muted"
               }`}
             >
               {done && <span aria-hidden="true">✓</span>}
