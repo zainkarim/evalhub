@@ -207,6 +207,12 @@ html {
   scrollbar-gutter: stable;
 }
 
+/* The sign-in page never scrolls on a normal window, so it should not reserve the
+   scrollbar gutter: that would push the centred card a few pixels left of the middle. */
+html:has([data-page="login"]) {
+  scrollbar-gutter: auto;
+}
+
 ::selection {
   background-color: color-mix(in srgb, var(--c-primary-ink) 25%, transparent);
 }

@@ -54,10 +54,12 @@ function Login() {
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col font-sans text-ink">
+    <div data-page="login" className="relative min-h-screen font-sans text-ink">
       <Starfield variant="hero" />
 
-      <header className="flex items-center justify-between px-4 py-4 sm:px-6">
+      {/* The top bar floats over the page, so the card below is centred in the whole window
+          (main keeps room for the bar above and the same room below). */}
+      <header className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-4 py-4 sm:px-6">
         <div className="sky-scrim">
           <Link
             to="/welcome"
@@ -71,72 +73,77 @@ function Login() {
         <ThemeToggle className="bg-surface ring-1 ring-line" />
       </header>
 
-      <main id="main-content" className="flex flex-1 flex-col items-center justify-center px-4 pb-16 pt-4">
-        <Card className="w-full max-w-sm p-8 shadow-lg">
-          <BrandMark size={44} variant="medium" className="mb-6" />
-          <h1 className="font-display text-2xl font-semibold tracking-tight">Sign in</h1>
-          <p className="mt-1 text-sm text-muted">Use your UTD email address.</p>
+      <main id="main-content" className="flex min-h-screen flex-col items-center justify-center px-4 py-[5.5rem]">
+        <div className="relative w-full max-w-sm">
+          <Card className="p-8 shadow-lg">
+            <BrandMark size={44} variant="medium" className="mb-6" />
+            <h1 className="font-display text-2xl font-semibold tracking-tight">Sign in</h1>
+            <p className="mt-1 text-sm text-muted">Use your UTD email address.</p>
 
-          <form onSubmit={handleSubmit} className="mt-6 space-y-5" noValidate>
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="username"
-                required
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                className="mt-1.5"
-                placeholder="name@utdallas.edu"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="password">Password</Label>
-              <div className="relative mt-1.5">
+            <form onSubmit={handleSubmit} className="mt-6 space-y-5" noValidate>
+              <div>
+                <Label htmlFor="email">Email</Label>
                 <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
+                  id="email"
+                  type="email"
+                  autoComplete="username"
                   required
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  className="pr-11"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  className="mt-1.5"
+                  placeholder="name@utdallas.edu"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((current) => !current)}
-                  aria-pressed={showPassword}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                  className="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-surface-2 hover:text-ink"
-                >
-                  {showPassword ? (
-                    <EyeOff aria-hidden="true" className="h-4 w-4" />
-                  ) : (
-                    <Eye aria-hidden="true" className="h-4 w-4" />
-                  )}
-                </button>
               </div>
+
+              <div>
+                <Label htmlFor="password">Password</Label>
+                <div className="relative mt-1.5">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    className="pr-11"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((current) => !current)}
+                    aria-pressed={showPassword}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    className="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-surface-2 hover:text-ink"
+                  >
+                    {showPassword ? (
+                      <EyeOff aria-hidden="true" className="h-4 w-4" />
+                    ) : (
+                      <Eye aria-hidden="true" className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {error && (
+                <p
+                  role="alert"
+                  className="rounded-md border border-danger/40 bg-danger-soft px-3 py-2 text-sm text-danger"
+                >
+                  {error}
+                </p>
+              )}
+
+              <Button type="submit" fullWidth loading={submitting}>
+                Sign in
+              </Button>
+            </form>
+          </Card>
+
+          {/* Under the card but outside the centring, so the card itself is what sits in the middle. */}
+          <div className="absolute inset-x-0 top-full mt-6 flex justify-center">
+            <div className="sky-scrim">
+              <p className="text-sm text-muted">Faculty peer observation · UT Dallas ECS</p>
             </div>
-
-            {error && (
-              <p
-                role="alert"
-                className="rounded-md border border-danger/40 bg-danger-soft px-3 py-2 text-sm text-danger"
-              >
-                {error}
-              </p>
-            )}
-
-            <Button type="submit" fullWidth loading={submitting}>
-              Sign in
-            </Button>
-          </form>
-        </Card>
-
-        <div className="sky-scrim mt-6">
-          <p className="text-sm text-muted">Faculty peer observation · UT Dallas ECS</p>
+          </div>
         </div>
       </main>
 
