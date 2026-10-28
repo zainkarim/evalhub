@@ -12,7 +12,7 @@ import ThemeToggle from "../components/ThemeToggle"
 import { Button, Card } from "../components/ui"
 import { useAuth } from "../context/auth-context"
 
-const INTRO_MS = 3600
+const INTRO_MS = 3500
 
 // Fade + small rise when the block scrolls into view (once).
 function Reveal({ children, delay = 0, className }) {
@@ -163,7 +163,7 @@ function LandingPage() {
 
         <footer className="border-t border-line bg-surface px-4 py-8 sm:px-6">
           <div className="mx-auto flex max-w-5xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <BrandMark />
+            <BrandMark size={28} />
             <div className="text-sm text-muted sm:text-right">
               <p>Faculty peer observation · UT Dallas ECS</p>
               <p>Erik Jonsson School of Engineering &amp; Computer Science</p>

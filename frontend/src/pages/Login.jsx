@@ -73,6 +73,7 @@ function Login() {
 
       <main id="main-content" className="flex flex-1 flex-col items-center justify-center px-4 pb-16 pt-4">
         <Card className="w-full max-w-sm p-8 shadow-lg">
+          <BrandMark size={44} variant="medium" className="mb-6" />
           <h1 className="font-display text-2xl font-semibold tracking-tight">Sign in</h1>
           <p className="mt-1 text-sm text-muted">Use your UTD email address.</p>
 

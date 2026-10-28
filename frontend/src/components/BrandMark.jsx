@@ -1,17 +1,18 @@
 import { Link } from "react-router-dom"
+import LogoMark from "./brand/LogoMark"
+import Wordmark from "./brand/Wordmark"
 
-// The EvalHub logo: a UTD-green tile with an "E", then the wordmark. Pass `to`
-// to make it a link (the header does); without it, it is a plain mark.
-function BrandMark({ to, className = "" }) {
+// Text size that sits well next to a mark of this size (header 32, footer 28).
+const TEXT = { 28: "text-lg", 32: "text-xl", 44: "text-[2rem]" }
+
+// The EvalHub logo: the mark (E, constellation, comet) and the live-text wordmark.
+// Pass `to` to make it a link (the header does); without it, it is a plain mark.
+// Its accessible name is the visible text, "EvalHub" (the mark is aria-hidden).
+function BrandMark({ to, size = 32, variant = "compact", className = "" }) {
   const content = (
     <>
-      <span
-        aria-hidden="true"
-        className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-base font-bold text-primary-fg shadow-xs"
-      >
-        E
-      </span>
-      <span className="text-lg font-semibold tracking-tight text-ink">EvalHub</span>
+      <LogoMark size={size} />
+      <Wordmark variant={variant} className={TEXT[size] ?? "text-xl"} />
     </>
   )
   const classes = `flex shrink-0 items-center gap-2.5 rounded-md ${className}`

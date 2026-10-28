@@ -1,11 +1,42 @@
 import { ArrowRight, ChevronDown } from "lucide-react"
 import { m } from "motion/react"
 import { useLayoutEffect, useRef } from "react"
+import LogoMark from "../brand/LogoMark"
 import { Button } from "../ui"
+import HubDecor from "./HubDecor"
 import Sparkles from "./Sparkles"
 
-const WORDMARK = "EvalHub".split("")
+const EVAL = "Eval".split("")
+const HUB = "Hub".split("")
 const INTRO_SCALE = 1.45
+
+// One letter of the title. Every letter is its own inline-block with line-height 1 (see
+// .wm-letter in index.css), so the vertical gradient is identical across the word. With
+// `playing` it blurs and rises in; the "Hub" letters start dim and ignite (the glow on
+// their wrapper follows their opacity).
+function Letter({ char, index, playing, hub }) {
+  const start = hub ? 1.45 : 1.1
+  return (
+    <m.span
+      aria-hidden="true"
+      className={`wm-letter ${hub ? "wm-hub" : "wm-silver"} ${hub && index === 0 ? "wm-h" : ""}`}
+      initial={playing ? { opacity: 0, y: 12, filter: "blur(8px)" } : false}
+      animate={{
+        opacity: hub && playing ? [0, 0.35, 1] : 1,
+        y: 0,
+        filter: "blur(0px)",
+      }}
+      transition={{
+        delay: start + index * (hub ? 0.08 : 0.07),
+        duration: hub ? 0.7 : 0.5,
+        times: hub && playing ? [0, 0.55, 1] : undefined,
+        ease: "easeOut",
+      }}
+    >
+      {char}
+    </m.span>
+  )
+}
 
 // The first screen. Its final state is what the DOM always contains (h1,
 // headline, subtext, buttons). While the intro plays, `playing` is true and:
@@ -50,27 +81,34 @@ function Hero({ playing }) {
         className="sky-scrim w-full max-w-3xl before:transition-opacity before:duration-500 data-[intro=true]:before:opacity-0"
       >
         <div ref={groupRef} className="relative">
-          <h1
-            aria-label="EvalHub"
-            className="font-display font-semibold tracking-tight"
-            // Inline: the global `main h1:first-of-type` size would otherwise win.
-            style={{ fontSize: "clamp(2.5rem, 7vw, 5rem)", lineHeight: 1 }}
+          {/* The lockup: mark left, title right (stacked below sm). The h1 is one
+              accessible name; the letters and the decoration inside are aria-hidden. */}
+          <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-center sm:gap-7">
+            <LogoMark size={136} intro={playing} className="h-28 w-28 sm:h-[8.5rem] sm:w-[8.5rem]" />
+            <h1
+              aria-label="EvalHub"
+              className="font-display font-bold"
+              // Inline: the global `main h1:first-of-type` size would otherwise win.
+              style={{ fontSize: "clamp(3rem, 8vw, 6.5rem)", lineHeight: 1, letterSpacing: "-0.03em" }}
+            >
+              <span aria-hidden="true">
+                {EVAL.map((char, index) => (
+                  <Letter key={index} char={char} index={index} playing={playing} />
+                ))}
+              </span>
+              <span aria-hidden="true" className="wm-hub-glow relative inline-block align-baseline">
+                {HUB.map((char, index) => (
+                  <Letter key={index} char={char} index={index} playing={playing} hub />
+                ))}
+                <HubDecor intro={playing} />
+              </span>
+            </h1>
+          </div>
+          <m.p
+            className="mt-6 text-xs uppercase tracking-[0.2em] text-muted sm:text-sm"
+            {...appear(2.3)}
           >
-            {WORDMARK.map((letter, index) => (
-              <m.span
-                key={index}
-                aria-hidden="true"
-                className="inline-block"
-                initial={playing ? { opacity: 0, y: 12, filter: "blur(8px)" } : false}
-                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                transition={{ delay: 0.8 + index * 0.06, duration: 0.5, ease: "easeOut" }}
-              >
-                {letter}
-              </m.span>
-            ))}
-          </h1>
-          <m.p className="mt-3 text-sm text-muted sm:text-base" {...appear(2.2)}>
-            Faculty peer observation · UT Dallas ECS
+            Faculty peer observation · UT Dallas
           </m.p>
           {playing && <Sparkles />}
         </div>

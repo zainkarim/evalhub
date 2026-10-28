@@ -1,5 +1,7 @@
 import { ArrowRight, Inbox, Plus, Save, Trash } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
+import BrandMark from "../../components/BrandMark"
+import LogoMark from "../../components/brand/LogoMark"
 import Starfield from "../../components/Starfield"
 import ThemeToggle from "../../components/ThemeToggle"
 import {
@@ -135,6 +137,19 @@ function Showcase({ theme, onToast }) {
 
   return (
     <div className="space-y-10">
+      <Section title="Logo" note="LogoMark at 16, 32, 44 and 120, then the compact brand, the login size and the footer size.">
+        <div data-logo-sizes className="flex flex-wrap items-end gap-6 rounded-card border border-line bg-surface p-5">
+          {[16, 32, 44, 120].map((size) => (
+            <LogoMark key={size} size={size} />
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-8 rounded-card border border-line bg-surface p-5">
+          <BrandMark />
+          <BrandMark size={44} variant="medium" />
+          <BrandMark size={28} />
+        </div>
+      </Section>
+
       <Section title="Green roles" note="primary fills buttons and selected days; primary-ink is the green for text, icons, borders and focus rings.">
         <GreenSwatches />
       </Section>

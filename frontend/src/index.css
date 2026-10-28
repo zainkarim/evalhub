@@ -50,6 +50,30 @@
   --c-star: 110 106 99; /* warm grey stars on the cream sky */
   --c-comet-head: 232 117 0; /* UTD Orange comet head in light mode */
 
+  /* Gold: the sparkles, constellation star points and mini comets of the logo.
+     Decorative only, never text. The glow tokens are complete drop-shadow() values. */
+  --c-gold: #d98a12;
+  --c-gold-core: #f7c25a;
+  --c-gold-glow: drop-shadow(0 0 4px rgb(217 138 18 / 0.25));
+  --c-logo-glow: 0; /* the soft halo around the logo comet: dark mode only */
+
+  /* Logo (components/brand): the E, the constellation lines, and the flat "Hub"
+     colour of the compact wordmark. */
+  --c-logo-e-top: #154734;
+  --c-logo-e-bottom: #1f6f52;
+  --c-logo-e-edge: #0e3324;
+  --c-logo-line: #2f6b52;
+  --c-hub-flat: #b25210; /* 4.5:1 on the light surfaces */
+
+  /* Hero title (landing): "Eval" silver/graphite, "Hub" orange. The stops sit on the
+     cap height of Space Grotesk (14% to 85% of a 1em line box). The top of the light
+     "Hub" is darker than the brand orange so the large letters keep 3:1 on the cream sky. */
+  --wm-silver: linear-gradient(to bottom, #3a434b 14%, #28312d 50%, #16201c 85%);
+  --wm-silver-solid: #28312d;
+  --wm-hub: linear-gradient(to bottom, #d46508 14%, #c25a0c 52%, #a8480c 85%);
+  --wm-hub-solid: #b25210;
+  --wm-hub-glow: drop-shadow(0 0 10px rgb(232 117 0 / 0.18));
+
   /* The whole sky (glows + gradient) as one background value, shared by the
      starfield canvas and by .sky-scrim so a scrim matches the sky exactly. */
   --sky-bg:
@@ -95,6 +119,23 @@
   --c-star: 255 255 255;
   --c-comet-head: 255 255 255;
 
+  --c-gold: #fcaa2d;
+  --c-gold-core: #ffe2a8;
+  --c-gold-glow: drop-shadow(0 0 6px rgb(252 170 45 / 0.6));
+  --c-logo-glow: 0.5;
+
+  --c-logo-e-top: #26845f;
+  --c-logo-e-bottom: #1f6f52;
+  --c-logo-e-edge: #5fa886; /* a lighter edge so the deep green separates from the dark bg */
+  --c-logo-line: #3f8267;
+  --c-hub-flat: #f08a1c;
+
+  --wm-silver: linear-gradient(to bottom, #ffffff 14%, #e6e9ec 50%, #b9c0c6 85%);
+  --wm-silver-solid: #e6e9ec;
+  --wm-hub: linear-gradient(to bottom, #f7b04f 14%, #e87500 52%, #c2580a 85%);
+  --wm-hub-solid: #e87500;
+  --wm-hub-glow: drop-shadow(0 0 18px rgb(232 117 0 / 0.45));
+
   --shadow-rgb: 0 0 0;
   color-scheme: dark;
 }
@@ -115,6 +156,9 @@
   --color-accent-ink: var(--c-accent-ink);
   --color-accent-fg: var(--c-accent-fg);
   --color-accent-soft: var(--c-accent-soft);
+  --color-hub: var(--c-hub-flat);
+  --color-gold: var(--c-gold);
+  --color-gold-core: var(--c-gold-core);
 
   --color-success: var(--c-success);
   --color-warning: var(--c-warning);
@@ -209,6 +253,60 @@ tbody tr:hover {
    just be noise. (Tailwind's outline-none can't win against the unlayered rule above.) */
 #main-content:focus-visible {
   outline: none;
+}
+
+/* The wordmark (components/brand/Wordmark.jsx). Each letter that gets its own box is
+   an inline-block with line-height 1, so the em values below describe Space Grotesk
+   700 exactly: the line box is 1em tall, the baseline sits 0.846em from its top, the
+   cap height is 0.703em.
+   The "H" of "Hub" is broken on purpose (user decision): its left stem keeps full
+   height, its right stem only exists from the top of the crossbar (0.435em from the
+   top) down. The clip cuts through the empty counter (x = 0.328em, halfway between
+   the stems); the text stays a real "H" in the DOM. Shape, not colour, so it also
+   holds under forced colours. */
+.wm-letter {
+  display: inline-block;
+  line-height: 1;
+}
+.wm-h {
+  clip-path: polygon(-0.1em -0.3em, 0.328em -0.3em, 0.328em 0.435em, 0.8em 0.435em, 0.8em 1.3em, -0.1em 1.3em);
+}
+/* Hero title colours: a solid colour first (what you get without background-clip:text),
+   then the gradient on top of it where supported. */
+.wm-silver {
+  color: var(--wm-silver-solid);
+}
+.wm-hub {
+  color: var(--wm-hub-solid);
+}
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+  .wm-silver,
+  .wm-hub {
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .wm-silver {
+    background-image: var(--wm-silver);
+  }
+  .wm-hub {
+    background-image: var(--wm-hub);
+  }
+}
+/* The glow lives on the parent of the (clipped) letters, so the cut does not clip it. */
+.wm-hub-glow {
+  filter: var(--wm-hub-glow);
+}
+@media (forced-colors: active) {
+  .wm-silver,
+  .wm-hub {
+    background: none;
+    color: CanvasText;
+    -webkit-text-fill-color: currentcolor;
+  }
+  .wm-hub-glow {
+    filter: none;
+  }
 }
 
 /* The Starfield canvas: the sky itself is this CSS background (so a theme switch
