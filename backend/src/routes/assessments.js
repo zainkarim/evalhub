@@ -791,7 +791,7 @@ router.post(
         throw new HttpError(400, 'validation_error', `Proposed date ${opt.proposedDate} is after the observation-period deadline (${deadline})`, { proposedDate: opt.proposedDate });
       }
       if (!section.meeting_days || !section.meeting_days.includes(dayCodeFor(opt.proposedDate))) {
-        throw new HttpError(409, 'conflict', `${opt.proposedDate} is not a day this section meets (meeting days: ${section.meeting_days ?? 'none scheduled'})`, { proposedDate: opt.proposedDate });
+        throw new HttpError(400, 'validation_error', `${opt.proposedDate} is not a day this section meets (meeting days: ${section.meeting_days ?? 'none scheduled'})`, { proposedDate: opt.proposedDate });
       }
     }
 

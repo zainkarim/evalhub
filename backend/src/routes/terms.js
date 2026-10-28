@@ -16,6 +16,7 @@ const toTerm = (r) => ({
   isLongTerm: r.is_long_term,
   signupDeadline: r.signup_deadline,
   observationDeadline: r.observation_deadline,
+  feedbackDeadline: r.feedback_deadline,
 });
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD');
@@ -30,8 +31,9 @@ const termBody = z.object({
 const datesBody = z.object({
   signupDeadline: isoDate.optional(),
   observationDeadline: isoDate.optional(),
-}).refine((b) => b.signupDeadline || b.observationDeadline, {
-  message: 'Provide at least one of signupDeadline or observationDeadline',
+  feedbackDeadline: isoDate.optional(),
+}).refine((b) => b.signupDeadline || b.observationDeadline || b.feedbackDeadline, {
+  message: 'Provide at least one of signupDeadline, observationDeadline, or feedbackDeadline',
 });
 
 const idParams = z.object({ id: z.coerce.number().int().positive() });
@@ -52,7 +54,8 @@ router.post('/', requireRole(...AC_OR_ADMIN), validate(termBody), async (req, re
   res.status(201).json(toTerm(rows[0]));
 });
 
-// PATCH /api/terms/:id/dates  (AC / admin) — set or update sign-up / observation-period deadlines
+// PATCH /api/terms/:id/dates  (AC / admin) — set or update sign-up / observation-period /
+// feedback deadlines. Order enforced: signup < observation < feedback.
 router.patch(
   '/:id/dates',
   requireRole(...AC_OR_ADMIN),
@@ -66,6 +69,7 @@ router.patch(
 
     const signupDeadline = req.valid.body.signupDeadline ?? term.signup_deadline;
     const observationDeadline = req.valid.body.observationDeadline ?? term.observation_deadline;
+    const feedbackDeadline = req.valid.body.feedbackDeadline ?? term.feedback_deadline;
 
     if (signupDeadline && observationDeadline && signupDeadline >= observationDeadline) {
       throw new HttpError(
@@ -73,6 +77,22 @@ router.patch(
         'validation_error',
         'signupDeadline must be before observationDeadline',
         { signupDeadline, observationDeadline },
+      );
+    }
+    if (observationDeadline && feedbackDeadline && observationDeadline >= feedbackDeadline) {
+      throw new HttpError(
+        400,
+        'validation_error',
+        'observationDeadline must be before feedbackDeadline',
+        { observationDeadline, feedbackDeadline },
+      );
+    }
+    if (!observationDeadline && signupDeadline && feedbackDeadline && signupDeadline >= feedbackDeadline) {
+      throw new HttpError(
+        400,
+        'validation_error',
+        'signupDeadline must be before feedbackDeadline',
+        { signupDeadline, feedbackDeadline },
       );
     }
     if (observationDeadline && observationDeadline > term.end_date) {
@@ -84,8 +104,8 @@ router.patch(
     }
 
     const { rows } = await query(
-      'UPDATE terms SET signup_deadline = $2, observation_deadline = $3 WHERE id = $1 RETURNING *',
-      [id, signupDeadline, observationDeadline],
+      'UPDATE terms SET signup_deadline = $2, observation_deadline = $3, feedback_deadline = $4 WHERE id = $1 RETURNING *',
+      [id, signupDeadline, observationDeadline, feedbackDeadline],
     );
     res.json(toTerm(rows[0]));
   },
