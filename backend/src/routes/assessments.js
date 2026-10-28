@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { pool, query } from '../db/pool.js';
 import { findTeacherConflict,  dayCodeFor } from '../lib/availability.js';
+import { lockInDate } from '../lib/scheduling.js';
 import { AC_OR_ADMIN, requireRole } from '../middleware/auth.js';
 import { HttpError, notFound } from '../middleware/errors.js';
 import { idParams, pagination, paged, validate } from '../middleware/validate.js';
@@ -1033,39 +1034,15 @@ router.post(
       throw new HttpError(409, 'conflict', `You are no longer free at that time: ${observeeConflict.detail}`);
     }
 
-    // #78: confirm + decline must happen together, and declines must also
-    // cover other observers who accepted this SAME option -- the original
-    // query only declined offers on OTHER options, so another observer who
-    // accepted the chosen slot stayed 'accepted' and still saw themselves as
-    // available for it.
+    // Confirm the date, decline every competing offer (including other
+    // observers on this same date, #78 / #106), and write the observer and
+    // date to the observation, all in one transaction (#57).
     const client = await pool.connect();
-    let confirmedOption;
+    let confirmed;
     try {
       await client.query('BEGIN');
-
-      const { rows: confirmed } = await client.query(
-        `UPDATE assessment_time_options
-            SET is_confirmed = TRUE, confirmed_teacher_id = $2
-          WHERE id = $1
-          RETURNING *`,
-        [optionId, teacherId],
-      );
-      confirmedOption = confirmed[0];
-
-      // Every other offer on every other (still-open) option for this
-      // assessment is now moot, as is any other observer's offer on this
-      // SAME option -- only the chosen teacherId's offer stays accepted.
-      await client.query(
-        `UPDATE time_option_offers
-            SET status = 'declined', updated_at = now()
-          WHERE status <> 'declined'
-            AND (
-              option_id IN (SELECT id FROM assessment_time_options WHERE assessment_id = $1 AND id <> $2)
-              OR (option_id = $2 AND teacher_id <> $3)
-            )`,
-        [assessmentId, optionId, teacherId],
-      );
-
+      const { rows: locked } = await client.query('SELECT * FROM assessments WHERE id = $1 FOR UPDATE', [assessmentId]);
+      ({ option: confirmed } = await lockInDate(client, { assessment: locked[0], option, observerId: teacherId }));
       await client.query('COMMIT');
     } catch (err) {
       await client.query('ROLLBACK');
@@ -1074,7 +1051,7 @@ router.post(
       client.release();
     }
 
-    res.json(toTimeOption(confirmedOption));
+    res.json(toTimeOption(confirmed));
   },
 );
 
