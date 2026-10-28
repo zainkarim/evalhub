@@ -36,14 +36,27 @@ const td = "px-4 py-3"
 function AllSignUps() {
   const [status, setStatus] = useState("")
   const [search, setSearch] = useState("")
-  const call = useCallback(() => api.listAssessments({ status }), [status])
+    const call = useCallback(async () => {
+    const [assessments, professors] = await Promise.all([
+      api.listAssessments({ status }),
+      api.listProfessors(),
+    ])
+    // The real backend sends only teacherId; look the name up from the professor list.
+    const byId = new Map((professors.data ?? []).map((teacher) => [teacher.id, teacher]))
+    return {
+      data: (assessments.data ?? []).map((item) => ({
+        ...item,
+        teacher: item.teacher ?? byId.get(item.teacherId),
+      })),
+    }
+  }, [status])
   const { data, error, loading, reload } = useApi(call)
 
   const text = search.trim().toLowerCase()
   const rows = (data?.data ?? []).filter(
     (item) =>
       !text ||
-      `${fullName(item.teacher)} ${courseLabel(item.section.course)} ${item.section.course.title}`
+        `${fullName(item.teacher)} ${item.section ? courseLabel(item.section.course) : (item.courseCode ?? "")} ${item.section?.course?.title ?? ""}`
         .toLowerCase()
         .includes(text),
   )
@@ -108,9 +121,11 @@ function AllSignUps() {
                       </Link>
                     </td>
                     <td className={td}>
-                      {courseLabel(item.section.course)}
+                                            {item.section ? courseLabel(item.section.course) : (item.courseCode ?? "Unknown course")}
                       <span className="block text-muted">
-                        {formatTerm(item.section.term)} · Section {item.section.sectionNumber}
+                        {item.section
+                          ? `${formatTerm(item.section.term)} · Section ${item.section.sectionNumber}`
+                          : (item.sectionCode ?? "—")}
                       </span>
                     </td>
                     <td className={td}>
