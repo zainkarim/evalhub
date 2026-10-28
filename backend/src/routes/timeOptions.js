@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { query } from '../db/pool.js';
+import { pool, query } from '../db/pool.js';
 import { findTeacherConflict } from '../lib/availability.js';
+import { lockInDate } from '../lib/scheduling.js';
 import { HttpError, notFound } from '../middleware/errors.js';
 import { idParams, validate } from '../middleware/validate.js';
 
@@ -70,18 +71,26 @@ router.post('/offers/:id/respond', validate(idParams, 'params'), validate(respon
   res.json(toOffer(updated[0]));
 });
 
-// POST /api/time-options/:id/confirm   (legacy -- the observer this option was
-// offered to, pre-fix-#6 single-observer model via offered_to_teacher_id)
-// Kept for any batches sent before migration 006 (new sends no longer set
-// offered_to_teacher_id -- see assessments.js's /time-options/send). New
-// scheduling goes through POST /offers/:id/respond + the observee's
-// /assessments/:id/time-options/:optionId/finalize instead.
+// POST /api/time-options/:id/confirm   (an observer this option was offered to)
+// The observer picks one of the observee's proposed dates and it is locked in
+// at once (requirements §4.3 step 5; the frontend's one-observer flow). Works
+// for offers sent through time_option_offers (migration 006) and for older
+// batches that used offered_to_teacher_id. The multi-offer alternative, where
+// the observee picks among accepted offers, is
+// POST /api/assessments/:id/time-options/:optionId/finalize. Both end in
+// lockInDate (src/lib/scheduling.js).
 router.post('/:id/confirm', validate(idParams, 'params'), async (req, res) => {
   const { rows } = await query('SELECT * FROM assessment_time_options WHERE id = $1', [req.valid.params.id]);
   const option = rows[0];
   if (!option) throw notFound('Time option');
 
-  if (option.offered_to_teacher_id !== req.user.teacherId) {
+  const { rows: offerRows } = await query(
+    `SELECT 1 FROM time_option_offers WHERE option_id = $1 AND teacher_id = $2 AND status <> 'declined'`,
+    [option.id, req.user.teacherId],
+  );
+  const offeredToMe = req.user.teacherId != null
+    && (option.offered_to_teacher_id === req.user.teacherId || offerRows.length > 0);
+  if (!offeredToMe) {
     throw new HttpError(403, 'forbidden', 'This option was not offered to you');
   }
   if (option.is_confirmed) {
@@ -113,19 +122,26 @@ router.post('/:id/confirm', validate(idParams, 'params'), async (req, res) => {
     }
   }
 
-  const { rows: confirmed } = await query(
-    'UPDATE assessment_time_options SET is_confirmed = TRUE WHERE id = $1 RETURNING *',
-    [option.id],
-  );
-  // Any sibling options that were offered alongside this one become moot —
-  // clear their offered_to_teacher_id so a stale confirm attempt on them 404s
-  // cleanly (via the forbidden check above) instead of silently double-booking.
-  await query(
-    'UPDATE assessment_time_options SET offered_to_teacher_id = NULL WHERE assessment_id = $1 AND id <> $2 AND NOT is_confirmed',
-    [option.assessment_id, option.id],
-  );
+  // Confirm it, decline the competing offers, and write the observer and date
+  // to the observation in one transaction (#57).
+  const client = await pool.connect();
+  let confirmed;
+  try {
+    await client.query('BEGIN');
+    const { rows: locked } = await client.query('SELECT * FROM assessments WHERE id = $1 FOR UPDATE', [option.assessment_id]);
+    if (['completed', 'cancelled', 'not_eligible'].includes(locked[0].status)) {
+      throw new HttpError(409, 'conflict', 'This assessment is no longer open for scheduling');
+    }
+    ({ option: confirmed } = await lockInDate(client, { assessment: locked[0], option, observerId: req.user.teacherId }));
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 
-  res.json(toOption(confirmed[0]));
+  res.json(toOption(confirmed));
 });
 
 export default router;
