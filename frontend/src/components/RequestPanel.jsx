@@ -11,22 +11,13 @@ import {
   toDateOnly,
   todayISO,
 } from "../lib/format"
+import DatePicker from "./DatePicker"
 import StatusBadge from "./StatusBadge"
 import { Button, Callout, Card, Input, Label, Select } from "./ui"
 import { useToast } from "./ui/toast-context"
 
 const MIN_DATES = 4
 const MAX_DATES = 8
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-
-const monthKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
-
-const shortDate = (iso) =>
-  new Date(`${iso}T12:00:00`).toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  })
 
 // A numbered step that turns into a check mark once it is done (same marker
 // as the observation form).
@@ -59,11 +50,6 @@ function RequestPanel({ assessment, onChanged }) {
   const toast = useToast()
   const [observerId, setObserverId] = useState("")
   const [dates, setDates] = useState([])
-  const [dateView, setDateView] = useState("calendar")
-  // Open the calendar on the first selectable class date, not today's month.
-  const [calendarMonth, setCalendarMonth] = useState(() =>
-    (meetingDates(assessment.section, { limit: 1 })[0] ?? todayISO()).slice(0, 7),
-  )
   const [startTime, setStartTime] = useState("")
   const [endTime, setEndTime] = useState("")
   const [reason, setReason] = useState("")
@@ -75,20 +61,8 @@ function RequestPanel({ assessment, onChanged }) {
   const classDates = meetingDates(section, { limit: 60 })
   const observationDeadline = toDateOnly(section.term?.observationDeadline)
   const termEnd = toDateOnly(section.term?.endDate)
-  const firstMonth = classDates[0]?.slice(0, 7)
-  const lastMonth = (observationDeadline ?? classDates[classDates.length - 1])?.slice(0, 7)
   const today = todayISO()
   const nextAttempt = status === "postponed"
-
-  const [calendarYear, calendarMonthNumber] = calendarMonth.split("-").map(Number)
-  const firstDay = new Date(calendarYear, calendarMonthNumber - 1, 1)
-  const daysInMonth = new Date(calendarYear, calendarMonthNumber, 0).getDate()
-  const calendarDays = [
-    ...Array(firstDay.getDay()).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, index) => `${calendarMonth}-${String(index + 1).padStart(2, "0")}`),
-  ]
-  const moveMonth = (delta) =>
-    setCalendarMonth(monthKey(new Date(calendarYear, calendarMonthNumber - 1 + delta, 1)))
 
   const run = async (action, message) => {
     setBusy(true)
@@ -139,19 +113,6 @@ function RequestPanel({ assessment, onChanged }) {
   }
 
   if (candidates.length === 0) return null
-
-  const tab = (value, label) => (
-    <button
-      type="button"
-      onClick={() => setDateView(value)}
-      aria-pressed={dateView === value}
-      className={`px-4 py-1.5 text-sm ${
-        dateView === value ? "bg-primary font-medium text-primary-fg" : "bg-surface text-muted hover:text-ink"
-      }`}
-    >
-      {label}
-    </button>
-  )
 
   return (
     <Card as="section" className="mt-6">
@@ -266,167 +227,24 @@ function RequestPanel({ assessment, onChanged }) {
               )}
             </div>
 
-            {/* Step 2: dates */}
-            <div>
-              <div className="flex flex-wrap items-center justify-between gap-3">
+            {/* Step 2: dates (calendar or list, chosen dates as chips) */}
+            <DatePicker
+              heading={
                 <StepTitle number={2} done={datesValid}>
                   Offer 4–8 class dates
                 </StepTitle>
-                <div className="inline-flex overflow-hidden rounded-md border border-line">
-                  {tab("calendar", "Calendar")}
-                  {tab("quick", "Quick Pick")}
-                </div>
-              </div>
-
-              <p className="mt-2 text-xs text-muted">
-                {observationDeadline ? (
-                  <>
-                    Observation deadline{" "}
-                    <span className="font-medium text-warning">{formatDate(observationDeadline)}</span>
-                    . Later dates can&apos;t be offered.
-                  </>
-                ) : (
-                  "No observation deadline is set for this semester yet, so dates run to the end of the term."
-                )}
-              </p>
-
-              {classDates.length === 0 ? (
-                <p className="mt-4 rounded-card border border-line bg-surface-2 px-4 py-5 text-muted">
-                  No class meetings are left before the observation deadline.
-                </p>
-              ) : dateView === "quick" ? (
-                <div className="mt-4">
-                  <div className="flex flex-wrap gap-2">
-                    {[4, 6, 8].map((count) => (
-                      <Button
-                        key={count}
-                        variant="secondary"
-                        size="sm"
-                        disabled={classDates.length < count}
-                        onClick={() => quickPick(count)}
-                      >
-                        Next {count} classes
-                      </Button>
-                    ))}
-                  </div>
-                  <div className="mt-3 grid max-h-64 grid-cols-2 gap-x-6 gap-y-1.5 overflow-y-auto rounded-card border border-line bg-surface-2 p-3 sm:grid-cols-3">
-                    {classDates.map((value) => {
-                      const checked = dates.includes(value)
-                      return (
-                        <label key={value} className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            disabled={!checked && dates.length >= MAX_DATES}
-                            onChange={() => toggle(value)}
-                            className="h-4 w-4 accent-primary"
-                          />
-                          {shortDate(value)}
-                        </label>
-                      )
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-4 rounded-card border border-line p-4">
-                  <div className="mb-3 flex items-center justify-between">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => moveMonth(-1)}
-                      disabled={!firstMonth || calendarMonth <= firstMonth}
-                      aria-label="Previous month"
-                    >
-                      ←
-                    </Button>
-                    <p className="font-semibold" aria-live="polite">
-                      {firstDay.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-                    </p>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => moveMonth(1)}
-                      disabled={!lastMonth || calendarMonth >= lastMonth}
-                      aria-label="Next month"
-                    >
-                      →
-                    </Button>
-                  </div>
-
-                  <div className="grid grid-cols-7 gap-1 text-center">
-                    {WEEKDAYS.map((day) => (
-                      <div key={day} className="py-1 text-xs font-medium text-muted">
-                        {day}
-                      </div>
-                    ))}
-                    {calendarDays.map((day, index) => {
-                      if (!day) return <div key={`empty-${index}`} />
-                      const eligible = classDates.includes(day)
-                      const selected = dates.includes(day)
-                      const isDeadline = day === observationDeadline
-                      const pastDeadline =
-                        observationDeadline && day > observationDeadline && (!termEnd || day <= termEnd)
-                      const disabled = !eligible || (!selected && dates.length >= MAX_DATES)
-                      return (
-                        <button
-                          key={day}
-                          type="button"
-                          disabled={disabled}
-                          aria-pressed={selected}
-                          aria-label={`${shortDate(day)}${eligible ? "" : ", not available"}${
-                            isDeadline ? ", observation deadline" : ""
-                          }`}
-                          title={
-                            pastDeadline
-                              ? "After the observation deadline"
-                              : eligible
-                                ? undefined
-                                : "No class meeting"
-                          }
-                          onClick={() => toggle(day)}
-                          className={`relative flex h-11 flex-col items-center justify-center rounded-md text-sm ${
-                            selected
-                              ? "bg-primary font-semibold text-primary-fg"
-                              : eligible
-                                ? "border border-primary/40 bg-surface font-medium hover:bg-primary/10"
-                                : pastDeadline
-                                  ? "bg-surface-2 text-muted/50 line-through"
-                                  : "text-muted/50"
-                          } ${day === today && !selected ? "underline underline-offset-4" : ""} ${
-                            isDeadline ? "ring-1 ring-accent ring-inset" : ""
-                          } disabled:cursor-not-allowed`}
-                        >
-                          {Number(day.slice(-2))}
-                          {isDeadline && (
-                            <span
-                              className={`hidden text-[9px] leading-none font-medium sm:block ${
-                                selected ? "text-primary-fg" : "text-warning"
-                              }`}
-                            >
-                              deadline
-                            </span>
-                          )}
-                        </button>
-                      )
-                    })}
-                  </div>
-
-                  <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
-                    <span className="flex items-center gap-1.5">
-                      <span className="h-3 w-3 rounded-sm border border-primary/40 bg-surface" /> Class meeting
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="h-3 w-3 rounded-sm bg-primary" /> Offered
-                    </span>
-                    {observationDeadline && (
-                      <span className="flex items-center gap-1.5">
-                        <span className="h-3 w-3 rounded-sm ring-1 ring-accent ring-inset" /> Deadline
-                      </span>
-                    )}
-                  </p>
-                </div>
-              )}
-            </div>
+              }
+              classDates={classDates}
+              dates={dates}
+              onToggle={toggle}
+              onQuickPick={quickPick}
+              onClear={() => setDates([])}
+              minDates={MIN_DATES}
+              maxDates={MAX_DATES}
+              deadline={observationDeadline}
+              termEnd={termEnd}
+              today={today}
+            />
           </div>
 
           {/* Step 3: review and send */}
@@ -443,29 +261,6 @@ function RequestPanel({ assessment, onChanged }) {
                     ? ` (pick ${MIN_DATES - dates.length} more)`
                     : ""}
                 </p>
-                {dates.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {[...dates].sort().map((date) => (
-                      <button
-                        key={date}
-                        type="button"
-                        onClick={() => toggle(date)}
-                        className="rounded-full border border-primary bg-surface px-3 py-1 text-xs hover:bg-surface-2"
-                        aria-label={`Remove ${shortDate(date)}`}
-                        title="Remove this date"
-                      >
-                        {shortDate(date)} ×
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => setDates([])}
-                      className="px-1 text-xs font-medium text-primary hover:underline"
-                    >
-                      Clear all
-                    </button>
-                  </div>
-                )}
               </div>
               <Button disabled={!ready} loading={busy} onClick={send} className="w-full shrink-0 sm:w-auto">
                 {busy ? "Sending…" : "Send request"}
