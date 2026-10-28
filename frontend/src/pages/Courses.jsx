@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import StateBlock from "../components/StateBlock"
 import StatusBadge from "../components/StatusBadge"
+import { Input, PageHeader, Select, Table, TableCard, Td, Th } from "../components/ui"
 import { useAuth } from "../context/auth-context"
 import { api } from "../lib/api"
 import {
@@ -96,16 +97,18 @@ function Courses() {
   })
 
   return (
-    <div>
-      <h1 className="text-2xl font-semibold tracking-tight">Courses</h1>
-      <p className="mt-1 text-sm text-muted">
-        {committee
-          ? "All course sections, their instructors, and whether they have an observation sign-up."
-          : "Your course sections available for observation sign-up."}
-      </p>
+    <div className="space-y-6">
+      <PageHeader
+        title="Courses"
+        subtitle={
+          committee
+            ? "All course sections, their instructors, and whether they have an observation sign-up."
+            : "Your course sections available for observation sign-up."
+        }
+      />
 
-      <div className="mt-6 flex flex-wrap gap-3">
-        <input
+      <div className="flex flex-wrap gap-3">
+        <Input
           type="search"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
@@ -115,13 +118,13 @@ function Courses() {
               : "Search by course number or title"
           }
           aria-label="Search courses"
-          className="w-full max-w-sm rounded-md border border-line bg-white px-3 py-2 text-sm"
+          className="max-w-sm"
         />
-        <select
+        <Select
           value={term}
           onChange={(event) => setTerm(event.target.value)}
           aria-label="Filter by term"
-          className="rounded-md border border-line bg-white px-3 py-2 text-sm"
+          className="w-auto"
         >
           <option value="">All terms</option>
           {terms.map((option) => (
@@ -129,87 +132,77 @@ function Courses() {
               {option}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
-      <div className="mt-6">
-        <StateBlock
-          loading={loading}
-          error={error}
-          onRetry={reload}
-          empty={visibleCourses?.length === 0}
-          emptyMessage="No courses match these filters. Clear the search or pick another term."
-        >
-          <div className="relative overflow-x-auto rounded-lg border border-line bg-white shadow-xs">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-line text-xs text-muted">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Course</th>
-                  <th className="px-4 py-3 font-medium">Term</th>
-                  <th className="px-4 py-3 font-medium">Section</th>
-                  {committee && <th className="px-4 py-3 font-medium">Instructor</th>}
-                  <th className="px-4 py-3 font-medium">Meets</th>
-                  <th className="px-4 py-3 font-medium">
-                    {committee ? "Observation" : "Action"}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleCourses?.map((course) => (
-                  <tr key={course.id} className="border-b border-line last:border-0">
-                    <td className="px-4 py-3">
-                      <Link
-                        to={`/courses/${course.courseId}`}
-                        className="font-medium text-utd-green hover:underline"
-                      >
-                        {course.courseNumber}
-                      </Link>
-                      <span className="block text-muted">{course.title}</span>
-                    </td>
-                    <td className="px-4 py-3">{course.term}</td>
-                    <td className="px-4 py-3">{course.section}</td>
-                    {committee && (
-                      <td className="px-4 py-3">{course.instructor?.name ?? "—"}</td>
-                    )}
-                    <td className="px-4 py-3">
-                      {course.schedule
-                        ? course.schedule.startTime && course.schedule.endTime
-                          ? `${course.schedule.days} ${course.schedule.startTime}–${course.schedule.endTime}`
-                          : course.schedule.days
-                        : "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      {course.signUp ? (
-                        <div>
-                          <StatusBadge status={course.signUp.status} map={ASSESSMENT_STATUS} />
-                          <Link
-                            to={`/assessments/${course.signUp.id}`}
-                            className="mt-1 block whitespace-nowrap text-xs font-medium text-utd-green hover:underline"
-                          >
-                            View
-                          </Link>
-                        </div>
-                      ) : course.open && !committee ? (
+      <StateBlock
+        loading={loading}
+        error={error}
+        onRetry={reload}
+        skeleton="table"
+        empty={visibleCourses?.length === 0}
+        emptyMessage="No courses match these filters. Clear the search or pick another term."
+      >
+        <TableCard maxHeight>
+          <Table minWidth="48rem">
+            <thead>
+              <tr>
+                <Th>Course</Th>
+                <Th>Term</Th>
+                <Th>Section</Th>
+                {committee && <Th>Instructor</Th>}
+                <Th>Meets</Th>
+                <Th>{committee ? "Observation" : "Action"}</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleCourses?.map((course) => (
+                <tr key={course.id} className="border-b border-line last:border-0">
+                  <Td>
+                    <Link to={`/courses/${course.courseId}`} className="font-medium text-primary-ink hover:underline">
+                      {course.courseNumber}
+                    </Link>
+                    <span className="block text-muted">{course.title}</span>
+                  </Td>
+                  <Td>{course.term}</Td>
+                  <Td>{course.section}</Td>
+                  {committee && <Td>{course.instructor?.name ?? "—"}</Td>}
+                  <Td>
+                    {course.schedule
+                      ? course.schedule.startTime && course.schedule.endTime
+                        ? `${course.schedule.days} ${course.schedule.startTime}–${course.schedule.endTime}`
+                        : course.schedule.days
+                      : "—"}
+                  </Td>
+                  <Td>
+                    {course.signUp ? (
+                      <div>
+                        <StatusBadge status={course.signUp.status} map={ASSESSMENT_STATUS} />
                         <Link
-                          to="/observation-signup"
-                          state={{ sectionId: course.id }}
-                          className="whitespace-nowrap font-medium text-utd-green hover:underline"
+                          to={`/assessments/${course.signUp.id}`}
+                          className="mt-1 block whitespace-nowrap text-xs font-medium text-primary-ink hover:underline"
                         >
-                          Select for Observation
+                          View
                         </Link>
-                      ) : (
-                        <span className="text-muted">
-                          {course.open ? "Not signed up" : "—"}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </StateBlock>
-      </div>
+                      </div>
+                    ) : course.open && !committee ? (
+                      <Link
+                        to="/observation-signup"
+                        state={{ sectionId: course.id }}
+                        className="whitespace-nowrap font-medium text-primary-ink hover:underline"
+                      >
+                        Select for Observation
+                      </Link>
+                    ) : (
+                      <span className="text-muted">{course.open ? "Not signed up" : "—"}</span>
+                    )}
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </TableCard>
+      </StateBlock>
     </div>
   )
 }

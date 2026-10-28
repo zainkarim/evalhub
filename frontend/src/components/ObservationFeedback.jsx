@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react"
 import { api } from "../lib/api"
+import { Callout, Label, SkeletonText, StickyActionBar, Textarea, Button } from "./ui"
+import { useToast } from "./ui/toast-context"
 
 const scale = (maxScore) => Array.from({ length: maxScore }, (_, index) => index + 1)
 
@@ -11,6 +13,7 @@ const scale = (maxScore) => Array.from({ length: maxScore }, (_, index) => index
 //   preview  -> the committee's read-only preview of the current template
 //               (pass `criteria`; nothing is loaded or saved)
 function ObservationFeedback({ observationId, criteria: given, preview = false, onSaved }) {
+  const toast = useToast()
   const [loaded, setLoaded] = useState(null)
   const criteria = given ?? loaded
   const [loadError, setLoadError] = useState("")
@@ -35,9 +38,13 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
   }, [needsLoad])
 
   if (loadError) {
-    return <p className="text-sm text-muted">The observation form couldn&apos;t load: {loadError}</p>
+    return (
+      <Callout tone="danger" role="alert">
+        The observation form couldn&apos;t load: {loadError}
+      </Callout>
+    )
   }
-  if (!criteria) return <p className="text-sm text-muted">Loading the observation form…</p>
+  if (!criteria) return <SkeletonText lines={4} />
   if (criteria.length === 0) {
     return (
       <p className="text-sm text-muted">
@@ -67,6 +74,7 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
         notes.trim(),
       )
       setSavedAt(new Date())
+      toast.success("Observation form saved.")
       onSaved?.()
     } catch (err) {
       setError(err.message || "The form couldn't be saved.")
@@ -75,11 +83,17 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
     }
   }
 
+  const statusText = savedAt
+    ? "Saved. You can change your answers until you sign off."
+    : complete
+      ? "All questions rated. Save before you sign off."
+      : `Rate ${criteria.length - answered} more ${criteria.length - answered === 1 ? "question" : "questions"} to save.`
+
   return (
     <form onSubmit={save}>
       {!preview && (
         <div className="mb-3 flex items-center justify-between gap-4 text-sm">
-          <span className={complete ? "font-medium text-utd-green-dark" : "text-muted"}>
+          <span className={complete ? "font-medium text-success" : "text-muted"}>
             {answered} of {criteria.length} rated
           </span>
           <span
@@ -91,14 +105,14 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
             aria-label="Questions rated"
           >
             <span
-              className="block h-full rounded-full bg-utd-green transition-[width] duration-300 motion-reduce:transition-none"
+              className="block h-full rounded-full bg-primary-ink transition-[width] duration-300 motion-reduce:transition-none"
               style={{ width: `${percent}%` }}
             />
           </span>
         </div>
       )}
 
-      <ol className="divide-y divide-line rounded-md border border-line bg-white">
+      <ol className="divide-y divide-line rounded-card border border-line bg-surface">
         {criteria.map((criterion, index) => {
           const value = scores[criterion.id]
           const labelId = `criterion-${criterion.id}-label`
@@ -111,7 +125,7 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
                 <span
                   aria-hidden="true"
                   className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
-                    value ? "bg-utd-green text-white" : "border border-line text-muted"
+                    value ? "bg-primary text-primary-fg" : "border border-line text-muted"
                   }`}
                 >
                   {value ? "✓" : index + 1}
@@ -127,6 +141,8 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
               </div>
 
               <div className="pl-8 sm:pl-0">
+                {/* A segmented control made of real radio buttons: Tab moves into the
+                    group, the arrow keys change the rating. */}
                 <div
                   role="radiogroup"
                   aria-labelledby={labelId}
@@ -137,12 +153,12 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
                     return (
                       <label
                         key={step}
-                        className={`flex h-9 w-10 items-center justify-center border-l border-line text-sm first:border-l-0 has-[:focus-visible]:relative has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-utd-green ${
+                        className={`flex h-9 w-10 items-center justify-center border-l border-line text-sm tabular-nums first:border-l-0 has-[:focus-visible]:relative has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-primary-ink ${
                           selected
-                            ? "bg-utd-green-dark font-semibold text-white"
+                            ? "bg-primary font-semibold text-primary-fg"
                             : preview
-                              ? "bg-white text-muted"
-                              : "cursor-pointer bg-white hover:bg-canvas"
+                              ? "bg-surface text-muted"
+                              : "cursor-pointer bg-surface hover:bg-surface-2"
                         }`}
                       >
                         <input
@@ -169,11 +185,11 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
         })}
       </ol>
 
-      <label htmlFor="observer-notes" className="mt-5 block text-sm font-medium">
+      <Label htmlFor="observer-notes" className="mt-5">
         Observation notes
-      </label>
+      </Label>
       <p className="text-xs text-muted">What worked, what to try next, anything the ratings don&apos;t capture.</p>
-      <textarea
+      <Textarea
         id="observer-notes"
         value={notes}
         onChange={(event) => {
@@ -182,32 +198,24 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
         }}
         rows={5}
         disabled={preview || busy}
-        className="mt-2 w-full rounded-md border border-line bg-white px-3 py-2 text-sm disabled:bg-canvas"
+        className="mt-2"
       />
 
       {!preview && (
         <>
           {error && (
-            <p role="alert" className="mt-3 rounded-md border border-utd-orange/40 bg-white px-3 py-2 text-sm">
+            <Callout tone="danger" role="alert" className="mt-3">
               {error}
-            </p>
+            </Callout>
           )}
-          <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-line pt-4">
-            <button
-              type="submit"
-              disabled={!complete || busy}
-              className="rounded-md bg-utd-green px-4 py-2 text-sm font-medium text-white hover:bg-utd-green-dark disabled:opacity-50"
-            >
-              {busy ? "Saving…" : "Save observation form"}
-            </button>
-            <span role="status" className={`text-xs ${savedAt ? "text-utd-green-dark" : "text-muted"}`}>
-              {savedAt
-                ? "✓ Saved. You can change your answers until you sign off."
-                : complete
-                  ? "All questions rated. Save before you sign off."
-                  : `Rate ${criteria.length - answered} more ${criteria.length - answered === 1 ? "question" : "questions"} to save.`}
+          <StickyActionBar className="mt-6">
+            <span role="status" className={`mr-auto text-xs ${savedAt ? "text-success" : "text-muted"}`}>
+              {statusText}
             </span>
-          </div>
+            <Button type="submit" disabled={!complete} loading={busy}>
+              {busy ? "Saving…" : "Save observation form"}
+            </Button>
+          </StickyActionBar>
         </>
       )}
     </form>

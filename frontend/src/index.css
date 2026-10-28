@@ -1,37 +1,224 @@
 @import "tailwindcss";
 
-@theme {
-  --color-ink: #16201c;
-  --color-muted: #5f6d67;
-  --color-line: #dde3df;
-  --color-canvas: #f5f7f5;
-  --color-utd-green: #008542;
-  --color-utd-green-dark: #006b36;
-  --color-utd-orange: #c75b12;
+/* Dark mode is class-based: the `dark` class on <html> (set before first paint
+   by the inline script in index.html, then kept in sync by ThemeProvider). */
+@custom-variant dark (&:where(.dark, .dark *));
 
-  /* Public Sans: an open typeface made for public-service interfaces; plain,
-     institutional and very legible at small sizes. Falls back to the system UI
-     font when offline. */
-  --font-sans: "Public Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+/* Design tokens. Each --c-* variable holds the real colour for the current
+   theme; `.dark` swaps the values. Components never use the hex codes; they use
+   the Tailwind names mapped below (bg-surface, text-muted, ...), so a theme
+   change needs no per-component work. Contrast was checked at >= 4.5:1 for
+   ink/muted on bg/surface/surface-2 and primary-fg on primary.
+   Brand colours are the official UT Dallas palette (brand.utdallas.edu). */
+:root,
+.light {
+  --c-bg: #f8f3ea; /* warm cream: the midpoint of the light sky */
+  --c-surface: #ffffff;
+  --c-surface-2: #eef2ef;
+  --c-ink: #16201c;
+  --c-muted: #5b6963; /* darkened a little so it holds 4.5:1 on a scrim with a star behind it */
+  --c-line: #dde3df;
+
+  /* The green has two roles. primary = FILLS (buttons, selected days, pills, logo E);
+     primary-ink = green used as text, icons, links, borders and focus rings. In light
+     mode they are the same UTD Green; in dark mode the fill is a deep green and the
+     ink a soft sage that holds contrast on the dark surfaces. */
+  --c-primary: #154734; /* UTD Green */
+  --c-primary-hover: #1d5c44;
+  --c-primary-fg: #ffffff;
+  --c-primary-ink: #154734;
+  --c-accent: #e87500; /* UTD Orange: fills, underlines, dots (dark text on it) */
+  --c-accent-ink: #b25210; /* darker orange for orange TEXT (4.5:1 on light surfaces) */
+  --c-accent-fg: #1a0c02;
+  --c-accent-soft: #fdf3ea;
+
+  --c-success: #006b36;
+  --c-warning: #a84a0c;
+  --c-danger: #b42318;
+  --c-info: #075985;
+  --c-danger-fg: #ffffff;
+  --c-success-soft: #e8f5ee;
+  --c-warning-soft: #fdf0e6;
+  --c-danger-soft: #fdecea;
+  --c-info-soft: #e6f2fa;
+
+  /* Starfield sky (see components/Starfield.jsx). Light = soft dawn, no glows. */
+  --c-sky-top: #faf7f0;
+  --c-sky-bottom: #f6efe3;
+  --c-glow-1: transparent;
+  --c-glow-2: transparent;
+  --c-star: 110 106 99; /* warm grey stars on the cream sky */
+  --c-comet-head: 232 117 0; /* UTD Orange comet head in light mode */
+
+  /* Gold: the sparkles, constellation star points and mini comets of the logo.
+     Decorative only, never text. The glow tokens are complete drop-shadow() values. */
+  --c-gold: #d98a12;
+  --c-gold-core: #f7c25a;
+  --c-gold-halo: 0.22; /* opacity of the soft halo behind a sparkle (a gradient, not a filter) */
+  --c-logo-glow: 0; /* the soft halo around the logo comet: dark mode only */
+
+  /* Logo (components/brand): the E, the constellation lines, and the flat "Hub"
+     colour of the compact wordmark. */
+  --c-logo-e-top: #154734;
+  --c-logo-e-bottom: #1f6f52;
+  --c-logo-e-edge: #0e3324;
+  --c-logo-line: #2f6b52;
+  --c-hub-flat: #b25210; /* 4.5:1 on the light surfaces */
+
+  /* Hero title (landing): "Eval" silver/graphite, "Hub" orange. The stops sit on the
+     cap height of Space Grotesk (14% to 85% of a 1em line box). The top of the light
+     "Hub" is darker than the brand orange so the large letters keep 3:1 on the cream sky. */
+  --wm-silver: linear-gradient(to bottom, #3a434b 14%, #28312d 50%, #16201c 85%);
+  --wm-silver-solid: #28312d;
+  --wm-hub: linear-gradient(to bottom, #cc6008 14%, #bd560c 52%, #a8480c 85%);
+  --wm-hub-solid: #b25210;
+  /* The glow behind "Hub" is a pre-blurred copy of the letters (.wm-glow-layer), not a
+     drop-shadow filter: it is blurred once and only its opacity ever changes. */
+  --wm-glow-blur: 0.05em;
+  --wm-glow-opacity: 0.22;
+
+  /* The whole sky (glows + gradient) as one background value, shared by the
+     starfield canvas and by .sky-scrim so a scrim matches the sky exactly. */
+  --sky-bg:
+    radial-gradient(60rem 40rem at 12% 8%, var(--c-glow-1), transparent 70%),
+    radial-gradient(55rem 38rem at 92% 100%, var(--c-glow-2), transparent 70%),
+    linear-gradient(to bottom, var(--c-sky-top), var(--c-sky-bottom));
+
+  --shadow-rgb: 22 32 28;
+  color-scheme: light;
+}
+
+.dark {
+  --c-bg: #0a0f14;
+  --c-surface: #111a21;
+  --c-surface-2: #17232c;
+  --c-ink: #e8efeb;
+  --c-muted: #9aa9a2;
+  --c-line: #26343d;
+
+  --c-primary: #1f6f52; /* deep UTD-family green (white text on it: ~6:1) */
+  --c-primary-hover: #26805f;
+  --c-primary-fg: #ffffff;
+  --c-primary-ink: #6aa98a; /* soft sage for text, icons, borders and rings */
+  --c-accent: #e87500;
+  --c-accent-ink: #e87500;
+  --c-accent-fg: #1a0c02;
+  --c-accent-soft: #2d1c0f;
+
+  --c-success: #7dbb78; /* a calm leaf green, apart from the sage primary-ink */
+  --c-warning: #f2994a;
+  --c-danger: #ff8a80;
+  --c-info: #6cb8ee;
+  --c-danger-fg: #2a0705;
+  --c-success-soft: #15271a;
+  --c-warning-soft: #2d1c0f;
+  --c-danger-soft: #2f1514;
+  --c-info-soft: #10263a;
+
+  --c-sky-top: #060a10;
+  --c-sky-bottom: #0c1620;
+  --c-glow-1: color-mix(in srgb, var(--c-primary) 14%, transparent);
+  --c-glow-2: color-mix(in srgb, var(--c-accent) 4%, transparent);
+  --c-star: 255 255 255;
+  --c-comet-head: 255 255 255;
+
+  --c-gold: #fcaa2d;
+  --c-gold-core: #ffe2a8;
+  --c-gold-halo: 0.5;
+  --c-logo-glow: 0.5;
+
+  --c-logo-e-top: #26845f;
+  --c-logo-e-bottom: #1f6f52;
+  --c-logo-e-edge: #5fa886; /* a lighter edge so the deep green separates from the dark bg */
+  --c-logo-line: #3f8267;
+  --c-hub-flat: #f08a1c;
+
+  --wm-silver: linear-gradient(to bottom, #ffffff 14%, #e6e9ec 50%, #b9c0c6 85%);
+  --wm-silver-solid: #e6e9ec;
+  --wm-hub: linear-gradient(to bottom, #f7b04f 14%, #e87500 52%, #c2580a 85%);
+  --wm-hub-solid: #e87500;
+  --wm-glow-blur: 0.09em;
+  --wm-glow-opacity: 0.55;
+
+  --shadow-rgb: 0 0 0;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--c-bg);
+  --color-surface: var(--c-surface);
+  --color-surface-2: var(--c-surface-2);
+  --color-ink: var(--c-ink);
+  --color-muted: var(--c-muted);
+  --color-line: var(--c-line);
+
+  --color-primary: var(--c-primary);
+  --color-primary-hover: var(--c-primary-hover);
+  --color-primary-fg: var(--c-primary-fg);
+  --color-primary-ink: var(--c-primary-ink);
+  --color-accent: var(--c-accent);
+  --color-accent-ink: var(--c-accent-ink);
+  --color-accent-fg: var(--c-accent-fg);
+  --color-accent-soft: var(--c-accent-soft);
+  --color-hub: var(--c-hub-flat);
+  --color-gold: var(--c-gold);
+  --color-gold-core: var(--c-gold-core);
+
+  --color-success: var(--c-success);
+  --color-warning: var(--c-warning);
+  --color-danger: var(--c-danger);
+  --color-danger-fg: var(--c-danger-fg);
+  --color-info: var(--c-info);
+  --color-success-soft: var(--c-success-soft);
+  --color-warning-soft: var(--c-warning-soft);
+  --color-danger-soft: var(--c-danger-soft);
+  --color-info-soft: var(--c-info-soft);
+
+  /* Inter Variable is bundled by @fontsource-variable/inter (no CDN). Falls back
+     to the system UI font while loading. */
+  /* Space Grotesk: the wordmark, landing headings and the login title only. */
+  --font-display: "Space Grotesk Variable", var(--font-sans);
+
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
     Roboto, Helvetica, Arial, sans-serif;
 
-  /* Shadows tinted with the ink colour instead of pure black. */
-  --shadow-xs: 0 1px 2px 0 rgb(22 32 28 / 0.05);
-  --shadow-sm: 0 1px 3px 0 rgb(22 32 28 / 0.08), 0 1px 2px -1px rgb(22 32 28 / 0.06);
-  --shadow-lg: 0 12px 24px -6px rgb(22 32 28 / 0.14), 0 4px 8px -4px rgb(22 32 28 / 0.08);
+  /* Type scale (new names; Tailwind's text-sm/base/lg/... still work). */
+  --text-display: 2.25rem;
+  --text-display--line-height: 2.75rem;
+  --text-title: 1.75rem;
+  --text-title--line-height: 2.25rem;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.5rem;
+
+  /* Radius scale for cards, panels and dialogs. */
+  --radius-card: 0.75rem;
+  --radius-panel: 1rem;
+
+  /* Shadows are tinted with the ink colour in light, and plain black in dark. */
+  --shadow-xs: 0 1px 2px 0 rgb(var(--shadow-rgb) / 0.05);
+  --shadow-sm: 0 1px 3px 0 rgb(var(--shadow-rgb) / 0.08), 0 1px 2px -1px rgb(var(--shadow-rgb) / 0.06);
+  --shadow-lg: 0 12px 24px -6px rgb(var(--shadow-rgb) / 0.14), 0 4px 8px -4px rgb(var(--shadow-rgb) / 0.08);
 }
 
 html {
-  background-color: var(--color-canvas);
-  color: var(--color-ink);
+  /* Anchors and focused fields stop below the sticky header (4rem + a margin). */
+  scroll-padding-top: 5rem;
+  background-color: var(--c-bg);
+  color: var(--c-ink);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   scrollbar-gutter: stable;
 }
 
+/* The sign-in page never scrolls on a normal window, so it should not reserve the
+   scrollbar gutter: that would push the centred card a few pixels left of the middle. */
+html:has([data-page="login"]) {
+  scrollbar-gutter: auto;
+}
+
 ::selection {
-  background-color: color-mix(in srgb, var(--color-utd-green) 22%, transparent);
+  background-color: color-mix(in srgb, var(--c-primary-ink) 25%, transparent);
 }
 
 /* Page titles: slightly tighter, so they read as titles, not big body text. */
@@ -55,7 +242,7 @@ tbody tr {
   transition: background-color 120ms ease;
 }
 tbody tr:hover {
-  background-color: color-mix(in srgb, var(--color-canvas) 70%, white);
+  background-color: var(--c-surface-2);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -68,11 +255,145 @@ tbody tr:hover {
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-utd-green);
+  outline: 2px solid var(--c-primary-ink);
   outline-offset: 2px;
 }
 
-/* On the green brand bar the focus ring is white so it stays visible. */
-.brand-bar :focus-visible {
-  outline-color: white;
+/* <main> only takes focus from the skip link; a ring around the whole page would
+   just be noise. (Tailwind's outline-none can't win against the unlayered rule above.) */
+#main-content:focus-visible {
+  outline: none;
+}
+
+/* The wordmark (components/brand/Wordmark.jsx). Each letter that gets its own box is
+   an inline-block with line-height 1, so the em values below describe Space Grotesk
+   700 exactly: the line box is 1em tall, the baseline sits 0.846em from its top, the
+   cap height is 0.703em.
+   The "H" of "Hub" is broken on purpose (user decision): its left stem keeps full
+   height, its right stem only exists from the top of the crossbar (0.435em from the
+   top) down. The clip cuts through the empty counter (x = 0.328em, halfway between
+   the stems); the text stays a real "H" in the DOM. Shape, not colour, so it also
+   holds under forced colours. */
+.wm-letter {
+  display: inline-block;
+  line-height: 1;
+}
+.wm-h {
+  clip-path: polygon(-0.1em -0.3em, 0.328em -0.3em, 0.328em 0.435em, 0.8em 0.435em, 0.8em 1.3em, -0.1em 1.3em);
+}
+/* Hero title colours: a solid colour first (what you get without background-clip:text),
+   then the gradient on top of it where supported. */
+.wm-silver {
+  color: var(--wm-silver-solid);
+}
+.wm-hub {
+  color: var(--wm-hub-solid);
+}
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+  .wm-silver,
+  .wm-hub {
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .wm-silver {
+    background-image: var(--wm-silver);
+  }
+  .wm-hub {
+    background-image: var(--wm-hub);
+  }
+}
+/* The glow behind the hero "Hub": a copy of the letters (cut H included) in UTD orange,
+   blurred once (a static filter on a layer that never changes) and faded in with its
+   opacity. Nothing ever animates a filter, so the intro costs no per-frame blur. */
+.wm-glow-layer {
+  color: rgb(232 117 0);
+  filter: blur(var(--wm-glow-blur));
+  opacity: var(--wm-glow-opacity);
+}
+@media (forced-colors: active) {
+  .wm-silver,
+  .wm-hub {
+    background: none;
+    color: CanvasText;
+    -webkit-text-fill-color: currentcolor;
+  }
+  .wm-glow-layer {
+    display: none;
+  }
+}
+
+/* The Starfield canvas: the sky itself is this CSS background (so a theme switch
+   costs no redraw); the canvas only paints stars and comets on top. */
+.starfield-sky {
+  background: var(--sky-bg);
+}
+
+/* Any text that sits directly on the sky must be inside a surface or a .sky-scrim.
+   Put ONE scrim around a whole header block (title + subtitle + back link), not on
+   each line. It is a copy of the sky (--sky-bg) at 90% behind the block,
+   faded out on all four sides by a mask, so there is no edge or box to see. It is a
+   pseudo-element, so it moves with the content when scrolling, and it sits behind
+   everything else on the page (z-index -1, above only the starfield).
+   The bleed past the text is limited to the page padding (12px phones, 20px from
+   640px) so it can never cause sideways scrolling; on wide screens there is room
+   for a wider, softer fade. The fade leaves 4px of solid colour around the text. */
+@layer components {
+  .sky-scrim {
+    --scrim-x: 12px;
+    --scrim-y: 40px;
+    position: relative;
+  }
+  @media (min-width: 640px) {
+    .sky-scrim {
+      --scrim-x: 20px;
+    }
+  }
+  @media (min-width: 1400px) {
+    .sky-scrim {
+      --scrim-x: 48px;
+    }
+  }
+  .sky-scrim::before {
+    --rx: calc(var(--scrim-x) - 4px);
+    --ry: calc(var(--scrim-y) - 4px);
+    content: "";
+    position: absolute;
+    inset: calc(var(--scrim-y) * -1) calc(var(--scrim-x) * -1);
+    z-index: -1;
+    pointer-events: none;
+    /* Same layers as the canvas, pinned to the viewport like the canvas is, so the
+       patch is the sky itself (only the stars under it are hidden). */
+    background: var(--sky-bg);
+    background-attachment: fixed;
+    opacity: 0.9;
+    mask-image:
+      linear-gradient(to right, transparent 0, rgb(0 0 0 / 0.12) calc(var(--rx) * 0.25), rgb(0 0 0 / 0.5) calc(var(--rx) * 0.5), rgb(0 0 0 / 0.88) calc(var(--rx) * 0.75), #000 var(--rx), #000 calc(100% - var(--rx)), rgb(0 0 0 / 0.88) calc(100% - var(--rx) * 0.75), rgb(0 0 0 / 0.5) calc(100% - var(--rx) * 0.5), rgb(0 0 0 / 0.12) calc(100% - var(--rx) * 0.25), transparent 100%),
+      linear-gradient(to bottom, transparent 0, rgb(0 0 0 / 0.12) calc(var(--ry) * 0.25), rgb(0 0 0 / 0.5) calc(var(--ry) * 0.5), rgb(0 0 0 / 0.88) calc(var(--ry) * 0.75), #000 var(--ry), #000 calc(100% - var(--ry)), rgb(0 0 0 / 0.88) calc(100% - var(--ry) * 0.75), rgb(0 0 0 / 0.5) calc(100% - var(--ry) * 0.5), rgb(0 0 0 / 0.12) calc(100% - var(--ry) * 0.25), transparent 100%);
+    mask-composite: intersect;
+    -webkit-mask-composite: source-in;
+  }
+}
+
+/* A scrollable table card: soft shadows on the edge(s) that have more to scroll
+   to, so sideways scrolling is visible (the "Lea Verou" scroll-shadow trick). */
+.scroll-shadow-x {
+  background-color: var(--c-surface);
+  background-image:
+    linear-gradient(to right, var(--c-surface), transparent),
+    linear-gradient(to left, var(--c-surface), transparent),
+    linear-gradient(to right, rgb(var(--shadow-rgb) / 0.2), transparent),
+    linear-gradient(to left, rgb(var(--shadow-rgb) / 0.2), transparent);
+  background-position: left center, right center, left center, right center;
+  background-size: 24px 100%, 24px 100%, 10px 100%, 10px 100%;
+  background-repeat: no-repeat;
+  background-attachment: local, local, scroll, scroll;
+}
+
+/* People who ask for less transparency get a solid header. */
+@media (prefers-reduced-transparency: reduce) {
+  .app-header {
+    background-color: var(--c-surface) !important;
+    backdrop-filter: none !important;
+  }
 }

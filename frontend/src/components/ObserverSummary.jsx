@@ -77,7 +77,7 @@ function ObserverSummary({ assessment, showCandidates = true }) {
           <p className="text-xs text-muted">Dates offered</p>
           <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
             {offered.map((option) => (
-              <li key={option.id} className={option.isConfirmed ? "font-medium text-utd-green-dark" : ""}>
+              <li key={option.id} className={option.isConfirmed ? "font-medium text-success" : ""}>
                 {option.isConfirmed ? "✓ " : ""}
                 {formatDate(option.proposedDate)} ·{" "}
                 {formatTimeRange(option.startTime, option.endTime)}

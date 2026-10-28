@@ -11,20 +11,13 @@ import {
   toDateOnly,
   todayISO,
 } from "../lib/format"
+import DatePicker from "./DatePicker"
 import StatusBadge from "./StatusBadge"
+import { Button, Callout, Card, Input, Label, Select } from "./ui"
+import { useToast } from "./ui/toast-context"
 
 const MIN_DATES = 4
 const MAX_DATES = 8
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-
-const monthKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
-
-const shortDate = (iso) =>
-  new Date(`${iso}T12:00:00`).toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  })
 
 // A numbered step that turns into a check mark once it is done (same marker
 // as the observation form).
@@ -34,7 +27,7 @@ function StepTitle({ number, done, children }) {
       <span
         aria-hidden="true"
         className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
-          done ? "bg-utd-green text-white" : "border border-line text-muted"
+          done ? "bg-primary text-primary-fg" : "border border-line text-muted"
         }`}
       >
         {done ? "✓" : number}
@@ -54,13 +47,9 @@ function StepTitle({ number, done, children }) {
 // end of term when no deadline is set), and Send stays disabled unless every
 // chosen date is one of them.
 function RequestPanel({ assessment, onChanged }) {
+  const toast = useToast()
   const [observerId, setObserverId] = useState("")
   const [dates, setDates] = useState([])
-  const [dateView, setDateView] = useState("calendar")
-  // Open the calendar on the first selectable class date, not today's month.
-  const [calendarMonth, setCalendarMonth] = useState(() =>
-    (meetingDates(assessment.section, { limit: 1 })[0] ?? todayISO()).slice(0, 7),
-  )
   const [startTime, setStartTime] = useState("")
   const [endTime, setEndTime] = useState("")
   const [reason, setReason] = useState("")
@@ -72,26 +61,15 @@ function RequestPanel({ assessment, onChanged }) {
   const classDates = meetingDates(section, { limit: 60 })
   const observationDeadline = toDateOnly(section.term?.observationDeadline)
   const termEnd = toDateOnly(section.term?.endDate)
-  const firstMonth = classDates[0]?.slice(0, 7)
-  const lastMonth = (observationDeadline ?? classDates[classDates.length - 1])?.slice(0, 7)
   const today = todayISO()
   const nextAttempt = status === "postponed"
 
-  const [calendarYear, calendarMonthNumber] = calendarMonth.split("-").map(Number)
-  const firstDay = new Date(calendarYear, calendarMonthNumber - 1, 1)
-  const daysInMonth = new Date(calendarYear, calendarMonthNumber, 0).getDate()
-  const calendarDays = [
-    ...Array(firstDay.getDay()).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, index) => `${calendarMonth}-${String(index + 1).padStart(2, "0")}`),
-  ]
-  const moveMonth = (delta) =>
-    setCalendarMonth(monthKey(new Date(calendarYear, calendarMonthNumber - 1 + delta, 1)))
-
-  const run = async (action) => {
+  const run = async (action, message) => {
     setBusy(true)
     setError("")
     try {
       await action()
+      if (message) toast.success(message)
       setObserverId("")
       setDates([])
       setReason("")
@@ -131,26 +109,13 @@ function RequestPanel({ assessment, onChanged }) {
         dates.map((proposedDate) => ({ proposedDate, startTime: from, endTime: to })),
       )
       await api.sendRequest(assessment.id, Number(observerId))
-    })
+    }, "Request sent.")
   }
 
   if (candidates.length === 0) return null
 
-  const tab = (value, label) => (
-    <button
-      type="button"
-      onClick={() => setDateView(value)}
-      aria-pressed={dateView === value}
-      className={`px-4 py-1.5 text-sm ${
-        dateView === value ? "bg-utd-green-dark font-medium text-white" : "bg-white text-muted hover:text-ink"
-      }`}
-    >
-      {label}
-    </button>
-  )
-
   return (
-    <section className="mt-6 rounded-lg border border-line bg-white p-6 shadow-xs">
+    <Card as="section" className="mt-6">
       <h2 className="text-base font-semibold">
         {nextAttempt ? "Schedule a new attempt" : "Ask one observer"}
       </h2>
@@ -172,28 +137,27 @@ function RequestPanel({ assessment, onChanged }) {
               </li>
             ))}
           </ul>
-          <div className="mt-4 rounded-md border border-line bg-canvas p-4">
-            <label htmlFor="withdraw-reason" className="block text-sm font-medium">
-              Ask someone else instead? (reason optional)
-            </label>
-            <input
+          <div className="mt-4 rounded-card border border-line bg-surface-2 p-4">
+            <Label htmlFor="withdraw-reason">Ask someone else instead? (reason optional)</Label>
+            <Input
               id="withdraw-reason"
               value={reason}
               onChange={(event) => setReason(event.target.value)}
-              className="mt-2 w-full rounded-md border border-line bg-white px-3 py-2 text-sm"
+              className="mt-2"
               placeholder="Why you are withdrawing this request"
             />
             <p className="mt-2 text-xs text-muted">
               Withdrawing is recorded in the attempt history; nothing is deleted.
             </p>
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
+              className="mt-3"
               disabled={busy}
-              onClick={() => run(() => api.withdrawRequest(assessment.id, reason.trim()))}
-              className="mt-3 rounded-md border border-line bg-white px-3 py-1.5 text-sm hover:border-ink disabled:opacity-60"
+              onClick={() => run(() => api.withdrawRequest(assessment.id, reason.trim()), "Request withdrawn.")}
             >
               Withdraw request
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
@@ -210,14 +174,14 @@ function RequestPanel({ assessment, onChanged }) {
               <StepTitle number={1} done={Boolean(observerId) && timesOk}>
                 Choose the observer
               </StepTitle>
-              <label htmlFor="observer" className="mt-3 block text-xs text-muted">
+              <Label htmlFor="observer" className="mt-3 text-xs font-normal text-muted">
                 From your candidate list
-              </label>
-              <select
+              </Label>
+              <Select
                 id="observer"
                 value={observerId}
                 onChange={(event) => setObserverId(event.target.value)}
-                className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2 text-sm"
+                className="mt-1"
               >
                 <option value="">Select one observer</option>
                 {candidates.map((candidate) => (
@@ -225,7 +189,7 @@ function RequestPanel({ assessment, onChanged }) {
                     {fullName(candidate)} · {formatRank(candidate.rank)}
                   </option>
                 ))}
-              </select>
+              </Select>
 
               {sectionHasTimes ? (
                 <p className="mt-3 text-xs text-muted">
@@ -236,193 +200,51 @@ function RequestPanel({ assessment, onChanged }) {
               ) : (
                 <div className="mt-4 flex flex-wrap gap-4">
                   <div>
-                    <label htmlFor="start-time" className="block text-xs text-muted">
+                    <Label htmlFor="start-time" className="text-xs font-normal text-muted">
                       Class starts
-                    </label>
-                    <input
+                    </Label>
+                    <Input
                       id="start-time"
                       type="time"
                       value={startTime}
                       onChange={(event) => setStartTime(event.target.value)}
-                      className="mt-1 rounded-md border border-line bg-white px-3 py-2 text-sm"
+                      className="mt-1 w-auto"
                     />
                   </div>
                   <div>
-                    <label htmlFor="end-time" className="block text-xs text-muted">
+                    <Label htmlFor="end-time" className="text-xs font-normal text-muted">
                       Class ends
-                    </label>
-                    <input
+                    </Label>
+                    <Input
                       id="end-time"
                       type="time"
                       value={endTime}
                       onChange={(event) => setEndTime(event.target.value)}
-                      className="mt-1 rounded-md border border-line bg-white px-3 py-2 text-sm"
+                      className="mt-1 w-auto"
                     />
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Step 2: dates */}
-            <div>
-              <div className="flex flex-wrap items-center justify-between gap-3">
+            {/* Step 2: dates (calendar or list, chosen dates as chips) */}
+            <DatePicker
+              heading={
                 <StepTitle number={2} done={datesValid}>
                   Offer 4–8 class dates
                 </StepTitle>
-                <div className="inline-flex overflow-hidden rounded-md border border-line">
-                  {tab("calendar", "Calendar")}
-                  {tab("quick", "Quick Pick")}
-                </div>
-              </div>
-
-              <p className="mt-2 text-xs text-muted">
-                {observationDeadline ? (
-                  <>
-                    Observation deadline{" "}
-                    <span className="font-medium text-utd-orange">{formatDate(observationDeadline)}</span>
-                    . Later dates can&apos;t be offered.
-                  </>
-                ) : (
-                  "No observation deadline is set for this semester yet, so dates run to the end of the term."
-                )}
-              </p>
-
-              {classDates.length === 0 ? (
-                <p className="mt-4 rounded-md border border-line bg-canvas px-4 py-5 text-muted">
-                  No class meetings are left before the observation deadline.
-                </p>
-              ) : dateView === "quick" ? (
-                <div className="mt-4">
-                  <div className="flex flex-wrap gap-2">
-                    {[4, 6, 8].map((count) => (
-                      <button
-                        key={count}
-                        type="button"
-                        disabled={classDates.length < count}
-                        onClick={() => quickPick(count)}
-                        className="rounded-md border border-line bg-white px-3 py-1.5 hover:border-utd-green-dark disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        Next {count} classes
-                      </button>
-                    ))}
-                  </div>
-                  <div className="mt-3 grid max-h-64 grid-cols-2 gap-x-6 gap-y-1.5 overflow-y-auto rounded-md border border-line bg-canvas p-3 sm:grid-cols-3">
-                    {classDates.map((value) => {
-                      const checked = dates.includes(value)
-                      return (
-                        <label key={value} className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            disabled={!checked && dates.length >= MAX_DATES}
-                            onChange={() => toggle(value)}
-                          />
-                          {shortDate(value)}
-                        </label>
-                      )
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-4 rounded-md border border-line p-4">
-                  <div className="mb-3 flex items-center justify-between">
-                    <button
-                      type="button"
-                      onClick={() => moveMonth(-1)}
-                      disabled={!firstMonth || calendarMonth <= firstMonth}
-                      className="rounded-md border border-line px-3 py-1 disabled:cursor-not-allowed disabled:opacity-40"
-                      aria-label="Previous month"
-                    >
-                      ←
-                    </button>
-                    <p className="font-semibold" aria-live="polite">
-                      {firstDay.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => moveMonth(1)}
-                      disabled={!lastMonth || calendarMonth >= lastMonth}
-                      className="rounded-md border border-line px-3 py-1 disabled:cursor-not-allowed disabled:opacity-40"
-                      aria-label="Next month"
-                    >
-                      →
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-7 gap-1 text-center">
-                    {WEEKDAYS.map((day) => (
-                      <div key={day} className="py-1 text-xs font-medium text-muted">
-                        {day}
-                      </div>
-                    ))}
-                    {calendarDays.map((day, index) => {
-                      if (!day) return <div key={`empty-${index}`} />
-                      const eligible = classDates.includes(day)
-                      const selected = dates.includes(day)
-                      const isDeadline = day === observationDeadline
-                      const pastDeadline =
-                        observationDeadline && day > observationDeadline && (!termEnd || day <= termEnd)
-                      const disabled = !eligible || (!selected && dates.length >= MAX_DATES)
-                      return (
-                        <button
-                          key={day}
-                          type="button"
-                          disabled={disabled}
-                          aria-pressed={selected}
-                          aria-label={`${shortDate(day)}${eligible ? "" : ", not available"}${
-                            isDeadline ? ", observation deadline" : ""
-                          }`}
-                          title={
-                            pastDeadline
-                              ? "After the observation deadline"
-                              : eligible
-                                ? undefined
-                                : "No class meeting"
-                          }
-                          onClick={() => toggle(day)}
-                          className={`relative flex h-11 flex-col items-center justify-center rounded-md text-sm ${
-                            selected
-                              ? "bg-utd-green-dark font-semibold text-white"
-                              : eligible
-                                ? "border border-utd-green/40 bg-white font-medium hover:bg-utd-green/10"
-                                : pastDeadline
-                                  ? "bg-canvas text-muted/50 line-through"
-                                  : "text-muted/50"
-                          } ${day === today && !selected ? "underline underline-offset-4" : ""} ${
-                            isDeadline ? "ring-1 ring-utd-orange ring-inset" : ""
-                          } disabled:cursor-not-allowed`}
-                        >
-                          {Number(day.slice(-2))}
-                          {isDeadline && (
-                            <span
-                              className={`hidden text-[9px] leading-none font-medium sm:block ${
-                                selected ? "text-white" : "text-utd-orange"
-                              }`}
-                            >
-                              deadline
-                            </span>
-                          )}
-                        </button>
-                      )
-                    })}
-                  </div>
-
-                  <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
-                    <span className="flex items-center gap-1.5">
-                      <span className="h-3 w-3 rounded-sm border border-utd-green/40 bg-white" /> Class meeting
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="h-3 w-3 rounded-sm bg-utd-green-dark" /> Offered
-                    </span>
-                    {observationDeadline && (
-                      <span className="flex items-center gap-1.5">
-                        <span className="h-3 w-3 rounded-sm ring-1 ring-utd-orange ring-inset" /> Deadline
-                      </span>
-                    )}
-                  </p>
-                </div>
-              )}
-            </div>
+              }
+              classDates={classDates}
+              dates={dates}
+              onToggle={toggle}
+              onQuickPick={quickPick}
+              onClear={() => setDates([])}
+              minDates={MIN_DATES}
+              maxDates={MAX_DATES}
+              deadline={observationDeadline}
+              termEnd={termEnd}
+              today={today}
+            />
           </div>
 
           {/* Step 3: review and send */}
@@ -432,45 +254,17 @@ function RequestPanel({ assessment, onChanged }) {
             </StepTitle>
             <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 flex-1">
-                <p className={datesValid ? "text-utd-green-dark" : "text-muted"}>
+                <p className={datesValid ? "text-success" : "text-muted"}>
                   {chosenObserver ? fullName(chosenObserver) : "No observer chosen"},{" "}
                   {dates.length} of {MIN_DATES}–{MAX_DATES} dates
                   {dates.length > 0 && dates.length < MIN_DATES
                     ? ` (pick ${MIN_DATES - dates.length} more)`
                     : ""}
                 </p>
-                {dates.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {[...dates].sort().map((date) => (
-                      <button
-                        key={date}
-                        type="button"
-                        onClick={() => toggle(date)}
-                        className="rounded-full border border-utd-green-dark bg-white px-3 py-1 text-xs hover:bg-canvas"
-                        aria-label={`Remove ${shortDate(date)}`}
-                        title="Remove this date"
-                      >
-                        {shortDate(date)} ×
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => setDates([])}
-                      className="px-1 text-xs font-medium text-utd-green-dark hover:underline"
-                    >
-                      Clear all
-                    </button>
-                  </div>
-                )}
               </div>
-              <button
-                type="button"
-                disabled={!ready || busy}
-                onClick={send}
-                className="w-full shrink-0 rounded-md bg-utd-green px-5 py-2 text-sm font-medium text-white hover:bg-utd-green-dark disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-              >
+              <Button disabled={!ready} loading={busy} onClick={send} className="w-full shrink-0 sm:w-auto">
                 {busy ? "Sending…" : "Send request"}
-              </button>
+              </Button>
             </div>
             <p className="mt-3 text-xs text-muted">
               One request goes to one observer and expires after 48 hours without a reply. The
@@ -481,11 +275,11 @@ function RequestPanel({ assessment, onChanged }) {
       )}
 
       {error && (
-        <p role="alert" className="mt-3 rounded-md border border-utd-orange/40 bg-white px-3 py-2 text-sm">
+        <Callout tone="danger" role="alert" className="mt-3">
           {error}
-        </p>
+        </Callout>
       )}
-    </section>
+    </Card>
   )
 }
 

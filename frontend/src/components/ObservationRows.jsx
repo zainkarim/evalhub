@@ -1,5 +1,7 @@
+import { ClipboardList } from "lucide-react"
 import { Link } from "react-router-dom"
 import StatusBadge from "./StatusBadge"
+import { EmptyState, Table, TableCard, Td, Th } from "./ui"
 import {
   OBSERVATION_STATUS,
   courseLabel,
@@ -8,61 +10,45 @@ import {
   fullName,
 } from "../lib/format"
 
-export default function ObservationRows({ rows, mode, view }) {
+// `empty` is the sentence shown when the list has no rows.
+export default function ObservationRows({ rows, mode, view, empty = "No observations yet" }) {
   const direction = mode ?? (view === "observer" ? "given" : "received")
 
   if (rows.length === 0) {
-    return <p className="text-sm text-muted">No observations yet.</p>
+    return <EmptyState compact icon={ClipboardList} titleAs="p" title={empty} />
   }
 
   return (
-    <div className="relative overflow-x-auto rounded-lg border border-line bg-white shadow-xs">
-      <table className="w-full text-left text-sm">
-        <thead className="border-b border-line text-xs text-muted">
+    <TableCard>
+      <Table minWidth="40rem">
+        <thead>
           <tr>
-            <th className="px-4 py-3 font-medium">Course</th>
-            <th className="px-4 py-3 font-medium">
-              {direction === "given" ? "Observing" : "Observer"}
-            </th>
-            <th className="px-4 py-3 font-medium">Date</th>
-            <th className="px-4 py-3 font-medium">Status</th>
-            <th className="px-4 py-3 font-medium">
+            <Th>Course</Th>
+            <Th>{direction === "given" ? "Observing" : "Observer"}</Th>
+            <Th>Date</Th>
+            <Th>Status</Th>
+            <Th>
               <span className="sr-only">Open</span>
-            </th>
+            </Th>
           </tr>
         </thead>
         <tbody>
           {rows.map((observation) => (
-            <tr
-              key={observation.id}
-              className="border-b border-line last:border-0"
-            >
-              <td className="px-4 py-3">
-                {observation.section?.course
-                  ? courseLabel(observation.section.course)
-                  : "—"}
+            <tr key={observation.id} className="border-b border-line last:border-0">
+              <Td>
+                {observation.section?.course ? courseLabel(observation.section.course) : "—"}
                 {observation.section?.term && (
                   <span className="block text-muted">
-                    {formatTerm(observation.section.term)} · Section{" "}
-                    {observation.section.sectionNumber}
+                    {formatTerm(observation.section.term)} · Section {observation.section.sectionNumber}
                   </span>
                 )}
-              </td>
-              <td className="px-4 py-3">
-                {fullName(
-                  direction === "given"
-                    ? observation.observee
-                    : observation.observer
-                )}
-              </td>
-              <td className="px-4 py-3">
-                {formatDate(observation.scheduledDate)}
-              </td>
-              <td className="px-4 py-3">
-                <StatusBadge
-                  status={observation.status}
-                  map={OBSERVATION_STATUS}
-                />
+              </Td>
+              <Td>
+                {fullName(direction === "given" ? observation.observee : observation.observer)}
+              </Td>
+              <Td>{formatDate(observation.scheduledDate)}</Td>
+              <Td>
+                <StatusBadge status={observation.status} map={OBSERVATION_STATUS} />
                 {observation.status === "approved" && (
                   <span className="mt-1 block text-xs text-muted">
                     {(direction === "given"
@@ -72,19 +58,19 @@ export default function ObservationRows({ rows, mode, view }) {
                       : "Your sign-off is pending"}
                   </span>
                 )}
-              </td>
-              <td className="px-4 py-3">
+              </Td>
+              <Td>
                 <Link
                   to={`/records/${observation.id}`}
-                  className="whitespace-nowrap font-medium text-utd-green hover:underline"
+                  className="whitespace-nowrap font-medium text-primary-ink hover:underline"
                 >
                   {observation.status === "approved" ? "Sign off" : "View"}
                 </Link>
-              </td>
+              </Td>
             </tr>
           ))}
         </tbody>
-      </table>
-    </div>
+      </Table>
+    </TableCard>
   )
 }
