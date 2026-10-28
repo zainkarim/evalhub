@@ -1,7 +1,9 @@
+import { Lock } from "lucide-react"
 import { Suspense, lazy } from "react"
 import { BrowserRouter, Navigate, Route, Routes, useParams } from "react-router-dom"
 import Layout from "./components/Layout"
 import ProtectedRoute from "./components/ProtectedRoute"
+import { EmptyState } from "./components/ui"
 import { AuthProvider } from "./context/AuthContext"
 import { useAuth } from "./context/auth-context"
 import { AC_ROLES, isAC, hasTeacherProfile } from "./lib/roles"
@@ -43,9 +45,12 @@ function ProfessorSelfEditRoute({ children }) {
   }
 
   return (
-    <p className="p-10 text-sm text-muted">
-      You can only edit your own professor profile.
-    </p>
+    <EmptyState
+      icon={Lock}
+      titleAs="h1"
+      title="You can only edit your own professor profile."
+      text="Use My Profile in the navigation to edit yours."
+    />
   )
 }
 

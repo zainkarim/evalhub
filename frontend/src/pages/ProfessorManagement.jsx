@@ -105,7 +105,13 @@ function ProfessorForm() {
     <PageHeader
       backTo={{ to, label: "Back" }}
       title={isEditing ? "Edit Professor" : "Add Professor"}
-      subtitle={isEditing ? "Update faculty information." : "Add a faculty member to the evaluation roster."}
+      subtitle={
+        isEditing
+          ? committee
+            ? "Update faculty information."
+            : "You can update your rank. The committee manages your other details."
+          : "Add a faculty member to the evaluation roster."
+      }
     />
   )
   const header = makeHeader(backTo)
