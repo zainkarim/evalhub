@@ -1,12 +1,11 @@
 import { CalendarCheck, ClipboardList, LayoutDashboard } from "lucide-react"
 import { m, useReducedMotion } from "motion/react"
 import { useCallback, useEffect, useState } from "react"
-import { Navigate } from "react-router-dom"
+import { Navigate, useLocation } from "react-router-dom"
 import BrandMark from "../components/BrandMark"
 import FeatureCard from "../components/landing/FeatureCard"
 import Hero from "../components/landing/Hero"
 import IntroSequence from "../components/landing/IntroSequence"
-import { introSeen, markIntroSeen } from "../components/landing/introStorage"
 import WorkflowStrip from "../components/landing/WorkflowStrip"
 import Starfield from "../components/Starfield"
 import ThemeToggle from "../components/ThemeToggle"
@@ -51,12 +50,13 @@ const FEATURES = [
 
 // The public page for logged-out visitors. The whole page is in the DOM from the
 // first render; the intro (comet, wordmark reveal) only animates visibility and
-// transforms. It plays once per browser session, never with reduced motion, and
-// any key, click, tap or wheel skips straight to the final state.
-function Landing() {
+// transforms. It plays every time the page is opened (also when coming back from
+// the login page), never with reduced motion, and any key, click, tap or wheel
+// skips straight to the final state.
+function LandingPage() {
   const { user, restoring } = useAuth()
   const reduced = useReducedMotion()
-  const [playing, setPlaying] = useState(() => !reduced && !introSeen())
+  const [playing, setPlaying] = useState(() => !reduced)
   const [skipped, setSkipped] = useState(false)
 
   const skip = useCallback(() => {
@@ -65,11 +65,11 @@ function Landing() {
   }, [])
 
   useEffect(() => {
-    if (!playing) return undefined
-    markIntroSeen()
+    // Wait for the session check: nothing is on screen until it is done.
+    if (!playing || restoring) return undefined
     const timer = window.setTimeout(() => setPlaying(false), INTRO_MS)
     return () => window.clearTimeout(timer)
-  }, [playing])
+  }, [playing, restoring])
 
   if (restoring) return <div className="min-h-screen" />
   if (user) return <Navigate to="/" replace />
@@ -173,6 +173,13 @@ function Landing() {
       </div>
     </div>
   )
+}
+
+// Every visit gets its own location.key (link, browser Back, same-page navigation),
+// so keying the page on it rebuilds it and the intro starts from frame 0 each time.
+function Landing() {
+  const location = useLocation()
+  return <LandingPage key={location.key} />
 }
 
 export default Landing
