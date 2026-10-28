@@ -89,7 +89,7 @@ function IncomingRequest({ request, onChanged }) {
               type="button"
               disabled={!optionId || busy}
               onClick={() => run(() => api.confirmTimeOption(optionId))}
-              className="rounded-md bg-utd-green px-3 py-1.5 font-medium text-white hover:bg-utd-green-dark disabled:opacity-50"
+              className="rounded-md bg-utd-green px-3 py-1.5 font-medium text-primary-fg hover:bg-primary-hover disabled:opacity-50"
             >
               {busy ? "Confirming…" : "Confirm this date"}
             </button>
@@ -114,7 +114,7 @@ function IncomingRequest({ request, onChanged }) {
             id={`decline-${request.id}`}
             value={reason}
             onChange={(event) => setReason(event.target.value)}
-            className="mt-2 w-full rounded-md border border-line bg-white px-3 py-2 text-sm"
+            className="mt-2 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm"
             placeholder="None of the dates work"
           />
           <p className="mt-2 text-xs text-muted">
@@ -125,7 +125,7 @@ function IncomingRequest({ request, onChanged }) {
               type="button"
               disabled={busy}
               onClick={() => run(() => api.declineRequest(request.assessmentId, reason.trim()))}
-              className="rounded-md bg-utd-orange px-3 py-1.5 font-medium text-white disabled:opacity-60"
+              className="rounded-md bg-utd-orange px-3 py-1.5 font-medium text-accent-fg disabled:opacity-60"
             >
               {busy ? "Declining…" : "Decline request"}
             </button>
@@ -164,7 +164,7 @@ function IncomingRequest({ request, onChanged }) {
       )}
 
       {error && (
-        <p role="alert" className="mt-2 rounded-md border border-utd-orange/40 bg-white px-3 py-2">
+        <p role="alert" className="mt-2 rounded-md border border-utd-orange/40 bg-surface px-3 py-2">
           {error}
         </p>
       )}

@@ -90,7 +90,7 @@ function ProfessorForm() {
           Back
         </Link>
 
-        <p className="mt-4 text-sm text-red-700">
+        <p className="mt-4 text-sm text-danger">
           {loadError.message}
         </p>
       </div>
@@ -118,10 +118,10 @@ function ProfessorForm() {
 
       <form
         onSubmit={handleSubmit}
-        className="mt-6 space-y-5 rounded border border-line bg-white p-6"
+        className="mt-6 space-y-5 rounded border border-line bg-surface p-6"
       >
         {error && (
-          <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <div className="rounded border border-danger/40 bg-danger-soft p-3 text-sm text-danger">
             {error}
           </div>
         )}
@@ -206,7 +206,7 @@ function ProfessorForm() {
           <button
             type="submit"
             disabled={saving}
-            className="rounded bg-utd-green px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="rounded bg-utd-green px-4 py-2 text-sm font-medium text-primary-fg disabled:opacity-50"
           >
             {saving
               ? "Saving..."

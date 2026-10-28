@@ -98,13 +98,13 @@ function ProfessorDetail() {
 
                 <Link
                   to={`/professors/${professor.id}/edit`}
-                  className="rounded border border-line bg-white px-4 py-2 text-sm font-medium hover:bg-gray-50"
+                  className="rounded border border-line bg-surface px-4 py-2 text-sm font-medium hover:bg-surface-2"
                 >
                   Edit Professor
                 </Link>
               </div>
 
-              <dl className="mt-8 grid grid-cols-2 gap-x-8 gap-y-5 rounded border border-line bg-white p-6 sm:grid-cols-3">
+              <dl className="mt-8 grid grid-cols-2 gap-x-8 gap-y-5 rounded border border-line bg-surface p-6 sm:grid-cols-3">
                 <Fact label="Email">{professor.email}</Fact>
                 <Fact label="School">{professor.school}</Fact>
                 <Fact label="Status">
@@ -121,7 +121,7 @@ function ProfessorDetail() {
                 </Fact>
               </dl>
 
-              <section className="mt-6 rounded border border-line bg-white p-6">
+              <section className="mt-6 rounded border border-line bg-surface p-6">
                 <h2 className="text-sm font-semibold">Observer load · {formatTerm(data.term)}</h2>
                 <p className="mt-1 text-sm text-muted">
                   An observer takes at most {load.cap} observations per cycle; at the limit they are no
@@ -129,7 +129,7 @@ function ProfessorDetail() {
                 </p>
                 <div className="mt-3 flex items-center gap-3">
                   <div
-                    className="h-2 w-40 rounded bg-gray-100"
+                    className="h-2 w-40 rounded bg-surface-2"
                     role="progressbar"
                     aria-label="Observations as observer"
                     aria-valuemin={0}
@@ -143,12 +143,12 @@ function ProfessorDetail() {
                   </div>
                   <p className="text-sm font-medium">
                     {load.count} of {load.cap}
-                    {load.count >= load.cap && <span className="ml-2 text-utd-orange">At the limit</span>}
+                    {load.count >= load.cap && <span className="ml-2 text-warning">At the limit</span>}
                   </p>
                 </div>
               </section>
 
-              <section className="mt-6 rounded border border-line bg-white p-6">
+              <section className="mt-6 rounded border border-line bg-surface p-6">
                 <h2 className="text-sm font-semibold">Courses</h2>
                 <p className="mt-1 text-sm text-muted">
                   Taught in {formatTerm(data.term)} and in the last two years up to today. Observers are matched
@@ -189,7 +189,7 @@ function ProfessorDetail() {
                 )}
               </section>
 
-              <section className="mt-6 rounded border border-line bg-white p-6">
+              <section className="mt-6 rounded border border-line bg-surface p-6">
                 <h2 className="text-sm font-semibold">Observations</h2>
                 <div className="mt-3 space-y-5">
                   <ObservationList
@@ -205,7 +205,7 @@ function ProfessorDetail() {
                 </div>
               </section>
 
-              <section className="mt-6 rounded border border-line bg-white p-6">
+              <section className="mt-6 rounded border border-line bg-surface p-6">
                 <h2 className="text-sm font-semibold">Sign-up · {formatTerm(data.term)}</h2>
                 {data.signUp ? (
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm">

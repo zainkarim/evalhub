@@ -10,11 +10,11 @@ import { useApi } from "../lib/useApi"
 
 const RANKS = ["assistant_professor", "associate_professor", "full_professor"]
 const NO_FILTERS = { q: "", due: "", signUp: "", rank: "", department: "" }
-const fieldClass = "mt-1 w-full rounded border border-line bg-white px-3 py-2 text-sm"
+const fieldClass = "mt-1 w-full rounded border border-line bg-surface px-3 py-2 text-sm"
 
 function Tile({ label, value, note }) {
   return (
-    <div className="rounded border border-line bg-white px-4 py-3">
+    <div className="rounded border border-line bg-surface px-4 py-3">
       <p className="text-xs text-muted">{label}</p>
       <p className="mt-1 text-2xl font-semibold tracking-tight">{value}</p>
       {note && <p className="text-xs text-muted">{note}</p>}
@@ -97,7 +97,7 @@ function Professors() {
 
         <Link
           to="/professors/new"
-          className="rounded bg-utd-green px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+          className="rounded bg-utd-green px-4 py-2 text-sm font-medium text-primary-fg hover:opacity-90"
         >
           Add Professor
         </Link>
@@ -219,7 +219,7 @@ function Professors() {
 
               <div className="mt-3">
                 {rows.length === 0 ? (
-                  <p className="rounded border border-line bg-white px-5 py-8 text-sm text-muted">
+                  <p className="rounded border border-line bg-surface px-5 py-8 text-sm text-muted">
                     {roster.length === 0
                       ? "No active professors on the roster yet."
                       : "No professors match these filters."}

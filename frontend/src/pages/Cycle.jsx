@@ -24,7 +24,7 @@ import { useApi } from "../lib/useApi"
 
 const th = "px-4 py-3 font-medium"
 const td = "px-4 py-3 align-top"
-const errorBox = "mt-3 rounded border border-utd-orange/40 bg-white px-3 py-2 text-sm"
+const errorBox = "mt-3 rounded border border-utd-orange/40 bg-surface px-3 py-2 text-sm"
 
 function Heading({ title, count, hint }) {
   return (
@@ -32,7 +32,7 @@ function Heading({ title, count, hint }) {
       <h2 className="text-sm font-semibold">
         {title}
         {count > 0 && (
-          <span className="ml-2 rounded-full bg-utd-orange px-2 py-0.5 text-[11px] font-semibold text-white">
+          <span className="ml-2 rounded-full bg-utd-orange px-2 py-0.5 text-[11px] font-semibold text-accent-fg">
             {count}
           </span>
         )}
@@ -46,7 +46,7 @@ function Heading({ title, count, hint }) {
 function Alerts({ alerts, started }) {
   if (alerts.length === 0) {
     return (
-      <p className="mt-3 rounded border border-line bg-white px-5 py-6 text-sm text-muted">
+      <p className="mt-3 rounded border border-line bg-surface px-5 py-6 text-sm text-muted">
         {started
           ? "No alerts. Every sign-up has a full list."
           : "No alerts yet. They appear once observer selection has run."}
@@ -54,7 +54,7 @@ function Alerts({ alerts, started }) {
     )
   }
   return (
-    <ul className="mt-3 divide-y divide-line rounded border border-line bg-white">
+    <ul className="mt-3 divide-y divide-line rounded border border-line bg-surface">
       {alerts.map((item) => (
         <li key={item.id} className="flex flex-wrap items-start justify-between gap-3 px-5 py-4 text-sm">
           <div>
@@ -152,7 +152,7 @@ function CycleDates({ term, onChanged }) {
   }
 
   return (
-    <section className="mt-4 rounded border border-line bg-white p-5">
+    <section className="mt-4 rounded border border-line bg-surface p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-sm font-medium">Cycle dates · {formatTerm(term)}</h3>
         {!editing && (
@@ -180,7 +180,7 @@ function CycleDates({ term, onChanged }) {
                   required
                   value={values[key] ?? ""}
                   onChange={(event) => setValues((current) => ({ ...current, [key]: event.target.value }))}
-                  className="mt-1 w-full rounded border border-line bg-white px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded border border-line bg-surface px-3 py-2 text-sm"
                 />
               </div>
             ))}
@@ -189,7 +189,7 @@ function CycleDates({ term, onChanged }) {
             <button
               type="submit"
               disabled={busy}
-              className="rounded bg-utd-green px-3 py-1.5 text-sm font-medium text-white hover:bg-utd-green-dark disabled:opacity-60"
+              className="rounded bg-utd-green px-3 py-1.5 text-sm font-medium text-primary-fg hover:bg-primary-hover disabled:opacity-60"
             >
               {busy ? "Saving…" : "Save dates"}
             </button>
@@ -398,7 +398,7 @@ function Cycle() {
                     setNotice("")
                     setActionError("")
                   }}
-                  className="rounded border border-line bg-white px-3 py-2 text-sm"
+                  className="rounded border border-line bg-surface px-3 py-2 text-sm"
                 >
                   {terms.map((term) => (
                     <option key={term.id} value={term.id}>
@@ -411,7 +411,7 @@ function Cycle() {
 
             <CycleDates term={current} onChanged={reload} />
 
-            <section className="mt-4 rounded border border-line bg-white p-5">
+            <section className="mt-4 rounded border border-line bg-surface p-5">
               <h3 className="text-sm font-medium">Start Observer Selection</h3>
               <p className="mt-1 text-sm text-muted">
                 {started
@@ -423,7 +423,7 @@ function Cycle() {
                   type="button"
                   disabled={(started && !canRecheck) || !deadlinePassed || busy !== null}
                   onClick={start}
-                  className="rounded bg-utd-green px-4 py-2 text-sm font-medium text-white hover:bg-utd-green-dark disabled:opacity-50"
+                  className="rounded bg-utd-green px-4 py-2 text-sm font-medium text-primary-fg hover:bg-primary-hover disabled:opacity-50"
                 >
                   {busy === "start"
                     ? started
@@ -480,7 +480,7 @@ function Cycle() {
                 ["Completed", stage("completed")],
                 ["Postponed", stage("postponed")],
               ].map(([label, count]) => (
-                <div key={label} className="rounded border border-line bg-white px-4 py-3">
+                <div key={label} className="rounded border border-line bg-surface px-4 py-3">
                   <dt className="text-xs text-muted">{label}</dt>
                   <dd className="mt-0.5 text-lg font-semibold">{count}</dd>
                 </div>
@@ -488,7 +488,7 @@ function Cycle() {
             </dl>
 
             {rows.length === 0 ? (
-              <p className="mt-4 rounded border border-line bg-white px-5 py-6 text-sm text-muted">
+              <p className="mt-4 rounded border border-line bg-surface px-5 py-6 text-sm text-muted">
                 No sign-ups in {formatTerm(current)} yet.
               </p>
             ) : (
@@ -500,13 +500,13 @@ function Cycle() {
                     onChange={(event) => setSearch(event.target.value)}
                     placeholder="Search by professor, email or course"
                     aria-label="Search sign-ups"
-                    className="w-full max-w-sm rounded border border-line bg-white px-3 py-2 text-sm"
+                    className="w-full max-w-sm rounded border border-line bg-surface px-3 py-2 text-sm"
                   />
                   <select
                     value={statusFilter}
                     onChange={(event) => setStatusFilter(event.target.value)}
                     aria-label="Filter by status"
-                    className="rounded border border-line bg-white px-3 py-2 text-sm"
+                    className="rounded border border-line bg-surface px-3 py-2 text-sm"
                   >
                     <option value="">All statuses</option>
                     {Object.entries(ASSESSMENT_STATUS).map(([value, entry]) => (
@@ -537,11 +537,11 @@ function Cycle() {
                 </p>
 
                 {shown.length === 0 ? (
-                  <p className="mt-4 rounded border border-line bg-white px-5 py-6 text-sm text-muted">
+                  <p className="mt-4 rounded border border-line bg-surface px-5 py-6 text-sm text-muted">
                     No sign-ups match these filters.
                   </p>
                 ) : (
-                  <div className="relative mt-4 overflow-x-auto rounded border border-line bg-white">
+                  <div className="relative mt-4 overflow-x-auto rounded border border-line bg-surface">
                     <table className="w-full text-left text-sm">
                       <thead className="border-b border-line text-xs text-muted">
                         <tr>
@@ -633,7 +633,7 @@ function Cycle() {
           </>
         ) : (
           data && (
-            <p className="mt-6 rounded border border-line bg-white px-5 py-6 text-sm text-muted">
+            <p className="mt-6 rounded border border-line bg-surface px-5 py-6 text-sm text-muted">
               There are no terms taking sign-ups.
             </p>
           )

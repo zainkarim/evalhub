@@ -57,13 +57,13 @@ function AllSignUps() {
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Search by professor or course"
           aria-label="Search sign-ups"
-          className="w-full max-w-sm rounded-md border border-line bg-white px-3 py-2 text-sm"
+          className="w-full max-w-sm rounded-md border border-line bg-surface px-3 py-2 text-sm"
         />
         <select
           value={status}
           onChange={(event) => setStatus(event.target.value)}
           aria-label="Filter by status"
-          className="rounded-md border border-line bg-white px-3 py-2 text-sm"
+          className="rounded-md border border-line bg-surface px-3 py-2 text-sm"
         >
           <option value="">All statuses</option>
           {Object.entries(ASSESSMENT_STATUS).map(([value, entry]) => (
@@ -82,7 +82,7 @@ function AllSignUps() {
           empty={rows.length === 0}
           emptyMessage="No observation sign-ups match these filters."
         >
-          <div className="relative overflow-x-auto rounded-lg border border-line bg-white shadow-xs">
+          <div className="relative overflow-x-auto rounded-lg border border-line bg-surface shadow-xs">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-line text-xs text-muted">
                 <tr>
@@ -118,7 +118,7 @@ function AllSignUps() {
                       {item.alert && (
                         <span
                           title={ALERT[item.alert].text}
-                          className="mt-1 block text-xs font-medium text-utd-orange"
+                          className="mt-1 block text-xs font-medium text-warning"
                         >
                           {ALERT[item.alert].label}
                         </span>
@@ -163,7 +163,7 @@ function AllSignUps() {
 
 function ObservationRows({ rows, mode }) {
   return (
-    <div className="relative overflow-x-auto rounded-lg border border-line bg-white shadow-xs">
+    <div className="relative overflow-x-auto rounded-lg border border-line bg-surface shadow-xs">
       <table className="w-full text-left text-sm">
         <thead className="border-b border-line text-xs text-muted">
           <tr>
@@ -246,11 +246,11 @@ function MyActivity({ user }) {
             hint="Each section you've signed up for, and what happens next."
           >
             {data.signUps.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-line bg-white/60 px-5 py-8 text-center text-sm text-muted">
+              <p className="rounded-lg border border-dashed border-line bg-surface/60 px-5 py-8 text-center text-sm text-muted">
                 You haven&apos;t signed up for an observation yet.
               </p>
             ) : (
-              <div className="relative overflow-x-auto rounded-lg border border-line bg-white shadow-xs">
+              <div className="relative overflow-x-auto rounded-lg border border-line bg-surface shadow-xs">
                 <table className="w-full text-left text-sm">
                   <thead className="border-b border-line text-xs text-muted">
                     <tr>
@@ -296,11 +296,11 @@ function MyActivity({ user }) {
             hint="Colleagues from your school who picked you as their observer. Each request offers several dates: confirm one, or decline. Requests expire after 48 hours."
           >
             {data.incoming.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-line bg-white/60 px-5 py-8 text-center text-sm text-muted">
+              <p className="rounded-lg border border-dashed border-line bg-surface/60 px-5 py-8 text-center text-sm text-muted">
                 No one has asked you to observe a class.
               </p>
             ) : (
-              <ul className="divide-y divide-line rounded-md border border-line bg-white">
+              <ul className="divide-y divide-line rounded-md border border-line bg-surface">
                 {data.incoming.map((request) => (
                   <IncomingRequest key={request.id} request={request} onChanged={reload} />
                 ))}
@@ -313,7 +313,7 @@ function MyActivity({ user }) {
             hint="Classes you have agreed to observe. Sign off after the class takes place."
           >
             {data.given.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-line bg-white/60 px-5 py-8 text-center text-sm text-muted">
+              <p className="rounded-lg border border-dashed border-line bg-surface/60 px-5 py-8 text-center text-sm text-muted">
                 You aren&apos;t observing anyone right now.
               </p>
             ) : (
@@ -326,7 +326,7 @@ function MyActivity({ user }) {
             hint="Colleagues observing your classes. You can see who and when."
           >
             {data.received.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-line bg-white/60 px-5 py-8 text-center text-sm text-muted">
+              <p className="rounded-lg border border-dashed border-line bg-surface/60 px-5 py-8 text-center text-sm text-muted">
                 No one is observing your classes yet.
               </p>
             ) : (
@@ -369,7 +369,7 @@ function Observations() {
         {(mine || committee) && (
           <Link
             to="/observation-signup"
-            className="rounded-md bg-utd-green px-4 py-2 text-sm font-medium text-white hover:bg-utd-green-dark"
+            className="rounded-md bg-utd-green px-4 py-2 text-sm font-medium text-primary-fg hover:bg-primary-hover"
           >
             {committee ? "Sign up a professor" : "Request Observation"}
           </Link>

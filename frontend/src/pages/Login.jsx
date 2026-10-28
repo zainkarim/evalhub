@@ -32,11 +32,11 @@ function Login() {
 
   return (
     <div className="min-h-screen bg-canvas font-sans text-ink md:grid md:grid-cols-[1fr_1.1fr]">
-      <section className="flex flex-col justify-between bg-utd-green-dark px-8 py-10 text-white md:px-12 md:py-12">
+      <section className="flex flex-col justify-between bg-brand px-8 py-10 text-white md:px-12 md:py-12">
         <p className="flex items-center gap-2.5">
           <span
             aria-hidden="true"
-            className="flex h-9 w-9 items-center justify-center rounded-md bg-white text-base font-bold text-utd-green-dark"
+            className="flex h-9 w-9 items-center justify-center rounded-md bg-white text-base font-bold text-brand"
           >
             E
           </span>
@@ -77,7 +77,7 @@ function Login() {
                 required
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                className="mt-1.5 w-full rounded-md border border-line bg-white px-3 py-2 text-sm"
+                className="mt-1.5 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm"
                 placeholder="name@utdallas.edu"
               />
             </div>
@@ -93,14 +93,14 @@ function Login() {
                 required
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                className="mt-1.5 w-full rounded-md border border-line bg-white px-3 py-2 text-sm"
+                className="mt-1.5 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm"
               />
             </div>
 
             {error && (
               <p
                 role="alert"
-                className="rounded-md border border-utd-orange/40 bg-white px-3 py-2 text-sm"
+                className="rounded-md border border-utd-orange/40 bg-surface px-3 py-2 text-sm"
               >
                 {error}
               </p>
@@ -109,13 +109,13 @@ function Login() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full rounded-md bg-utd-green px-4 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-utd-green-dark disabled:opacity-60"
+              className="w-full rounded-md bg-utd-green px-4 py-2.5 text-sm font-semibold text-primary-fg shadow-xs hover:bg-primary-hover disabled:opacity-60"
             >
               {submitting ? "Signing in…" : "Sign in"}
             </button>
           </form>
 
-          <div className="mt-8 rounded-lg border border-line bg-white p-4 shadow-xs">
+          <div className="mt-8 rounded-lg border border-line bg-surface p-4 shadow-xs">
             <p className="text-sm font-semibold">Demo accounts</p>
             <p className="mt-0.5 text-xs text-muted">
               For development and team testing only. Click one to fill in the form.

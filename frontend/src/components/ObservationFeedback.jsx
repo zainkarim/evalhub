@@ -98,7 +98,7 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
         </div>
       )}
 
-      <ol className="divide-y divide-line rounded-md border border-line bg-white">
+      <ol className="divide-y divide-line rounded-md border border-line bg-surface">
         {criteria.map((criterion, index) => {
           const value = scores[criterion.id]
           const labelId = `criterion-${criterion.id}-label`
@@ -111,7 +111,7 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
                 <span
                   aria-hidden="true"
                   className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
-                    value ? "bg-utd-green text-white" : "border border-line text-muted"
+                    value ? "bg-utd-green text-primary-fg" : "border border-line text-muted"
                   }`}
                 >
                   {value ? "✓" : index + 1}
@@ -139,10 +139,10 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
                         key={step}
                         className={`flex h-9 w-10 items-center justify-center border-l border-line text-sm first:border-l-0 has-[:focus-visible]:relative has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-utd-green ${
                           selected
-                            ? "bg-utd-green-dark font-semibold text-white"
+                            ? "bg-brand font-semibold text-white"
                             : preview
-                              ? "bg-white text-muted"
-                              : "cursor-pointer bg-white hover:bg-canvas"
+                              ? "bg-surface text-muted"
+                              : "cursor-pointer bg-surface hover:bg-canvas"
                         }`}
                       >
                         <input
@@ -182,13 +182,13 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
         }}
         rows={5}
         disabled={preview || busy}
-        className="mt-2 w-full rounded-md border border-line bg-white px-3 py-2 text-sm disabled:bg-canvas"
+        className="mt-2 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm disabled:bg-canvas"
       />
 
       {!preview && (
         <>
           {error && (
-            <p role="alert" className="mt-3 rounded-md border border-utd-orange/40 bg-white px-3 py-2 text-sm">
+            <p role="alert" className="mt-3 rounded-md border border-utd-orange/40 bg-surface px-3 py-2 text-sm">
               {error}
             </p>
           )}
@@ -196,7 +196,7 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
             <button
               type="submit"
               disabled={!complete || busy}
-              className="rounded-md bg-utd-green px-4 py-2 text-sm font-medium text-white hover:bg-utd-green-dark disabled:opacity-50"
+              className="rounded-md bg-utd-green px-4 py-2 text-sm font-medium text-primary-fg hover:bg-primary-hover disabled:opacity-50"
             >
               {busy ? "Saving…" : "Save observation form"}
             </button>

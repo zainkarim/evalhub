@@ -3,12 +3,12 @@ import { normalizeStatus } from "../lib/format"
 // One pill shape for every status; the tone only changes the colour. "done" is
 // the one solid badge, because a completed record is final and locked.
 const TONES = {
-  neutral: { pill: "bg-gray-50 text-gray-700 ring-gray-200", dot: "bg-gray-400" },
-  info: { pill: "bg-sky-50 text-sky-800 ring-sky-200", dot: "bg-sky-500" },
-  warn: { pill: "bg-orange-50 text-utd-orange ring-orange-200", dot: "bg-utd-orange" },
-  good: { pill: "bg-emerald-50 text-utd-green-dark ring-emerald-200", dot: "bg-utd-green" },
-  done: { pill: "bg-utd-green-dark text-white ring-utd-green-dark", dot: null },
-  bad: { pill: "bg-red-50 text-red-700 ring-red-200", dot: "bg-red-500" },
+  neutral: { pill: "bg-surface-2 text-muted ring-line", dot: "bg-muted" },
+  info: { pill: "bg-info-soft text-info ring-info/30", dot: "bg-info" },
+  warn: { pill: "bg-warning-soft text-warning ring-warning/30", dot: "bg-accent" },
+  good: { pill: "bg-success-soft text-success ring-success/30", dot: "bg-primary" },
+  done: { pill: "bg-brand text-white ring-brand", dot: null },
+  bad: { pill: "bg-danger-soft text-danger ring-danger/30", dot: "bg-danger" },
 }
 
 // A status nobody mapped still reads as words, never as a raw key.

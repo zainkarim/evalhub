@@ -34,7 +34,7 @@ function StepTitle({ number, done, children }) {
       <span
         aria-hidden="true"
         className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
-          done ? "bg-utd-green text-white" : "border border-line text-muted"
+          done ? "bg-utd-green text-primary-fg" : "border border-line text-muted"
         }`}
       >
         {done ? "✓" : number}
@@ -142,7 +142,7 @@ function RequestPanel({ assessment, onChanged }) {
       onClick={() => setDateView(value)}
       aria-pressed={dateView === value}
       className={`px-4 py-1.5 text-sm ${
-        dateView === value ? "bg-utd-green-dark font-medium text-white" : "bg-white text-muted hover:text-ink"
+        dateView === value ? "bg-brand font-medium text-white" : "bg-surface text-muted hover:text-ink"
       }`}
     >
       {label}
@@ -150,7 +150,7 @@ function RequestPanel({ assessment, onChanged }) {
   )
 
   return (
-    <section className="mt-6 rounded-lg border border-line bg-white p-6 shadow-xs">
+    <section className="mt-6 rounded-lg border border-line bg-surface p-6 shadow-xs">
       <h2 className="text-base font-semibold">
         {nextAttempt ? "Schedule a new attempt" : "Ask one observer"}
       </h2>
@@ -180,7 +180,7 @@ function RequestPanel({ assessment, onChanged }) {
               id="withdraw-reason"
               value={reason}
               onChange={(event) => setReason(event.target.value)}
-              className="mt-2 w-full rounded-md border border-line bg-white px-3 py-2 text-sm"
+              className="mt-2 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm"
               placeholder="Why you are withdrawing this request"
             />
             <p className="mt-2 text-xs text-muted">
@@ -190,7 +190,7 @@ function RequestPanel({ assessment, onChanged }) {
               type="button"
               disabled={busy}
               onClick={() => run(() => api.withdrawRequest(assessment.id, reason.trim()))}
-              className="mt-3 rounded-md border border-line bg-white px-3 py-1.5 text-sm hover:border-ink disabled:opacity-60"
+              className="mt-3 rounded-md border border-line bg-surface px-3 py-1.5 text-sm hover:border-ink disabled:opacity-60"
             >
               Withdraw request
             </button>
@@ -217,7 +217,7 @@ function RequestPanel({ assessment, onChanged }) {
                 id="observer"
                 value={observerId}
                 onChange={(event) => setObserverId(event.target.value)}
-                className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm"
               >
                 <option value="">Select one observer</option>
                 {candidates.map((candidate) => (
@@ -244,7 +244,7 @@ function RequestPanel({ assessment, onChanged }) {
                       type="time"
                       value={startTime}
                       onChange={(event) => setStartTime(event.target.value)}
-                      className="mt-1 rounded-md border border-line bg-white px-3 py-2 text-sm"
+                      className="mt-1 rounded-md border border-line bg-surface px-3 py-2 text-sm"
                     />
                   </div>
                   <div>
@@ -256,7 +256,7 @@ function RequestPanel({ assessment, onChanged }) {
                       type="time"
                       value={endTime}
                       onChange={(event) => setEndTime(event.target.value)}
-                      className="mt-1 rounded-md border border-line bg-white px-3 py-2 text-sm"
+                      className="mt-1 rounded-md border border-line bg-surface px-3 py-2 text-sm"
                     />
                   </div>
                 </div>
@@ -279,7 +279,7 @@ function RequestPanel({ assessment, onChanged }) {
                 {observationDeadline ? (
                   <>
                     Observation deadline{" "}
-                    <span className="font-medium text-utd-orange">{formatDate(observationDeadline)}</span>
+                    <span className="font-medium text-warning">{formatDate(observationDeadline)}</span>
                     . Later dates can&apos;t be offered.
                   </>
                 ) : (
@@ -300,7 +300,7 @@ function RequestPanel({ assessment, onChanged }) {
                         type="button"
                         disabled={classDates.length < count}
                         onClick={() => quickPick(count)}
-                        className="rounded-md border border-line bg-white px-3 py-1.5 hover:border-utd-green-dark disabled:cursor-not-allowed disabled:opacity-40"
+                        className="rounded-md border border-line bg-surface px-3 py-1.5 hover:border-primary disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         Next {count} classes
                       </button>
@@ -382,9 +382,9 @@ function RequestPanel({ assessment, onChanged }) {
                           onClick={() => toggle(day)}
                           className={`relative flex h-11 flex-col items-center justify-center rounded-md text-sm ${
                             selected
-                              ? "bg-utd-green-dark font-semibold text-white"
+                              ? "bg-brand font-semibold text-white"
                               : eligible
-                                ? "border border-utd-green/40 bg-white font-medium hover:bg-utd-green/10"
+                                ? "border border-utd-green/40 bg-surface font-medium hover:bg-utd-green/10"
                                 : pastDeadline
                                   ? "bg-canvas text-muted/50 line-through"
                                   : "text-muted/50"
@@ -396,7 +396,7 @@ function RequestPanel({ assessment, onChanged }) {
                           {isDeadline && (
                             <span
                               className={`hidden text-[9px] leading-none font-medium sm:block ${
-                                selected ? "text-white" : "text-utd-orange"
+                                selected ? "text-white" : "text-warning"
                               }`}
                             >
                               deadline
@@ -409,10 +409,10 @@ function RequestPanel({ assessment, onChanged }) {
 
                   <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
                     <span className="flex items-center gap-1.5">
-                      <span className="h-3 w-3 rounded-sm border border-utd-green/40 bg-white" /> Class meeting
+                      <span className="h-3 w-3 rounded-sm border border-utd-green/40 bg-surface" /> Class meeting
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <span className="h-3 w-3 rounded-sm bg-utd-green-dark" /> Offered
+                      <span className="h-3 w-3 rounded-sm bg-brand" /> Offered
                     </span>
                     {observationDeadline && (
                       <span className="flex items-center gap-1.5">
@@ -446,7 +446,7 @@ function RequestPanel({ assessment, onChanged }) {
                         key={date}
                         type="button"
                         onClick={() => toggle(date)}
-                        className="rounded-full border border-utd-green-dark bg-white px-3 py-1 text-xs hover:bg-canvas"
+                        className="rounded-full border border-primary bg-surface px-3 py-1 text-xs hover:bg-canvas"
                         aria-label={`Remove ${shortDate(date)}`}
                         title="Remove this date"
                       >
@@ -467,7 +467,7 @@ function RequestPanel({ assessment, onChanged }) {
                 type="button"
                 disabled={!ready || busy}
                 onClick={send}
-                className="w-full shrink-0 rounded-md bg-utd-green px-5 py-2 text-sm font-medium text-white hover:bg-utd-green-dark disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                className="w-full shrink-0 rounded-md bg-utd-green px-5 py-2 text-sm font-medium text-primary-fg hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
               >
                 {busy ? "Sending…" : "Send request"}
               </button>
@@ -481,7 +481,7 @@ function RequestPanel({ assessment, onChanged }) {
       )}
 
       {error && (
-        <p role="alert" className="mt-3 rounded-md border border-utd-orange/40 bg-white px-3 py-2 text-sm">
+        <p role="alert" className="mt-3 rounded-md border border-utd-orange/40 bg-surface px-3 py-2 text-sm">
           {error}
         </p>
       )}

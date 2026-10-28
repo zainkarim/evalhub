@@ -76,7 +76,7 @@ function Cell({ column, row, termId }) {
 // The roster with one sortable header per column. `sort` is { key, direction }.
 function ProfessorsTable({ rows, sort, onSort, termId }) {
   return (
-    <div className="relative overflow-x-auto rounded border border-line bg-white">
+    <div className="relative overflow-x-auto rounded border border-line bg-surface">
       <table className="w-full min-w-[66rem] text-left text-sm">
         <thead className="border-b border-line text-xs text-muted">
           <tr>

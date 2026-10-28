@@ -11,7 +11,7 @@ function AttemptHistory({ attempts = [], title = "Attempt history" }) {
   }
 
   return (
-    <section className="mt-6 rounded-lg border border-line bg-white p-6 shadow-xs">
+    <section className="mt-6 rounded-lg border border-line bg-surface p-6 shadow-xs">
       <h2 className="text-base font-semibold">{title}</h2>
       <p className="mt-1 text-sm text-muted">
         Every request, reply and postponement stays on the record. Nothing here is removed.
@@ -28,7 +28,7 @@ function AttemptHistory({ attempts = [], title = "Attempt history" }) {
                 <li key={entry.id} className="relative pl-5">
                   <span
                     aria-hidden="true"
-                    className="absolute top-1.5 -left-[5px] h-2.5 w-2.5 rounded-full border-2 border-white bg-utd-green ring-1 ring-line"
+                    className="absolute top-1.5 -left-[5px] h-2.5 w-2.5 rounded-full border-2 border-surface bg-utd-green ring-1 ring-line"
                   />
                   <p>
                     <span className="font-medium">{ATTEMPT_EVENT[entry.type] ?? entry.type}</span>

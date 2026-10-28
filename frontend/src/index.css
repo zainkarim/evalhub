@@ -1,29 +1,127 @@
 @import "tailwindcss";
 
-@theme {
-  --color-ink: #16201c;
-  --color-muted: #5f6d67;
-  --color-line: #dde3df;
-  --color-canvas: #f5f7f5;
-  --color-utd-green: #008542;
-  --color-utd-green-dark: #006b36;
-  --color-utd-orange: #c75b12;
+/* Dark mode is class-based: the `dark` class on <html> (set before first paint
+   by the inline script in index.html, then kept in sync by ThemeProvider). */
+@custom-variant dark (&:where(.dark, .dark *));
 
-  /* Public Sans: an open typeface made for public-service interfaces; plain,
-     institutional and very legible at small sizes. Falls back to the system UI
-     font when offline. */
-  --font-sans: "Public Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+/* Design tokens. Each --c-* variable holds the real colour for the current
+   theme; `.dark` swaps the values. Components never use the hex codes; they use
+   the Tailwind names mapped below (bg-surface, text-muted, ...), so a theme
+   change needs no per-component work. Contrast was checked at >= 4.5:1 for
+   ink/muted on bg/surface/surface-2 and primary-fg on primary. */
+:root {
+  --c-bg: #f5f7f5;
+  --c-surface: #ffffff;
+  --c-surface-2: #eef2ef;
+  --c-ink: #16201c;
+  --c-muted: #5f6d67;
+  --c-line: #dde3df;
+
+  --c-primary: #008542; /* UTD green */
+  --c-primary-hover: #006b36;
+  --c-primary-fg: #ffffff;
+  --c-brand: #006b36; /* the header bar: always dark enough for white text */
+  --c-accent: #c75b12; /* UTD orange: highlights only */
+  --c-accent-fg: #ffffff;
+
+  --c-success: #006b36;
+  --c-warning: #a84a0c;
+  --c-danger: #b42318;
+  --c-info: #075985;
+  --c-success-soft: #e8f5ee;
+  --c-warning-soft: #fdf0e6;
+  --c-danger-soft: #fdecea;
+  --c-info-soft: #e6f2fa;
+
+  --shadow-rgb: 22 32 28;
+  color-scheme: light;
+}
+
+.dark {
+  --c-bg: #0a0f14;
+  --c-surface: #111a21;
+  --c-surface-2: #17232c;
+  --c-ink: #e8efeb;
+  --c-muted: #9aa9a2;
+  --c-line: #26343d;
+
+  --c-primary: #2fb36b;
+  --c-primary-hover: #4cc98a;
+  --c-primary-fg: #04140b;
+  --c-brand: #0b4a2b;
+  --c-accent: #f2812f;
+  --c-accent-fg: #1a0c02;
+
+  --c-success: #4cc98a;
+  --c-warning: #f2994a;
+  --c-danger: #ff8a80;
+  --c-info: #6cb8ee;
+  --c-success-soft: #12281d;
+  --c-warning-soft: #2d1c0f;
+  --c-danger-soft: #2f1514;
+  --c-info-soft: #10263a;
+
+  --shadow-rgb: 0 0 0;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--c-bg);
+  --color-surface: var(--c-surface);
+  --color-surface-2: var(--c-surface-2);
+  --color-ink: var(--c-ink);
+  --color-muted: var(--c-muted);
+  --color-line: var(--c-line);
+
+  --color-primary: var(--c-primary);
+  --color-primary-hover: var(--c-primary-hover);
+  --color-primary-fg: var(--c-primary-fg);
+  --color-brand: var(--c-brand);
+  --color-accent: var(--c-accent);
+  --color-accent-fg: var(--c-accent-fg);
+
+  --color-success: var(--c-success);
+  --color-warning: var(--c-warning);
+  --color-danger: var(--c-danger);
+  --color-info: var(--c-info);
+  --color-success-soft: var(--c-success-soft);
+  --color-warning-soft: var(--c-warning-soft);
+  --color-danger-soft: var(--c-danger-soft);
+  --color-info-soft: var(--c-info-soft);
+
+  /* Old names, kept so existing pages keep working until they are migrated
+     (removed in Step 8). utd-green-dark was only ever used as text by now. */
+  --color-canvas: var(--c-bg);
+  --color-utd-green: var(--c-primary);
+  --color-utd-green-dark: var(--c-success);
+  --color-utd-orange: var(--c-accent);
+
+  /* Inter Variable is bundled by @fontsource-variable/inter (no CDN). Falls back
+     to the system UI font while loading. */
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
     Roboto, Helvetica, Arial, sans-serif;
 
-  /* Shadows tinted with the ink colour instead of pure black. */
-  --shadow-xs: 0 1px 2px 0 rgb(22 32 28 / 0.05);
-  --shadow-sm: 0 1px 3px 0 rgb(22 32 28 / 0.08), 0 1px 2px -1px rgb(22 32 28 / 0.06);
-  --shadow-lg: 0 12px 24px -6px rgb(22 32 28 / 0.14), 0 4px 8px -4px rgb(22 32 28 / 0.08);
+  /* Type scale (new names; Tailwind's text-sm/base/lg/... still work). */
+  --text-display: 2.25rem;
+  --text-display--line-height: 2.75rem;
+  --text-title: 1.75rem;
+  --text-title--line-height: 2.25rem;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.5rem;
+
+  /* Radius scale for cards, panels and dialogs. */
+  --radius-card: 0.75rem;
+  --radius-panel: 1rem;
+
+  /* Shadows are tinted with the ink colour in light, and plain black in dark. */
+  --shadow-xs: 0 1px 2px 0 rgb(var(--shadow-rgb) / 0.05);
+  --shadow-sm: 0 1px 3px 0 rgb(var(--shadow-rgb) / 0.08), 0 1px 2px -1px rgb(var(--shadow-rgb) / 0.06);
+  --shadow-lg: 0 12px 24px -6px rgb(var(--shadow-rgb) / 0.14), 0 4px 8px -4px rgb(var(--shadow-rgb) / 0.08);
 }
 
 html {
-  background-color: var(--color-canvas);
-  color: var(--color-ink);
+  background-color: var(--c-bg);
+  color: var(--c-ink);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -31,7 +129,7 @@ html {
 }
 
 ::selection {
-  background-color: color-mix(in srgb, var(--color-utd-green) 22%, transparent);
+  background-color: color-mix(in srgb, var(--c-primary) 22%, transparent);
 }
 
 /* Page titles: slightly tighter, so they read as titles, not big body text. */
@@ -55,7 +153,7 @@ tbody tr {
   transition: background-color 120ms ease;
 }
 tbody tr:hover {
-  background-color: color-mix(in srgb, var(--color-canvas) 70%, white);
+  background-color: var(--c-surface-2);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -68,7 +166,7 @@ tbody tr:hover {
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-utd-green);
+  outline: 2px solid var(--c-primary);
   outline-offset: 2px;
 }
 

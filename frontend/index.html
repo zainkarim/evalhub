@@ -5,12 +5,27 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#006b36" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,400..700;1,400&display=swap"
-      rel="stylesheet"
-    />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      /* Sets the theme before first paint so there is no light/dark flash.
+         Key and values must match src/context/theme-context.js
+         (THEME_STORAGE_KEY, THEME_VALUES); ThemeProvider keeps them in sync later. */
+      (function () {
+        try {
+          var pref = "system";
+          try {
+            var stored = localStorage.getItem("evalhub-theme");
+            if (stored === "light" || stored === "dark" || stored === "system") pref = stored;
+          } catch (e) {}
+          var dark = pref === "dark" || (pref === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          var root = document.documentElement;
+          if (dark) root.classList.add("dark");
+          root.style.colorScheme = dark ? "dark" : "light";
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute("content", dark ? "#0b4a2b" : "#006b36");
+        } catch (e) {}
+      })();
+    </script>
     <title>EvalHub — UTD Faculty Evaluations</title>
   </head>
   <body>

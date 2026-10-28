@@ -17,7 +17,7 @@ function PairingPanel({ observation, viewer, title = "Observer pairing" }) {
   const action = observation.status === "approved" && isParty ? "Sign off" : "Open record"
 
   return (
-    <section className="mt-6 rounded-lg border border-line bg-white p-6 shadow-xs">
+    <section className="mt-6 rounded-lg border border-line bg-surface p-6 shadow-xs">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <h2 className="text-base font-semibold">
           {title} · attempt {observation.attemptNo}

@@ -45,7 +45,7 @@ function Inbox() {
           Mark all read
         </button>
       </div>
-      <ul className="mt-3 divide-y divide-line rounded border border-line bg-white">
+      <ul className="mt-3 divide-y divide-line rounded border border-line bg-surface">
         {items.map((item) => (
           <li key={item.id} className="px-5 py-4 text-sm">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -87,7 +87,7 @@ function Inbox() {
         ))}
       </ul>
       {error && (
-        <p role="alert" className="mt-3 rounded border border-utd-orange/40 bg-white px-3 py-2 text-sm">
+        <p role="alert" className="mt-3 rounded border border-utd-orange/40 bg-surface px-3 py-2 text-sm">
           {error}
         </p>
       )}
@@ -109,7 +109,7 @@ function Notifications() {
         {hasTeacherProfile(user) ? (
           <Inbox />
         ) : (
-          <p className="rounded border border-line bg-white px-5 py-8 text-sm text-muted">
+          <p className="rounded border border-line bg-surface px-5 py-8 text-sm text-muted">
             This account has no professor profile, so it has no inbox.
           </p>
         )}

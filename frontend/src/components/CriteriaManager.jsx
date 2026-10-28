@@ -6,7 +6,7 @@ import ScaleMeter from "./ScaleMeter"
 import StateBlock from "./StateBlock"
 
 const EMPTY = { name: "", description: "", maxScore: 5, weight: 1 }
-const field = "mt-1 w-full rounded-md border border-line bg-white px-3 py-2 text-sm"
+const field = "mt-1 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm"
 
 function Heading({ title, hint, children }) {
   return (
@@ -88,7 +88,7 @@ function CriterionForm({ initial, submitLabel, busy, onSubmit, onCancel }) {
         <button
           type="submit"
           disabled={busy || !form.name.trim()}
-          className="rounded-md bg-utd-green px-4 py-2 text-sm font-medium text-white hover:bg-utd-green-dark disabled:opacity-50"
+          className="rounded-md bg-utd-green px-4 py-2 text-sm font-medium text-primary-fg hover:bg-primary-hover disabled:opacity-50"
         >
           {submitLabel}
         </button>
@@ -96,7 +96,7 @@ function CriterionForm({ initial, submitLabel, busy, onSubmit, onCancel }) {
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-md border border-line bg-white px-4 py-2 text-sm hover:border-ink"
+            className="rounded-md border border-line bg-surface px-4 py-2 text-sm hover:border-ink"
           >
             Cancel
           </button>
@@ -184,7 +184,7 @@ function CriteriaManager() {
       {(actionError || notice) && (
         <p
           role={actionError ? "alert" : "status"}
-          className={`mb-6 rounded-md border bg-white px-4 py-3 text-sm ${
+          className={`mb-6 rounded-md border bg-surface px-4 py-3 text-sm ${
             actionError ? "border-utd-orange/40" : "border-utd-green/30 text-utd-green-dark"
           }`}
         >
@@ -209,7 +209,7 @@ function CriteriaManager() {
       </Heading>
 
       {showPreview && active.length > 0 && (
-        <div className="mt-3 rounded-md border border-dashed border-utd-green/40 bg-white p-5">
+        <div className="mt-3 rounded-md border border-dashed border-utd-green/40 bg-surface p-5">
           <p className="mb-4 text-sm text-muted">
             This is the form an observer fills in after the class. Nothing here is saved.
           </p>
@@ -221,11 +221,11 @@ function CriteriaManager() {
         <StateBlock loading={loading} error={error} onRetry={reload}>
           {data &&
             (criteria.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-line bg-white/60 px-5 py-8 text-center text-sm text-muted">
+              <p className="rounded-lg border border-dashed border-line bg-surface/60 px-5 py-8 text-center text-sm text-muted">
                 No questions yet. Add the first one below.
               </p>
             ) : (
-              <div className="overflow-x-auto rounded-lg border border-line bg-white shadow-xs">
+              <div className="overflow-x-auto rounded-lg border border-line bg-surface shadow-xs">
                 <table className="w-full text-left text-sm">
                   <thead className="border-b border-line bg-canvas text-xs text-muted">
                     <tr>
@@ -267,7 +267,7 @@ function CriteriaManager() {
                           <td className={td}>
                             <span className="font-medium">{criterion.name}</span>
                             {!criterion.isActive && (
-                              <span className="ml-2 rounded-full border border-line bg-white px-2 py-0.5 text-[11px]">
+                              <span className="ml-2 rounded-full border border-line bg-surface px-2 py-0.5 text-[11px]">
                                 Off the form
                               </span>
                             )}
@@ -310,7 +310,7 @@ function CriteriaManager() {
                                 type="button"
                                 disabled={busy}
                                 onClick={() => remove(criterion)}
-                                className="text-muted hover:text-utd-orange hover:underline disabled:opacity-50"
+                                className="text-muted hover:text-warning hover:underline disabled:opacity-50"
                               >
                                 Delete
                               </button>
@@ -330,7 +330,7 @@ function CriteriaManager() {
         title="Add a question"
         hint="New questions appear at the end of the form, for observations not yet signed."
       />
-      <div className="mt-3 rounded-lg border border-line bg-white p-5 shadow-xs">
+      <div className="mt-3 rounded-lg border border-line bg-surface p-5 shadow-xs">
         <CriterionForm
           key={addKey}
           initial={EMPTY}

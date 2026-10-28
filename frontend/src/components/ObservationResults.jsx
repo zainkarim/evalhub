@@ -19,7 +19,7 @@ function ObservationResults({ observationId }) {
           <p className="text-sm text-muted">The observer hasn&apos;t filled in the form yet.</p>
         ) : (
           <>
-            <ol className="divide-y divide-line rounded-md border border-line bg-white">
+            <ol className="divide-y divide-line rounded-md border border-line bg-surface">
               {rows.map((row) => (
                 <li
                   key={row.id}

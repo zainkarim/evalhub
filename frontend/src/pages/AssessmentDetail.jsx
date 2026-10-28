@@ -84,8 +84,8 @@ function AssessmentDetail() {
               </div>
 
               {assessment.alert && committeeView ? (
-                <p className="mt-5 rounded-md border border-utd-orange/40 bg-white px-4 py-3 text-sm">
-                  <span className="font-medium text-utd-orange">
+                <p className="mt-5 rounded-md border border-utd-orange/40 bg-surface px-4 py-3 text-sm">
+                  <span className="font-medium text-warning">
                     {ALERT[assessment.alert].label}.{" "}
                   </span>
                   {ALERT[assessment.alert].text}
@@ -114,7 +114,7 @@ function AssessmentDetail() {
               />
 
               {committeeView && (
-                <section className="mt-6 rounded-lg border border-line bg-white p-6 shadow-xs">
+                <section className="mt-6 rounded-lg border border-line bg-surface p-6 shadow-xs">
                   <h2 className="text-base font-semibold">Request and schedule</h2>
                   <div className="mt-3">
                     <ObserverSummary assessment={assessment} showCandidates={false} />
@@ -128,7 +128,7 @@ function AssessmentDetail() {
                 <CommitteeActions assessment={assessment} onChanged={reload} />
               )}
               {committee && owner && (
-                <p className="mt-6 rounded-lg border border-line bg-white px-5 py-4 text-sm text-muted shadow-xs">
+                <p className="mt-6 rounded-lg border border-line bg-surface px-5 py-4 text-sm text-muted shadow-xs">
                   This is your own sign-up, so another committee member handles any manual
                   assignment.
                 </p>

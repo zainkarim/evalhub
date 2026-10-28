@@ -44,7 +44,7 @@ function PostponeControl({ label = "Postpone this attempt", prompt, onSubmit, on
             value={reason}
             onChange={(event) => setReason(event.target.value)}
             rows={3}
-            className="mt-2 w-full rounded-md border border-line bg-white px-3 py-2 text-sm"
+            className="mt-2 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm"
             placeholder="Illness, a schedule conflict…"
           />
           <p className="mt-2 text-xs text-muted">
@@ -56,7 +56,7 @@ function PostponeControl({ label = "Postpone this attempt", prompt, onSubmit, on
               type="button"
               disabled={!reason.trim() || busy}
               onClick={submit}
-              className="rounded-md bg-utd-orange px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+              className="rounded-md bg-utd-orange px-3 py-1.5 text-sm font-medium text-accent-fg disabled:opacity-50"
             >
               {busy ? "Saving…" : "Postpone and record"}
             </button>
@@ -71,7 +71,7 @@ function PostponeControl({ label = "Postpone this attempt", prompt, onSubmit, on
         </div>
       )}
       {error && (
-        <p role="alert" className="mt-3 rounded-md border border-utd-orange/40 bg-white px-3 py-2 text-sm">
+        <p role="alert" className="mt-3 rounded-md border border-utd-orange/40 bg-surface px-3 py-2 text-sm">
           {error}
         </p>
       )}

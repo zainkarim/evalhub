@@ -43,7 +43,7 @@ function AssignObserver({ assessment, onChanged }) {
     <form onSubmit={submit}>
       <h3 className="text-sm font-medium">
         Assign an observer manually{" "}
-        <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-normal text-muted">
+        <span className="ml-1 rounded bg-surface-2 px-1.5 py-0.5 text-[11px] font-normal text-muted">
           stretch goal
         </span>
       </h3>
@@ -60,7 +60,7 @@ function AssignObserver({ assessment, onChanged }) {
             id="assign-observer"
             value={observerId}
             onChange={(event) => setObserverId(event.target.value)}
-            className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2 text-sm"
+            className="mt-1 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm"
           >
             <option value="">Select observer</option>
             {assessment.candidates.length > 0 && (
@@ -91,7 +91,7 @@ function AssignObserver({ assessment, onChanged }) {
             id="assign-date"
             value={date}
             onChange={(event) => setDate(event.target.value)}
-            className="mt-1 w-full rounded-md border border-line bg-white px-3 py-2 text-sm"
+            className="mt-1 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm"
           >
             <option value="">Select a date</option>
             {dates.map((value) => (
@@ -105,12 +105,12 @@ function AssignObserver({ assessment, onChanged }) {
       <button
         type="submit"
         disabled={!observerId || !date || busy}
-        className="mt-3 rounded-md bg-utd-green px-4 py-2 text-sm font-medium text-white hover:bg-utd-green-dark disabled:opacity-50"
+        className="mt-3 rounded-md bg-utd-green px-4 py-2 text-sm font-medium text-primary-fg hover:bg-primary-hover disabled:opacity-50"
       >
         {busy ? "Assigning…" : "Assign observer"}
       </button>
       {error && (
-        <p role="alert" className="mt-3 rounded-md border border-utd-orange/40 bg-white px-3 py-2 text-sm">
+        <p role="alert" className="mt-3 rounded-md border border-utd-orange/40 bg-surface px-3 py-2 text-sm">
           {error}
         </p>
       )}
@@ -130,7 +130,7 @@ function CommitteeActions({ assessment, onChanged }) {
   if (!canAssign && !canPostpone) return null
 
   return (
-    <section className="mt-6 rounded-lg border border-line bg-white p-6 shadow-xs">
+    <section className="mt-6 rounded-lg border border-line bg-surface p-6 shadow-xs">
       <h2 className="text-base font-semibold">Committee actions</h2>
 
       {canAssign && (

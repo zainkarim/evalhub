@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-do
 import { useAuth } from "../context/auth-context"
 import { api, CHANGED_EVENT } from "../lib/api"
 import NotificationBell from "./NotificationBell"
+import ThemeToggle from "./ThemeToggle"
 import { displayName, hasTeacherProfile, isAC, roleLabel } from "../lib/roles"
 
 // Faculty and committee members see different navigation. `badge` names the
@@ -73,12 +74,12 @@ function Layout() {
     <div className="min-h-screen bg-canvas font-sans text-ink">
       <header>
         {/* Brand bar: who you are and what app this is. */}
-        <div className="brand-bar bg-utd-green-dark text-white">
+        <div className="brand-bar bg-brand text-white">
           <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-6 px-6">
             <Link to="/" className="flex shrink-0 items-center gap-3 rounded-md">
               <span
                 aria-hidden="true"
-                className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-lg font-bold text-utd-green-dark shadow-sm"
+                className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-lg font-bold text-brand shadow-sm"
               >
                 E
               </span>
@@ -92,6 +93,7 @@ function Layout() {
 
             <div className="ml-auto flex items-center gap-2 text-sm sm:gap-4">
               <NotificationBell />
+              <ThemeToggle />
               <span aria-hidden="true" className="hidden h-8 w-px bg-white/20 sm:block" />
               <span className="flex items-center gap-3">
                 <span
@@ -119,7 +121,7 @@ function Layout() {
         </div>
 
         {/* Navigation row: where you can go. */}
-        <div className="border-b border-line bg-white">
+        <div className="border-b border-line bg-surface">
           <nav
             aria-label="Main"
             className="mx-auto flex h-12 w-full max-w-7xl gap-2 overflow-x-auto px-4 text-sm [scrollbar-width:none] sm:px-6 [&::-webkit-scrollbar]:hidden"
@@ -144,7 +146,7 @@ function Layout() {
                     {link.label}
                     {count > 0 && (
                       <span
-                        className="min-w-[1.25rem] rounded-full bg-utd-orange px-1.5 text-center text-[11px] font-semibold leading-5 text-white"
+                        className="min-w-[1.25rem] rounded-full bg-utd-orange px-1.5 text-center text-[11px] font-semibold leading-5 text-accent-fg"
                         aria-label={`${count} waiting`}
                       >
                         {count}

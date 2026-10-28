@@ -107,7 +107,7 @@ function NotificationBell() {
           <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
         </svg>
         {unread > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 min-w-[1.1rem] rounded-full bg-utd-orange px-1 text-center text-[10px] font-semibold leading-4 text-white ring-2 ring-utd-green-dark">
+          <span className="absolute -right-0.5 -top-0.5 min-w-[1.1rem] rounded-full bg-utd-orange px-1 text-center text-[10px] font-semibold leading-4 text-accent-fg ring-2 ring-brand">
             {unread > 99 ? "99+" : unread}
           </span>
         )}
@@ -117,7 +117,7 @@ function NotificationBell() {
         <div
           role="dialog"
           aria-label="Notifications"
-          className="absolute right-0 top-full z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-line bg-white text-ink shadow-lg"
+          className="absolute right-0 top-full z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-line bg-surface text-ink shadow-lg"
         >
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <h3 className="text-sm font-semibold">Notifications</h3>
