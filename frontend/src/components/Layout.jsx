@@ -1,5 +1,5 @@
 import { m, useReducedMotion } from "motion/react"
-import { useEffect, useLayoutEffect, useState } from "react"
+import { Suspense, useEffect, useLayoutEffect, useState } from "react"
 import { Outlet, useLocation, useNavigate } from "react-router-dom"
 import { useAuth } from "../context/auth-context"
 import { api, CHANGED_EVENT } from "../lib/api"
@@ -9,6 +9,7 @@ import MobileNav from "./MobileNav"
 import Starfield from "./Starfield"
 import NotificationBell from "./NotificationBell"
 import ThemeToggle from "./ThemeToggle"
+import { PageSkeleton } from "./RouteFallback"
 import UserMenu from "./UserMenu"
 import { resetStagger } from "./ui"
 import { displayName, hasTeacherProfile, isAC, roleLabel } from "../lib/roles"
@@ -139,7 +140,9 @@ function Layout() {
           animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
           transition={{ duration: 0.18, ease: "easeOut" }}
         >
-          <Outlet />
+          <Suspense fallback={<PageSkeleton />}>
+            <Outlet />
+          </Suspense>
         </m.div>
       </main>
     </div>
