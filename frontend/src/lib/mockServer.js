@@ -1958,18 +1958,56 @@ route("POST", "/notifications/list-reminder", ({ user, body }) => {
   return { sent, skipped }
 })
 
+route("GET", "/surveys/status", ({ user }) => {
+  const s = load()
+
+  const term = [...s.terms]
+    .filter((item) => item.startDate <= today())
+    .sort((a, b) => b.startDate.localeCompare(a.startDate))[0]
+
+  if (!term) {
+    return { submitted: false, available: false }
+  }
+
+  const submitted = (s.surveyResponses ?? []).some(
+    (response) =>
+      response.userId === user.id &&
+      response.termId === term.id,
+  )
+
+  return {
+    submitted,
+    available: !term.feedbackDeadline || today() <= term.feedbackDeadline,
+    termId: term.id,
+  }
+})
+
+
 route("POST", "/surveys", ({ user, body }) => {
   const s = load()
   s.surveyResponses ??= []
-  
+
+  const term = [...s.terms]
+    .filter((item) => item.startDate <= today())
+    .sort((a, b) => b.startDate.localeCompare(a.startDate))[0]
+
+  if (!term) {
+    throw fail(400, "validation_error", "There is no active term for this survey.")
+  }
+
+  if (term.feedbackDeadline && today() > term.feedbackDeadline) {
+    throw fail(409, "conflict", "The feedback survey deadline has passed.")
+  }
+
   const alreadySubmitted = s.surveyResponses.some(
-    (response) => response.userId === user.id
+    (response) =>
+      response.userId === user.id &&
+      response.termId === term.id,
   )
 
   if (alreadySubmitted) {
-    throw fail(409, "conflict", "You have already submitted this survey.")
+    throw fail(409, "conflict", "You have already submitted this survey for this term.")
   }
-
 
   if (!["1", "2", "3", "4", "5"].includes(String(body?.rating))) {
     throw fail(400, "validation_error", "Please select a rating.")
@@ -1978,10 +2016,11 @@ route("POST", "/surveys", ({ user, body }) => {
   const response = {
     id: Date.now(),
     userId: user.id,
+    termId: term.id,
     rating: Number(body.rating),
     feedback: body.feedback ?? "",
     suggestions: body.suggestions ?? "",
-    submittedAt: new Date().toISOString(),
+    submittedAt: nowISO(),
   }
 
   s.surveyResponses.push(response)
@@ -1989,6 +2028,7 @@ route("POST", "/surveys", ({ user, body }) => {
 
   return response
 })
+
 
 
 // ---------------------------------------------------------------- entry ----
