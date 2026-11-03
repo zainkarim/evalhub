@@ -211,7 +211,7 @@ function currentStatusOf(assessment, observations) {
 // gap closes. attemptNo is assigned by chronological order across both
 // sources combined, matching the mock's "closing events increment the
 // attempt counter" behavior.
-function attemptsFor(cancellationRows, closingObservations) {
+function attemptsFor(cancellationRows, closingObservations, teachersById = new Map()) {
   const fromCancellations = cancellationRows.map((row) => ({
     id: `cancellation-${row.id}`,
     type: 'postponed',
@@ -230,17 +230,31 @@ function attemptsFor(cancellationRows, closingObservations) {
 
   // No actor/timestamp is recorded for an observation closing today (no
   // closed_at or closed_by column) -- updated_at is the closest available
-  // approximation, and the actor is attributed to AC review when present.
-  const fromObservations = closingObservations.map((o) => ({
-    id: `observation-${o.id}`,
-    type: o.status,
-    at: o.updated_at,
-    reason: o.ac_notes ?? null,
-    by: { name: 'Academic Council', role: 'ac_member' },
-    observer: null,
-    date: o.scheduled_date,
-    count: null,
-  }));
+  // approximation. Nobody is recorded as having closed it, so `by` is null
+  // rather than guessing (it used to claim "Academic Council"). The observer
+  // is known, though: it comes from the observation itself.
+  const fromObservations = closingObservations.map((o) => {
+    const obs = teachersById.get(o.observer_id);
+    return {
+      id: `observation-${o.id}`,
+      type: o.status,
+      at: o.updated_at,
+      reason: o.ac_notes ?? null,
+      by: null,
+      observer: obs
+        ? {
+          id: obs.id,
+          firstName: obs.first_name,
+          lastName: obs.last_name,
+          email: obs.email,
+          rank: obs.rank,
+          department: obs.department,
+        }
+        : null,
+      date: o.scheduled_date,
+      count: null,
+    };
+  });
 
   return [...fromCancellations, ...fromObservations]
     .sort((a, b) => new Date(a.at) - new Date(b.at))
@@ -475,6 +489,17 @@ router.get(
         [signUp.id],
       )
       : { rows: [] };
+    const closingObservers = [
+      ...new Set(
+        signUpObservations
+          .filter((o) => CLOSING_OBSERVATION_STATUSES.includes(o.status))
+          .map((o) => o.observer_id),
+      ),
+    ];
+    const { rows: observerRows } = closingObservers.length
+      ? await query('SELECT * FROM teachers WHERE id = ANY($1::int[])', [closingObservers])
+      : { rows: [] };
+    const observersById = new Map(observerRows.map((t) => [t.id, t]));
     const status = currentStatusOf(signUp, signUpObservations);
 
     const summary = {
@@ -631,6 +656,7 @@ router.get(
           attempts: attemptsFor(
             cancellationRows,
             signUpObservations.filter((o) => CLOSING_OBSERVATION_STATUSES.includes(o.status)),
+            observersById,
           ),
         }
         : null,
