@@ -428,6 +428,11 @@ const assessmentParticipation = {
       term: termBrief(term),
       assessmentParticipation,
       surveyCompletion,
+      evaluationEligibilityAccuracy: {
+        ratePercent: null,
+        status: 'unavailable',
+        reason: 'Verified eligibility decisions and prediction snapshots are not recorded',
+      },
       counts: {
         // `due` includes professors never observed; `neverObserved` says how many.
         due: count(isDue),
