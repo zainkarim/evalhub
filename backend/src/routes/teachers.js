@@ -324,6 +324,7 @@ router.get(
         rank: t.rank,
         rankLabel: rankLabel(t.rank),
         dueStatus: due.status,
+        hasCompletedInTerm: history.some((h) => h.term_id === term.id),
         dueTerm: due.dueTerm,
         dueWindow: due.dueWindow,
         lastCompleted: lastShown
@@ -364,6 +365,10 @@ router.get(
         due: count(isDue),
         dueByRank,
         overdue: count((r) => r.dueStatus === 'overdue'),
+        // Outstanding overdue faculty: completion in this term clears the count.
+        overdueOutstanding: count(
+          (r) => r.dueStatus === 'overdue' && !r.hasCompletedInTerm,
+        ),
         neverObserved: count((r) => r.dueStatus === 'never_observed'),
         signedUp: count((r) => r.signUp),
         notSignedUp: count((r) => !r.signUp),
