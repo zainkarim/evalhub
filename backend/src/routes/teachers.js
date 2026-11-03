@@ -410,6 +410,20 @@ const assessmentParticipation = {
         : Math.round((submitted / expected) * 10000) / 100,
     };
 
+    const { rows: missingRows } = await query(
+      `SELECT COUNT(*)::int AS missing
+         FROM assessments a
+        WHERE a.due_term_id = $1
+          AND a.status NOT IN ('cancelled', 'not_eligible')
+          AND NOT EXISTS (
+            SELECT 1
+              FROM observations o
+             WHERE o.assessment_id = a.id
+               AND o.status = 'completed'
+          )`,
+      [term.id],
+    );
+
     res.json({
       term: termBrief(term),
       assessmentParticipation,
@@ -427,6 +441,7 @@ const assessmentParticipation = {
         signedUp: count((r) => r.signUp),
         notSignedUp: count((r) => !r.signUp),
         completed: count((r) => r.currentStatus === 'completed'),
+        missingObservations: missingRows[0].missing,
       },
       data,
     });
