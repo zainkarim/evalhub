@@ -94,8 +94,7 @@ const courseLabel = (subject, courseNumber) => `${subject} ${courseNumber}`;
 const termBrief = (t) => ({ id: t.id, season: t.season, year: t.year });
 
 // dueStatus.js: termIndex/termFromIndex -- position in the Spring/Fall sequence.
-// Summer has no slot of its own: an observation held in Summer counts as the
-// Spring before it, and a Summer report term is never due/overdue at all.
+// Summer has no slot of its own: both a Summer observation and a Summer report term are treated as the Spring of that year.
 const termIndex = (season, year) => year * 2 + (season === 'fall' ? 1 : 0);
 const termFromIndex = (index) => ({
   season: index % 2 === 1 ? 'fall' : 'spring',
@@ -348,11 +347,22 @@ router.get(
     const active = data.filter((r) => r.isActive);
     const count = (test) => active.filter(test).length;
 
+    const isDue = (r) =>
+      r.dueStatus === 'due' || r.dueStatus === 'never_observed';
+
+    const dueByRank = Object.fromEntries(
+      RANKS.map((rank) => [
+        rank,
+        count((r) => r.rank === rank && isDue(r)),
+      ]),
+    );
+
     res.json({
       term: termBrief(term),
       counts: {
         // `due` includes professors never observed; `neverObserved` says how many.
-        due: count((r) => r.dueStatus === 'due' || r.dueStatus === 'never_observed'),
+        due: count(isDue),
+        dueByRank,
         overdue: count((r) => r.dueStatus === 'overdue'),
         neverObserved: count((r) => r.dueStatus === 'never_observed'),
         signedUp: count((r) => r.signUp),
