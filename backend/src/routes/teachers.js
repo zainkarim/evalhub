@@ -347,9 +347,164 @@ router.get(
 
     const active = data.filter((r) => r.isActive);
     const count = (test) => active.filter(test).length;
+    const teachersById = new Map(teachers.map((t) => [t.id, t]));
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    // #72 (Prethel's half): Observer Utilization Rate + Average Observations
+    // per Observer. Pool = teachers in this cycle's observer pool per §4.2
+    // ("a professor who signs up to be observed... is automatically added to
+    // that cycle's pool of potential observers") -- the same non-cancelled/
+    // non-not_eligible sign-up set used elsewhere for participation. Usage =
+    // distinct observers actually assigned to a non-postponed observation
+    // this term; postponed attempts are excluded from load everywhere else
+    // in this file (see the observerLoad comment on the profile route below),
+    // so they're excluded here too for consistency.
+    const observerPoolIds = new Set(
+      signUpRows
+        .filter((a) => !['cancelled', 'not_eligible'].includes(a.status))
+        .map((a) => a.teacher_id),
+    );
+    const { rows: termObservations } = await query(
+      `SELECT o.id, o.observer_id, o.scheduled_date, o.created_at
+         FROM observations o
+         JOIN assessments a ON a.id = o.assessment_id
+        WHERE a.due_term_id = $1
+          AND o.status <> 'postponed'`,
+      [term.id],
+    );
+    const observersUsed = new Set(termObservations.map((o) => o.observer_id));
+    const observerUtilization = {
+      activeObservers: observersUsed.size,
+      poolSize: observerPoolIds.size,
+      ratePercent: observerPoolIds.size === 0
+        ? null
+        : Math.round((observersUsed.size / observerPoolIds.size) * 10000) / 100,
+    };
+    const averageObservationsPerObserver = {
+      totalObservations: termObservations.length,
+      activeObservers: observersUsed.size,
+      average: observersUsed.size === 0
+        ? null
+        : Math.round((termObservations.length / observersUsed.size) * 100) / 100,
+    };
+
+    // Course-Level Match Accuracy: re-check every non-postponed observation
+    // this term against the SAME rule eligible_observers.sql uses (department
+    // match + taught that course level within the lookback window) -- this
+    // validates that whoever ended up assigned (the algorithm, or an AC
+    // manual override) actually satisfied the matching rule, not just that
+    // the algorithm's output looked right at generation time.
+    const { rows: lookbackSettingRows } = await query(
+      "SELECT value FROM app_settings WHERE key = 'observer_lookback_years'",
+    );
+    const matchLookbackYears = Number(lookbackSettingRows[0]?.value ?? 2);
+    const { rows: matchRows } = await query(
+      `WITH term_obs AS (
+         SELECT o.id, o.observer_id, o.scheduled_date, o.created_at,
+                ot.department AS observer_department,
+                c.subject AS target_subject, c.course_level AS target_level
+           FROM observations o
+           JOIN assessments a ON a.id = o.assessment_id
+           JOIN course_sections cs ON cs.id = a.section_id
+           JOIN courses c ON c.id = cs.course_id
+           JOIN teachers ot ON ot.id = o.observer_id
+          WHERE a.due_term_id = $1
+            AND o.status <> 'postponed'
+       )
+       SELECT
+         COUNT(*)::int AS total,
+         COUNT(*) FILTER (
+           WHERE term_obs.observer_department = term_obs.target_subject
+             AND EXISTS (
+               SELECT 1 FROM course_sections cs2
+               JOIN courses c2 ON c2.id = cs2.course_id
+               JOIN terms tm2 ON tm2.id = cs2.term_id
+               WHERE cs2.teacher_id = term_obs.observer_id
+                 AND c2.subject = term_obs.target_subject
+                 AND c2.course_level = term_obs.target_level
+                 AND tm2.start_date <= COALESCE(term_obs.scheduled_date, term_obs.created_at::date)
+                 AND tm2.end_date >= (COALESCE(term_obs.scheduled_date, term_obs.created_at::date) - make_interval(years => $2::int))
+             )
+         )::int AS matching
+       FROM term_obs`,
+      [term.id, matchLookbackYears],
+    );
+    const courseLevelMatchAccuracy = {
+      matching: matchRows[0].matching,
+      total: matchRows[0].total,
+      ratePercent: matchRows[0].total === 0
+        ? null
+        : Math.round((matchRows[0].matching / matchRows[0].total) * 10000) / 100,
+    };
+
+    // List Sufficiency Rate + Unmatched Faculty Report both come straight off
+    // candidate_lists (migration 002's pool_size/list_size columns were added
+    // specifically to drive these two KPIs -- see that migration's comment).
+    const { rows: listSizeSettingRows } = await query(
+      "SELECT value FROM app_settings WHERE key = 'candidate_list_size'",
+    );
+    const candidateListSize = Number(listSizeSettingRows[0]?.value ?? 5);
+    const { rows: candidateListRows } = await query(
+      `SELECT DISTINCT ON (cl.assessment_id)
+              cl.assessment_id, cl.pool_size, cl.list_size, cl.generated_at, a.teacher_id
+         FROM candidate_lists cl
+         JOIN assessments a ON a.id = cl.assessment_id
+        WHERE a.due_term_id = $1
+        ORDER BY cl.assessment_id, cl.generated_at DESC`,
+      [term.id],
+    );
+    const sufficientLists = candidateListRows.filter((l) => l.list_size >= candidateListSize).length;
+    const listSufficiency = {
+      sufficient: sufficientLists,
+      generated: candidateListRows.length,
+      ratePercent: candidateListRows.length === 0
+        ? null
+        : Math.round((sufficientLists / candidateListRows.length) * 10000) / 100,
+    };
+    const unmatchedFaculty = candidateListRows
+      .filter((l) => l.pool_size === 0)
+      .map((l) => {
+        const t = teachersById.get(l.teacher_id);
+        const signUp = signUpByTeacher.get(l.teacher_id);
+        return {
+          assessmentId: l.assessment_id,
+          teacherId: l.teacher_id,
+          name: t ? `${t.first_name} ${t.last_name}` : null,
+          course: signUp ? courseLabel(signUp.subject, signUp.course_number) : null,
+          section: signUp ? signUp.section_number : null,
+          generatedAt: l.generated_at,
+        };
+      });
+
+    // Outstanding Observation Report: sign-ups still open past this term's
+    // observation-period deadline -- the operational "these are stuck" list,
+    // distinct from the rank-based faculty-overdue count above (that's about
+    // whether a professor is due again by the frequency rule; this is about
+    // whether a specific sign-up already in progress missed its own deadline).
+    const outstandingObservations = term.observation_deadline && term.observation_deadline < todayStr
+      ? signUpRows
+        .filter((a) => !['completed', 'cancelled', 'not_eligible'].includes(a.status))
+        .map((a) => {
+          const t = teachersById.get(a.teacher_id);
+          return {
+            assessmentId: a.id,
+            teacherId: a.teacher_id,
+            name: t ? `${t.first_name} ${t.last_name}` : null,
+            course: courseLabel(a.subject, a.course_number),
+            section: a.section_number,
+            status: a.status,
+          };
+        })
+      : [];
 
     res.json({
       term: termBrief(term),
+      observerUtilization,
+      averageObservationsPerObserver,
+      courseLevelMatchAccuracy,
+      listSufficiency,
+      unmatchedFaculty,
+      outstandingObservations,
       counts: {
         // `due` includes professors never observed; `neverObserved` says how many.
         due: count((r) => r.dueStatus === 'due' || r.dueStatus === 'never_observed'),
