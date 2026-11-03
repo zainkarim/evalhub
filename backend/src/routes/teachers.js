@@ -383,9 +383,37 @@ const assessmentParticipation = {
     ) / 100,
 };
 
+    // One expected observee survey per completed observation in this term.
+    const { rows: surveyRows } = await query(
+      `SELECT COUNT(*)::int AS expected,
+              COUNT(*) FILTER (
+                WHERE EXISTS (
+                  SELECT 1
+                    FROM process_feedback pf
+                   WHERE pf.observation_id = o.id
+                     AND pf.respondent_id = o.observee_id
+                )
+              )::int AS submitted
+         FROM observations o
+         JOIN assessments a ON a.id = o.assessment_id
+        WHERE a.due_term_id = $1
+          AND o.status = 'completed'`,
+      [term.id],
+    );
+
+    const { expected, submitted } = surveyRows[0];
+    const surveyCompletion = {
+      submitted,
+      expected,
+      ratePercent: expected === 0
+        ? null
+        : Math.round((submitted / expected) * 10000) / 100,
+    };
+
     res.json({
       term: termBrief(term),
       assessmentParticipation,
+      surveyCompletion,
       counts: {
         // `due` includes professors never observed; `neverObserved` says how many.
         due: count(isDue),
