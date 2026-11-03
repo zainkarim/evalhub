@@ -68,4 +68,13 @@ describe('signUp.attempts on the teacher profile', () => {
     assert.equal(closed.observer.lastName, 'B');
     assert.deepEqual(attempts.map((a) => a.attemptNo), [1, 2]);
   });
+
+  test('the attempt count on the summary and the report matches the history', async () => {
+    const res = await ctx.api('GET', `/teachers/3/profile?termId=${termId}`, { as: USERS.ac });
+    assert.equal(res.body.summary.attempts, res.body.signUp.attempts.length);
+
+    const report = await ctx.api('GET', `/teachers/report?termId=${termId}`, { as: USERS.ac });
+    const row = report.body.data.find((r) => r.id === 3);
+    assert.equal(row.attempts, res.body.signUp.attempts.length);
+  });
 });

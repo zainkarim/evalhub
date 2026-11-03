@@ -167,7 +167,7 @@ const CLOSING_OBSERVATION_STATUSES = ['postponed', 'not_completed'];
 
 // mockServer.js: currentStatusOf. `observations` is every observation row
 // that belongs to this one assessment (any order).
-function currentStatusOf(assessment, observations) {
+function currentStatusOf(assessment, observations, cancellationCount = 0) {
   if (!assessment) return { currentStatus: 'none', currentDate: null, attempts: 0 };
 
   if (assessment.status === 'completed') {
@@ -193,7 +193,8 @@ function currentStatusOf(assessment, observations) {
 
   if (assessment.status === 'postponed') {
     const closed = observations.filter((o) => CLOSING_OBSERVATION_STATUSES.includes(o.status)).length;
-    return { currentStatus: 'postponed', currentDate: null, attempts: Math.max(closed, 1) };
+    // Cancellations (migration 007) are attempts too -- same count as signUp.attempts.
+    return { currentStatus: 'postponed', currentDate: null, attempts: Math.max(closed + cancellationCount, 1) };
   }
 
   return { currentStatus: 'selecting_observer', currentDate: null, attempts: 0 };
@@ -359,6 +360,14 @@ router.get(
         [assessmentIds],
       )
       : { rows: [] };
+    const { rows: cancellationCountRows } = assessmentIds.length
+      ? await query(
+        `SELECT assessment_id, count(*)::int AS n FROM cancellation_attempts
+          WHERE assessment_id = ANY($1) GROUP BY assessment_id`,
+        [assessmentIds],
+      )
+      : { rows: [] };
+    const cancellationsByAssessment = new Map(cancellationCountRows.map((r) => [r.assessment_id, r.n]));
     const obsByAssessment = new Map();
     for (const o of obsRows) {
       if (!obsByAssessment.has(o.assessment_id)) obsByAssessment.set(o.assessment_id, []);
@@ -374,7 +383,11 @@ router.get(
       const lastShown = history.filter((h) => h.start_date <= term.end_date).at(-1);
       const due = computeDue(t.rank, last ? { season: last.season, year: last.year } : null, term);
       const signUp = signUpByTeacher.get(t.id) ?? null;
-      const status = currentStatusOf(signUp, signUp ? obsByAssessment.get(signUp.id) ?? [] : []);
+      const status = currentStatusOf(
+        signUp,
+        signUp ? obsByAssessment.get(signUp.id) ?? [] : [],
+        signUp ? cancellationsByAssessment.get(signUp.id) ?? 0 : 0,
+      );
 
       return {
         id: t.id,
@@ -500,7 +513,7 @@ router.get(
       ? await query('SELECT * FROM teachers WHERE id = ANY($1::int[])', [closingObservers])
       : { rows: [] };
     const observersById = new Map(observerRows.map((t) => [t.id, t]));
-    const status = currentStatusOf(signUp, signUpObservations);
+    const status = currentStatusOf(signUp, signUpObservations, cancellationRows.length);
 
     const summary = {
       id: teacher.id,
