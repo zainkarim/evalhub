@@ -358,8 +358,34 @@ router.get(
       ]),
     );
 
+const participationEligible = active.filter((r) =>
+  ['due', 'never_observed', 'overdue'].includes(r.dueStatus),
+);
+
+// Use all term sign-ups, rather than the single display sign-up per teacher.
+const participatingTeacherIds = new Set(
+  signUpRows
+    .filter((a) => !['cancelled', 'not_eligible'].includes(a.status))
+    .map((a) => a.teacher_id),
+);
+
+const participating = participationEligible.filter(
+  (r) => participatingTeacherIds.has(r.id),
+).length;
+
+const assessmentParticipation = {
+  participating,
+  eligible: participationEligible.length,
+  ratePercent: participationEligible.length === 0
+    ? null
+    : Math.round(
+      (participating / participationEligible.length) * 10000,
+    ) / 100,
+};
+
     res.json({
       term: termBrief(term),
+      assessmentParticipation,
       counts: {
         // `due` includes professors never observed; `neverObserved` says how many.
         due: count(isDue),
