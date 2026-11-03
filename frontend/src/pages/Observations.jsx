@@ -12,11 +12,12 @@ import {
   formatDate,
   formatTerm,
   fullName,
-  OBSERVATION_STATUS,
 } from "../lib/format"
 import { hasTeacherProfile, isAC } from "../lib/roles"
 import { useApi } from "../lib/useApi"
 import { nextStep } from "../lib/workflow"
+import ObservationRows from "../components/ObservationRows"
+import { loadObservationActivity } from "../lib/observationActivity"
 
 function Section({ title, hint, children }) {
   return (
@@ -161,80 +162,12 @@ function AllSignUps() {
 
 // --------------------------------------------------------------- professor --
 
-function ObservationRows({ rows, mode }) {
-  return (
-    <div className="relative overflow-x-auto rounded-lg border border-line bg-white shadow-xs">
-      <table className="w-full text-left text-sm">
-        <thead className="border-b border-line text-xs text-muted">
-          <tr>
-            <th className={th}>Course</th>
-            <th className={th}>{mode === "given" ? "Observing" : "Observer"}</th>
-            <th className={th}>Date</th>
-            <th className={th}>Status</th>
-            <th className={th}>
-              <span className="sr-only">Open</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((observation) => (
-            <tr key={observation.id} className="border-b border-line last:border-0">
-              <td className={td}>
-                {courseLabel(observation.section.course)}
-                <span className="block text-muted">
-                  {formatTerm(observation.section.term)} · Section{" "}
-                  {observation.section.sectionNumber}
-                </span>
-              </td>
-              <td className={td}>
-                {fullName(mode === "given" ? observation.observee : observation.observer)}
-              </td>
-              <td className={td}>{formatDate(observation.scheduledDate)}</td>
-              <td className={td}>
-                <StatusBadge status={observation.status} map={OBSERVATION_STATUS} />
-                {observation.status === "approved" && (
-                  <span className="mt-1 block text-xs text-muted">
-                    {(mode === "given"
-                      ? observation.observerSignedOffAt
-                      : observation.observeeSignedOffAt)
-                      ? "You signed off"
-                      : "Your sign-off is pending"}
-                  </span>
-                )}
-              </td>
-              <td className={td}>
-                <Link
-                  to={`/records/${observation.id}`}
-                  className="whitespace-nowrap font-medium text-utd-green hover:underline"
-                >
-                  {observation.status === "approved" ? "Sign off" : "View"}
-                </Link>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
 
 function MyActivity({ user }) {
-  const call = useCallback(async () => {
-    const [signUps, incoming, observations] = await Promise.all([
-      api.myAssessments(),
-      api.incomingRequests(),
-      api.listObservations(),
-    ])
-    const mine = (observations.data ?? []).filter((item) =>
-      [item.observer.id, item.observee.id].includes(user.teacherId),
-    )
-    return {
-      signUps: signUps.data ?? [],
-      incoming: incoming.data ?? [],
-      given: mine.filter((item) => item.observer.id === user.teacherId),
-      received: mine.filter((item) => item.observee.id === user.teacherId),
-    }
-  }, [user.teacherId])
+  const call = useCallback(
+    () => loadObservationActivity(user.teacherId),
+    [user.teacherId]
+  )
   const { data, error, loading, reload } = useApi(call)
 
   return (
@@ -385,11 +318,10 @@ function Observations() {
               role="tab"
               aria-selected={tab === item.id}
               onClick={() => setTab(item.id)}
-              className={`-mb-px border-b-2 pb-2 ${
-                tab === item.id
-                  ? "border-utd-green text-ink"
-                  : "border-transparent text-muted hover:text-ink"
-              }`}
+              className={`-mb-px border-b-2 pb-2 ${tab === item.id
+                ? "border-utd-green text-ink"
+                : "border-transparent text-muted hover:text-ink"
+                }`}
             >
               {item.label}
             </button>

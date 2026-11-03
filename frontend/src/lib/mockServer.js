@@ -997,16 +997,27 @@ route("POST", "/teachers", ({ user, body }) => {
   return teacher
 })
 
+// AC/admin can update any professor.
+// Faculty can update only their own rank  (Issue #50).
 route("PATCH", "/teachers/(\\d+)", ({ user, match, body }) => {
-  if (!isAC(user)) {
+  const committee = isAC(user)
+  const ownProfile = Number(user?.teacherId) === Number(match[1])
+
+  if (!committee && !ownProfile) {
     throw fail(403, "forbidden", "Access denied")
+  }
+
+  if (!committee && Object.keys(body).some(
+    (key) => key !== "rank"
+  )) {
+    throw fail(403, "forbidden", "You can only update your rank")
   }
 
   const s = load()
   const teacher = byId(s.teachers, match[1])
 
   if (!teacher) {
-    throw fail(404, "not_found", "Profesor not found")
+    throw fail(404, "not_found", "Professor not found")
   }
 
   // The edit form sends the school but no department, so a school change would leave the
