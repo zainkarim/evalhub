@@ -1,8 +1,9 @@
 import { Lock } from "lucide-react"
 import { Suspense, lazy } from "react"
-import { BrowserRouter, Navigate, Route, Routes, useParams } from "react-router-dom"
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom"
 import Layout from "./components/Layout"
 import ProtectedRoute from "./components/ProtectedRoute"
+import RouteErrorBoundary from "./components/RouteErrorBoundary"
 import { EmptyState } from "./components/ui"
 import { AuthProvider } from "./context/AuthContext"
 import { useAuth } from "./context/auth-context"
@@ -64,10 +65,23 @@ function Home() {
 // build, so the page never ships.
 const UiGallery = import.meta.env.DEV ? lazy(() => import("./pages/dev/UiGallery")) : null
 
+// Outermost safety net: an error on a public page (or in the app shell itself)
+// shows an error card instead of a blank screen. Pages inside the shell have their
+// own boundary in Layout, so the header stays usable there.
+function AppErrorBoundary({ children }) {
+  const location = useLocation()
+  return (
+    <RouteErrorBoundary resetKey={location.pathname} fullScreen>
+      {children}
+    </RouteErrorBoundary>
+  )
+}
+
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <AppErrorBoundary>
         <Suspense fallback={<ScreenFallback />}>
         <Routes>
           <Route path="/welcome" element={<Landing />} />
@@ -156,9 +170,10 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </Suspense>
+        </AppErrorBoundary>
       </AuthProvider>
     </BrowserRouter>
   )
 }
 
-export default App
+export default App

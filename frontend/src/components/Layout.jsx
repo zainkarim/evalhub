@@ -10,6 +10,7 @@ import Starfield from "./Starfield"
 import NotificationBell from "./NotificationBell"
 import ThemeToggle from "./ThemeToggle"
 import { PageSkeleton } from "./RouteFallback"
+import RouteErrorBoundary from "./RouteErrorBoundary"
 import UserMenu from "./UserMenu"
 import { resetStagger } from "./ui"
 import { displayName, hasTeacherProfile, isAC, roleLabel } from "../lib/roles"
@@ -146,9 +147,11 @@ function Layout() {
           animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
           transition={{ duration: 0.18, ease: "easeOut" }}
         >
-          <Suspense fallback={<PageSkeleton />}>
-            <Outlet />
-          </Suspense>
+          <RouteErrorBoundary resetKey={location.pathname}>
+            <Suspense fallback={<PageSkeleton />}>
+              <Outlet />
+            </Suspense>
+          </RouteErrorBoundary>
         </m.div>
       </main>
     </div>
