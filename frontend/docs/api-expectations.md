@@ -111,7 +111,7 @@ sign-up), `POST /observations/:id/review` (no AC approval), the old
 // AttemptLogEntry — append-only, never edited or removed (mock-only)
 { "id", "assessmentId", "attemptNo",
   "type": "list_generated|request_sent|request_declined|no_response_expired|request_withdrawn|date_confirmed|ac_assigned|did_not_happen|postponed",
-  "by": { "name": "Professor D", "role": "faculty|ac_member|admin|system" }, "at",
+  "by": { "name": "James Whitfield", "role": "faculty|ac_member|admin|system" }, "at",
   "reason": string | null, "observer": TeacherBrief | null, "date": "YYYY-MM-DD" | null, "count": 5 | null }
 
 // IncomingOfferView = OfferView + { "observee": TeacherBrief, "section": SectionView, "assessmentStatus" }
@@ -252,7 +252,7 @@ routes, so the backend team can see what integration needs:
 
 // Notification (what a professor sees)
 { "id": 1, "type": "list_ready" | "list_reminder", "termId": 10, "subject": "Your observer list is ready", "body": "…",
-  "link": "/assessments/1" | null, "createdAt": "…", "readAt": null | "…", "sentBy": { "name": "Professor B" }, "channel": "in_app" }
+  "link": "/assessments/1" | null, "createdAt": "…", "readAt": null | "…", "sentBy": { "name": "David Okafor" }, "channel": "in_app" }
 // GET  /notifications/inbox        -> { "data": [ Notification ], "unread": 1 }       (needs a teacher profile)
 // POST /notifications/:id/read     -> Notification;   POST /notifications/read-all -> { "unread": 0 }
 

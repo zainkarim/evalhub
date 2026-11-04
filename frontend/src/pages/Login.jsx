@@ -123,13 +123,13 @@ function Login() {
 
             <div className="mt-3 divide-y divide-line overflow-hidden rounded-md border border-line">
               {[
-                { label: "Faculty", email: "faculty@example.edu", note: "Professor C — signs up, then picks one observer and dates" },
-                { label: "Assessment Committee", email: "ac@example.edu", note: "Professor B — the cycle, starts observer selection, sends reminders" },
+                { label: "Faculty", email: "faculty@example.edu", note: "Sofia Alvarez — signs up, then picks one observer and dates" },
+                { label: "Assessment Committee", email: "ac@example.edu", note: "David Okafor — the cycle, starts observer selection, sends reminders" },
                 { label: "Administrator", email: "admin@example.edu", note: "Committee view, no teaching profile" },
                 ...(USE_MOCKS
                   ? [
-                      { label: "Faculty (observer)", email: "professor.h@example.edu", note: "Professor H — confirms one of the offered dates" },
-                      { label: "Faculty (5+ candidates)", email: "professor.e@example.edu", note: "Professor E — CS 3354 has 6 eligible observers" },
+                      { label: "Faculty (observer)", email: "professor.h@example.edu", note: "Daniel Brooks — confirms one of the offered dates" },
+                      { label: "Faculty (5+ candidates)", email: "professor.e@example.edu", note: "Aisha Rahman — CS 3354 has 6 eligible observers" },
                     ]
                   : []),
               ].map((account) => (

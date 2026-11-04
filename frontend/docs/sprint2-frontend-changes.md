@@ -25,14 +25,14 @@ sign in as the other person in the same browser window.
 
 ### Click-through (about 8 minutes)
 
-1. **AC · `ac@example.edu`** (Professor B) lands on **Cycle**. It shows the three cycle
+1. **AC · `ac@example.edu`** (David Okafor) lands on **Cycle**. It shows the three cycle
    dates (editable), the **Start Observer Selection** button, the alerts panel with
-   **Professor I — No eligible observers** (pool size 0, urgent; the nav badge counts it)
+   **Grace Kim — No eligible observers** (pool size 0, urgent; the nav badge counts it)
    and a read-only table of every sign-up (course, section, meeting, observee name and
    email, observer list). Fall 2026's sign-up deadline has passed, so selection can start.
    *Details* on a row shows pool/list sizes, candidates, requested observer, offered
    dates and attempt history.
-2. Professor C's CS 1337 sign-up says **Not started**. Click **Start Observer
+2. Sofia Alvarez's CS 1337 sign-up says **Not started**. Click **Start Observer
    Selection** once: lists are built for every sign-up in the term without one → pool
    1 · list 1 and a new **Limited pool** alert appears; the badge now reads 2. The
    button now reads "Observer selection started"; nothing else can be started. Each
@@ -41,18 +41,18 @@ sign in as the other person in the same browser window.
    observer, the button stays as **Re-check empty lists**. Pick **Spring
    2027** in the term selector: the deadline is still ahead, so Start is locked ("Opens
    after …").
-3. **Faculty · `faculty@example.edu`** (Professor C) → *Observations* → CS 1337. Before
+3. **Faculty · `faculty@example.edu`** (Sofia Alvarez) → *Observations* → CS 1337. Before
    step 2 the page said "Observer selection opens after the sign-up deadline (date). You
    will get a notification when your list is ready." (no Find button). The list is
    there after step 2, and the *Notifications* inbox already holds the
-   "list is ready" message. Now: **Ask one observer** → pick Professor H → tick **4–8** class
+   "list is ready" message. Now: **Ask one observer** → pick Daniel Brooks → tick **4–8** class
    dates (the button stays disabled until then) → **Send request**.
 4. **`professor.h@example.edu`** → *Observations* → the request lists the dates and a
-   48-hour timer. **Decline…** (optional reason) — back as Professor C the request is
+   48-hour timer. **Decline…** (optional reason) — back as Sofia Alvarez the request is
    marked declined and you can ask again; or pick one date → **Confirm this date**.
    The sign-up is now **Scheduled / Confirmed** (not Completed) and the alert clears.
-5. **AC** → Professor I's alert → **Open and resolve** → *Assign an observer manually*
-   (Professor B as step-in + a class date). The observation is scheduled straight away;
+5. **AC** → Grace Kim's alert → **Open and resolve** → *Assign an observer manually*
+   (David Okafor as step-in + a class date). The observation is scheduled straight away;
    nothing is approved. *(Whether the AC may pick outside the eligible pool is an open
    question — this form keeps its old behaviour.)*
 6. **`professor.d@example.edu`** → *Observations I'm giving* → **Sign off**, then
@@ -62,7 +62,7 @@ sign in as the other person in the same browser window.
 7. **Postponed, never cancelled.** Open a scheduled record → **Postpone this attempt…**
    → the reason is required → the sign-up is **Postponed**. Open the sign-up as the
    professor *and* as the AC: the **Attempt history** shows who, when and why. The
-   professor sees **Schedule a new attempt** (attempt 2). The seeded Professor B
+   professor sees **Schedule a new attempt** (attempt 2). The seeded David Okafor
    sign-up (CS 3354, ac@ → *My observations*) already has a history: an unanswered
    request that expired after 48 hours, a confirmed date, and "Out sick that week."
 8. **`professor.e@example.edu`** — sign up CS 3354 (Fall 2026) → AC starts selection →
@@ -176,7 +176,7 @@ separately from the report.
 | `scripts/check-due.mjs` | `npm run check:due`. Pins the mock's "today" (`setMockToday`) wherever a result depends on it, so it passes on any date. |
 
 **Mock history (mock-only, not in `dev_seed.sql`).** Six completed observations from earlier
-terms plus two past sections (Professor E, Fall 2024; Professor F, Spring 2025), so the
+terms plus two past sections (Aisha Rahman, Fall 2024; Michael Tran, Spring 2025), so the
 Fall 2026 view shows every case:
 
 | Professor | Rank | Last observed | Fall 2026 | Sign-up |
@@ -194,8 +194,8 @@ Fall 2026 view shows every case:
 
 **Click-through.** Sign in as `ac@example.edu` → **Professors**. Tiles read Due 5 (3 never
 observed), Overdue 2, Not signed up 6, Signed up 4, Completed 0. Filter *Overdue* → E and
-G. Sort *Next due*. Pick **Spring 2027**: Professor C and F become due, H and A overdue.
-Open Professor D: observer load 1 of 3. Then sign off the seeded observation as D and F
+G. Sort *Next due*. Pick **Spring 2027**: Sofia Alvarez and F become due, H and A overdue.
+Open James Whitfield: observer load 1 of 3. Then sign off the seeded observation as D and F
 (see the demo script above) and come back: F shows Completed with the date, and the
 Completed tile reads 1. Signed in as `faculty@example.edu`, `/professors` and
 `/professors/:id` show "limited to the Assessment Committee".
