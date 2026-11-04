@@ -180,3 +180,55 @@ describe('an observer was already chosen for the sign-up', () => {
     assert.equal(rows[0].scheduled_date, q1.proposed_date);
   });
 });
+
+describe('a closed sign-up cannot be scheduled', () => {
+  // Stale state: the sign-up closed while an accepted offer was still out.
+  async function closedSignUp(status, daysAgo) {
+    const a = await makeAssessment();
+    const option = await addOption(a, daysAgo);
+    await offer(option.id, 1, 'accepted');
+    await offer(option.id, 4, 'accepted');
+    await ctx.sql('UPDATE assessments SET status = $2 WHERE id = $1', [a, status]);
+    return { a, option };
+  }
+
+  async function assertUnchanged({ a, option }, status) {
+    const [row] = await ctx.sql('SELECT status FROM assessments WHERE id = $1', [a]);
+    assert.equal(row.status, status);
+    const [opt] = await ctx.sql(
+      'SELECT is_confirmed, confirmed_teacher_id FROM assessment_time_options WHERE id = $1',
+      [option.id],
+    );
+    assert.equal(opt.is_confirmed, false);
+    assert.equal(opt.confirmed_teacher_id, null);
+    assert.equal(await offerStatus(option.id, 1), 'accepted');
+    assert.equal(await offerStatus(option.id, 4), 'accepted');
+    assert.equal((await observationsFor(a)).length, 0);
+  }
+
+  for (const [i, status] of ['completed', 'cancelled', 'not_eligible'].entries()) {
+    test(`finalize refuses a ${status} sign-up and changes nothing`, async () => {
+      const signUp = await closedSignUp(status, 20 + i);
+      const res = await finalize(signUp.a, signUp.option.id, 1);
+      assert.equal(res.status, 409);
+      assert.match(res.body.error.message, /no longer open/);
+      await assertUnchanged(signUp, status);
+    });
+
+    test(`confirm refuses a ${status} sign-up and changes nothing`, async () => {
+      const signUp = await closedSignUp(status, 30 + i);
+      const res = await confirm(signUp.option.id, USERS.profA);
+      assert.equal(res.status, 409);
+      assert.match(res.body.error.message, /no longer open/);
+      await assertUnchanged(signUp, status);
+    });
+  }
+
+  test('a postponed sign-up can still be rescheduled', async () => {
+    const { a, option } = await closedSignUp('postponed', 40);
+    assert.equal((await finalize(a, option.id, 1)).status, 200);
+    const [row] = await ctx.sql('SELECT status FROM assessments WHERE id = $1', [a]);
+    assert.equal(row.status, 'approved');
+    assert.equal((await observationsFor(a))[0].scheduled_date, option.proposed_date);
+  });
+});

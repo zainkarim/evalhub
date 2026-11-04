@@ -129,9 +129,6 @@ router.post('/:id/confirm', validate(idParams, 'params'), async (req, res) => {
   try {
     await client.query('BEGIN');
     const { rows: locked } = await client.query('SELECT * FROM assessments WHERE id = $1 FOR UPDATE', [option.assessment_id]);
-    if (['completed', 'cancelled', 'not_eligible'].includes(locked[0].status)) {
-      throw new HttpError(409, 'conflict', 'This assessment is no longer open for scheduling');
-    }
     ({ option: confirmed } = await lockInDate(client, { assessment: locked[0], option, observerId: req.user.teacherId }));
     await client.query('COMMIT');
   } catch (err) {

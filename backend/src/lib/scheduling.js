@@ -6,7 +6,9 @@ import { HttpError } from '../middleware/errors.js';
 // (POST /assessments/:id/time-options/:optionId/finalize).
 //
 // Must run inside a transaction on `client`, after the caller has locked the
-// assessment row (SELECT ... FOR UPDATE). In one step it:
+// assessment row (SELECT ... FOR UPDATE), and takes that locked row, so the
+// status check below sees the current status. In one step it:
+//   0. refuses a closed sign-up (postponed stays open: it can be rescheduled)
 //   1. confirms the option for this observer
 //   2. declines every other offer on this assessment, including other
 //      observers' offers on this same option (#78)
@@ -15,6 +17,10 @@ import { HttpError } from '../middleware/errors.js';
 //      sign-off has a scheduled date to check
 //   4. marks the assessment approved (scheduled)
 export async function lockInDate(client, { assessment, option, observerId }) {
+  if (['completed', 'cancelled', 'not_eligible'].includes(assessment.status)) {
+    throw new HttpError(409, 'conflict', 'This assessment is no longer open for scheduling');
+  }
+
   const { rows: confirmedRows } = await client.query(
     `UPDATE assessment_time_options
         SET is_confirmed = TRUE, confirmed_teacher_id = $2
