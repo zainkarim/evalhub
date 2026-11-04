@@ -80,13 +80,12 @@ router.get(
       where.push(sql.replaceAll('?', `$${params.length}`));
     };
 
-    if (teacherId) add('teacher_id = ?', teacherId);
+    if (teacherId) add('a.teacher_id = ?', teacherId);
     if (termId) add('due_term_id = ?', termId);
     if (status) add('status = ?', status);
 
-    // where[] references bare column names (teacher_id, due_term_id, status) with
-    // no table prefix, which is fine against `assessments a` since none of those
-    // names collide with the joined course_sections/courses columns.
+    // Qualify teacher_id because course_sections also has that column.
+    // Both the list and count queries use assessments aliased as a.
     const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
     const [{ rows }, { rows: count }] = await Promise.all([
