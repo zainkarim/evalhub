@@ -14,6 +14,7 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
   const [loaded, setLoaded] = useState(null)
   const criteria = given ?? loaded
   const [loadError, setLoadError] = useState("")
+  const [responsesError, setResponsesError] = useState("")
   const [scores, setScores] = useState({})
   const [notes, setNotes] = useState("")
   const [busy, setBusy] = useState(false)
@@ -33,6 +34,54 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
       active = false
     }
   }, [needsLoad])
+
+
+  const [responsesLoading, setResponsesLoading] = useState(!preview && Boolean(observationId))
+
+  useEffect(() => {
+    if (preview || !observationId) return undefined
+
+        let active = true
+
+    api.getResponses(observationId)
+      .then((result) => {
+        if (!active) return
+
+        const restoredScores = Object.fromEntries(
+          (result?.data ?? []).map((response) => [
+            response.criterionId,
+            response.score,
+          ]),
+        )
+
+        setScores(restoredScores)
+        setNotes(result?.notes ?? "")
+      })
+      .catch((err) => {
+        if (active) {
+          setResponsesError(err.message || "Could not load saved ratings.")
+        }
+      })
+      .finally(() => {
+        if (active) setResponsesLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [observationId, preview])
+
+  if (responsesLoading) {
+    return <p className="text-sm text-muted">Loading saved ratings…</p>
+  }
+
+    if (responsesError) {
+    return (
+      <p role="alert" className="text-sm text-red-700">
+        Unable to load observation ratings: {responsesError}
+      </p>
+    )
+  }
 
   if (loadError) {
     return <p className="text-sm text-muted">The observation form couldn&apos;t load: {loadError}</p>
