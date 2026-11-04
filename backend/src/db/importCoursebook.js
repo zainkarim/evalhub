@@ -5,9 +5,11 @@
 // Instructors are PSEUDONYMIZED. The project rule is that professor names are
 // always fictional (docs/requirements.md §4.7), so this script never requests
 // /professor records at all. Each instructor gets a stable fake identity
-// derived from their Nebula professor id: "Professor <3 letters>" and
-// prof-<hash>@example.edu. Re-running the import maps the same instructor to the
-// same fake teacher, so teaching history accumulates correctly across terms.
+// derived from their Nebula professor id: a realistic fictional first and last
+// name (src/db/fictionalNames.js, #101) and prof-<hash>@example.edu. Re-running
+// the import maps the same instructor to the same fake teacher, so teaching
+// history accumulates correctly across terms, and renames any teacher still
+// carrying the old "Professor <3 letters>" placeholder.
 //
 // Scope (10/14 review: focus on regular in-person classes; online and lab
 // sections are edge cases):
@@ -36,6 +38,7 @@
 import { createHash } from 'node:crypto';
 import { config } from '../config.js';
 import { pool, query } from './pool.js';
+import { fictionalName, NAME_COMBINATIONS } from './fictionalNames.js';
 
 if (config.env === 'production' && process.env.ALLOW_COURSEBOOK_IMPORT_IN_PROD !== 'true') {
   console.error('Refusing to run against production without ALLOW_COURSEBOOK_IMPORT_IN_PROD=true');
@@ -117,14 +120,25 @@ function schoolCode(name) {
   return /jonsson/i.test(name ?? '') ? 'ECS' : (name ?? 'UNKNOWN');
 }
 
-// Stable fictional identity from the Nebula professor id. No real name or
-// email is fetched or stored. `length` grows only if the shorter name is
-// already taken by a different teacher.
-function pseudonym(professorId, length = 3) {
-  const hash = createHash('sha256').update(String(professorId)).digest('hex');
-  const letters = Array.from({ length }, (_, i) =>
-    String.fromCharCode(65 + (parseInt(hash.slice(i * 2, i * 2 + 2), 16) % 26))).join('');
-  return { firstName: 'Professor', lastName: letters, email: `prof-${hash.slice(0, 12)}@example.edu` };
+// Stable fictional identity from the Nebula professor id (#101): a realistic
+// first and last name from fixed lists, and a fake email. No real name or
+// email is fetched or stored. The email is the stable key; the name only
+// moves to another combination when the first choice is already taken.
+const hashOf = (professorId) => createHash('sha256').update(String(professorId)).digest('hex');
+const pseudonymEmail = (hash) => `prof-${hash.slice(0, 12)}@example.edu`;
+
+// The first free fictional name for this hash. `selfId` is the teacher being
+// renamed, so its own current name doesn't count as taken.
+async function uniqueFictionalName(hash, selfId = null) {
+  for (let attempt = 0; attempt < NAME_COMBINATIONS; attempt += 1) {
+    const name = fictionalName(hash, attempt);
+    const { rows: taken } = await query(
+      'SELECT 1 FROM teachers WHERE first_name = $1 AND last_name = $2 AND id IS DISTINCT FROM $3',
+      [name.firstName, name.lastName, selfId],
+    );
+    if (!taken[0]) return name;
+  }
+  throw new Error('Ran out of fictional names; extend src/db/fictionalNames.js');
 }
 
 async function upsertTerm(season, year, startDate, endDate) {
@@ -156,27 +170,56 @@ async function upsertCourse(c) {
 
 const teacherCache = new Map(); // nebula professor id -> teachers.id
 let newTeachers = 0;
+let renamedTeachers = 0;
+let retiredTeachers = 0;
+
+// Teachers imported before #101 are named "Professor XYZ". Rename them in
+// place (same id, so sign-ups and history stay attached). The name comes from
+// the hash already in their fake email, so this also covers teachers Nebula
+// no longer lists. Any other name was set already or edited by hand.
+async function renamePlaceholderTeachers() {
+  const { rows } = await query(
+    `SELECT id, email FROM teachers
+      WHERE first_name = 'Professor' AND email ~ '^prof-[0-9a-f]{12}@example[.]edu$'
+      ORDER BY id`,
+  );
+  for (const t of rows) {
+    const name = await uniqueFictionalName(t.email.slice(5, 17), t.id);
+    await query('UPDATE teachers SET first_name = $2, last_name = $3 WHERE id = $1', [t.id, name.firstName, name.lastName]);
+    renamedTeachers += 1;
+  }
+}
+
+// Nebula sometimes gives an instructor a new professor id, which makes them a
+// new fake teacher here and leaves the old one teaching nothing. Deactivate
+// (never delete) imported teachers with no sections, sign-ups, observations
+// or login, so they drop off the AC's Professors page.
+async function retireOrphanedTeachers() {
+  const { rowCount } = await query(
+    `UPDATE teachers t SET is_active = FALSE
+      WHERE t.is_active
+        AND t.email ~ '^prof-[0-9a-f]{12}@example[.]edu$'
+        AND NOT EXISTS (SELECT 1 FROM course_sections cs WHERE cs.teacher_id = t.id)
+        AND NOT EXISTS (SELECT 1 FROM assessments a WHERE a.teacher_id = t.id)
+        AND NOT EXISTS (SELECT 1 FROM observations o WHERE o.observer_id = t.id OR o.observee_id = t.id)
+        AND NOT EXISTS (SELECT 1 FROM users u WHERE u.teacher_id = t.id)`,
+  );
+  retiredTeachers = rowCount;
+}
 
 async function upsertPseudonymousTeacher(professorId, school, department) {
   if (teacherCache.has(professorId)) return teacherCache.get(professorId);
-  const p = pseudonym(professorId);
+  const hash = hashOf(professorId);
+  const email = pseudonymEmail(hash);
 
-  const { rows: existing } = await query('SELECT id FROM teachers WHERE lower(email) = lower($1)', [p.email]);
+  const { rows: existing } = await query('SELECT id FROM teachers WHERE lower(email) = lower($1)', [email]);
   if (existing[0]) {
     teacherCache.set(professorId, existing[0].id);
     return existing[0].id;
   }
 
-  // Keep display names unique so two instructors never look identical in the UI.
-  let name = p;
-  for (let length = 4; ; length += 1) {
-    const { rows: taken } = await query(
-      "SELECT 1 FROM teachers WHERE first_name = $1 AND last_name = $2",
-      [name.firstName, name.lastName],
-    );
-    if (!taken[0]) break;
-    name = pseudonym(professorId, length);
-  }
+  // Display names stay unique so two instructors never look identical in the UI.
+  const name = await uniqueFictionalName(hash);
 
   // Nebula doesn't give rank; default to assistant_professor (the AC or the
   // professor can correct it later, see #50).
@@ -184,7 +227,7 @@ async function upsertPseudonymousTeacher(professorId, school, department) {
     `INSERT INTO teachers (first_name, last_name, email, school, department, rank)
      VALUES ($1, $2, $3, $4, $5, 'assistant_professor')
      RETURNING id`,
-    [name.firstName, name.lastName, p.email, school, department],
+    [name.firstName, name.lastName, email, school, department],
   );
   newTeachers += 1;
   teacherCache.set(professorId, rows[0].id);
@@ -228,6 +271,7 @@ async function run() {
   if (DRY_RUN) return;
 
   // 3. Write.
+  await renamePlaceholderTeachers();
   let written = 0;
   for (const { course, section: s, meeting } of keep) {
     const courseId = await upsertCourse(course);
@@ -257,7 +301,8 @@ async function run() {
     written += 1;
   }
 
-  console.log(`Done. Upserted ${written} sections; created ${newTeachers} pseudonymous teachers (rank defaults to assistant_professor).`);
+  await retireOrphanedTeachers();
+  console.log(`Done. Upserted ${written} sections; created ${newTeachers}, renamed ${renamedTeachers} and deactivated ${retiredTeachers} pseudonymous teachers (rank defaults to assistant_professor).`);
 }
 
 try {

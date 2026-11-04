@@ -32,7 +32,7 @@ try {
   // candidate who confirms a time to go observe someone else (observer),
   // depending only on which flow the UI is in at the time. Before this fix,
   // the seed only created 3 named demo accounts (above), so testing anyone
-  // else's observer side (e.g. Professor H confirming a time) required an
+  // else's observer side (e.g. Daniel Brooks (teacher 8) confirming a time) required an
   // ad hoc POST /api/auth/register call every time. Instead, give every
   // seeded teacher a login automatically, using their own teachers.email, so
   // the whole roster can sign in out of the box. Teachers 2 and 3 already

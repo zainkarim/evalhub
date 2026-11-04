@@ -4,8 +4,8 @@ import { after, before, describe, test } from 'node:test';
 import { startIntegration, USERS } from './harness.js';
 
 let ctx;
-let mySection;    // a section Professor C teaches that has no assessment yet
-let spareSection; // a second section Professor C teaches, created here, never signed up for
+let mySection;    // a section Sofia Alvarez (teacher 3) teaches that has no assessment yet
+let spareSection; // a second section she teaches, created here, never signed up for
 let otherSection; // a section someone else teaches
 
 before(async () => {
