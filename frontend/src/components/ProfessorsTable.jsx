@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom"
 import StatusBadge from "./StatusBadge"
+import { Table, TableCard, Td, Th } from "./ui"
 import { describeDue, DUE_STATUS } from "../lib/dueStatus"
 import { ACTIVE_STATUS, CURRENT_STATUS, currentStatusDetail, formatDate } from "../lib/format"
 
@@ -20,12 +21,12 @@ function Cell({ column, row, termId }) {
   switch (column.key) {
     case "name":
       return (
-        <>
-          <Link to={`/professors/${row.id}?termId=${termId}`} className="font-medium text-utd-green hover:underline">
+        <div className="min-w-[11rem]">
+          <Link to={`/professors/${row.id}?termId=${termId}`} className="font-medium text-primary-ink hover:underline">
             {row.firstName} {row.lastName}
           </Link>
-          <span className="block text-muted">{row.email}</span>
-        </>
+          <span className="block break-words text-muted">{row.email}</span>
+        </div>
       )
     case "department":
       return row.department
@@ -47,7 +48,7 @@ function Cell({ column, row, termId }) {
     case "signUp":
       return row.signUp ? (
         <>
-          <span className="font-medium text-utd-green-dark">Signed up</span>
+          <span className="font-medium text-success">Signed up</span>
           <span className="block text-xs text-muted">
             {row.signUp.course} · Section {row.signUp.section}
           </span>
@@ -59,7 +60,7 @@ function Cell({ column, row, termId }) {
       return (
         <>
           <StatusBadge status={row.isActive ? "active" : "inactive"} map={ACTIVE_STATUS} />
-          <Link to={`/professors/${row.id}/edit`} className="mt-1 block text-xs text-utd-green hover:underline">
+          <Link to={`/professors/${row.id}/edit`} className="mt-1 block text-xs font-medium text-primary-ink hover:underline">
             Edit
             <span className="sr-only">
               {" "}
@@ -76,30 +77,29 @@ function Cell({ column, row, termId }) {
 // The roster with one sortable header per column. `sort` is { key, direction }.
 function ProfessorsTable({ rows, sort, onSort, termId }) {
   return (
-    <div className="relative overflow-x-auto rounded border border-line bg-white">
-      <table className="w-full min-w-[66rem] text-left text-sm">
-        <thead className="border-b border-line text-xs text-muted">
+    <TableCard maxHeight>
+      <Table minWidth="66rem">
+        <thead>
           <tr>
             {COLUMNS.map((column) => {
               const active = sort.key === column.key
               return (
-                <th
+                <Th
                   key={column.key}
                   scope="col"
-                  className="px-4 py-3 font-medium"
                   aria-sort={active ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}
                 >
                   <button
                     type="button"
                     onClick={() => onSort(column.key)}
-                    className="inline-flex items-center gap-1 hover:text-ink"
+                    className="inline-flex items-center gap-1 rounded-sm hover:text-ink"
                   >
                     {column.label}
                     <span aria-hidden="true" className={active ? "text-ink" : "text-line"}>
                       {active && sort.direction === "desc" ? "▼" : "▲"}
                     </span>
                   </button>
-                </th>
+                </Th>
               )
             })}
             {/* Later: a "Send reminder" action column goes here (not built yet). */}
@@ -109,15 +109,15 @@ function ProfessorsTable({ rows, sort, onSort, termId }) {
           {rows.map((row) => (
             <tr key={row.id} className="border-b border-line align-top last:border-0">
               {COLUMNS.map((column) => (
-                <td key={column.key} className="px-4 py-3">
+                <Td key={column.key}>
                   <Cell column={column} row={row} termId={termId} />
-                </td>
+                </Td>
               ))}
             </tr>
           ))}
         </tbody>
-      </table>
-    </div>
+      </Table>
+    </TableCard>
   )
 }
 
