@@ -24,39 +24,71 @@ Nothing in `backend/` was changed. The workflow follows `docs/requirements.md`
 Status column: **exists** = already on `main` and used as-is · **extend** = exists
 but the frontend needs more · **mock** = mock-only today, needs to be built.
 
+Statuses last checked on **2026-11-03** against `main` (`b279d71`), by running the
+frontend on the real backend (local Docker Postgres + `npm run seed`).
+
+### Running the frontend on the real backend
+
+1. In `backend/`: `docker compose up -d`, `npm run migrate`, `npm run seed`, `npm run dev`.
+2. In `frontend/.env.local`: `VITE_API_URL=http://localhost:3000/api` and
+   `VITE_USE_MOCKS=false`. A `VITE_USE_MOCKS=true` in `.env` forces the mock, and
+   `.env.local` overrides it. Restart `npm run dev` after changing either file.
+3. Use port **5173**. The backend's `CORS_ORIGIN` only allows `http://localhost:5173`,
+   so a second dev server on 5174 can't reach it ("Can't reach the server").
+4. Sign out first: a token from the mock doesn't work on the real backend.
+5. If Postgres keeps restarting with `bogus data in lock file "postmaster.pid"`
+   (after Docker Desktop crashed), remove the stale lock:
+   `docker compose down && docker run --rm -v backend_pgdata:/data postgres:16 rm -f /data/postmaster.pid && docker compose up -d`.
+
+### What works on the real backend today
+
+| Page | Result |
+|---|---|
+| Professors, Courses, Evaluation Criteria (add, edit, take off the form) | works |
+| Professor detail, Course detail, My Profile, Faculty Dashboard | works |
+| Observations (All sign-ups, My observations), sign-up detail | works with the fallbacks in #108 |
+| Observation sign-up, faculty | works; the success screen fix is in #108 |
+| Observation sign-up, committee | **500**: `GET /assessments?teacherId=` (see the table) |
+| Observer feedback form | not testable yet: the seed has no observations, and none can be scheduled until #57/#107 |
+| Cycle | **400** from `GET /assessments/alerts` |
+| Notifications | **404**, no `/notifications` routes on the backend |
+
 ## Endpoints
 
 | Status | Route | Who | Frontend use |
 |---|---|---|---|
 | exists | `POST /auth/login`, `GET /auth/me` | any | sign-in, role + `teacherId` + name |
 | exists | `GET /teachers`, `GET /teachers/:id` | AC/admin (`:id` also self) | roster, sign-up on behalf |
-| extend | `GET /teachers`, `GET /teachers/:id` | AC/admin | also return `department` (see "Professors report") |
-| mock | `GET /teachers/report` (`?termId=`) | AC/admin | the Professors page: every professor (active and inactive, flagged `isActive`) with due and sign-up status; counts cover active professors only; **register before `GET /teachers/:id`** |
-| mock | `GET /teachers/:id/profile` (`?termId=`) | AC/admin | the professor detail page: courses, observations, observer load, current sign-up |
-| extend | `GET /terms` | any | needs `signupDeadline` (mock-only today) |
+| exists | `GET /teachers`, `GET /teachers/:id` | AC/admin | also returns `department` (#94) |
+| exists | `GET /teachers/report` (`?termId=`) | AC/admin | the Professors page: every professor (active and inactive, flagged `isActive`) with due and sign-up status; counts cover active professors only; **register before `GET /teachers/:id`** |
+| exists | `GET /teachers/:id/profile` (`?termId=`) | AC/admin | the professor detail page: courses, observations, observer load, current sign-up |
+| exists | `GET /terms` | any | returns `signupDeadline`, `observationDeadline`, `feedbackDeadline` |
 | exists | `GET /courses`, `GET /sections` | any | pickers (frontend sends `pageSize=100`) |
 | exists | `POST /assessments/sign-up` | faculty (self), AC/admin | sign-up form |
-| extend | `GET /assessments`, `GET /assessments/mine` | AC/admin · faculty | return **AssessmentView** |
-| extend | `GET /assessments/:id` | owner, AC/admin | return **AssessmentDetail** |
+| extend | `GET /assessments`, `GET /assessments/mine` | AC/admin · faculty | return **AssessmentView**. Today the rows are flat (`teacherId`, `courseCode`, `sectionCode`); the pages fall back to those (#108). `GET /assessments?teacherId=` returns **500** (`teacher_id` is ambiguous after the course_sections join), which breaks the committee's sign-up page |
+| extend | `GET /assessments/:id` | owner, AC/admin | return **AssessmentDetail**. Today it is flat: no `section`, `teacher`, `term`, `timeOptions`, `offers`, `candidates`; the detail page rebuilds what it can (#108) |
 | mock | `POST /terms/:termId/start-observer-selection` | AC/admin | THE one cycle-wide "Start Observer Selection"; idempotent; see "Cycle and notifications" |
-| mock | `PATCH /terms/:id/dates` `{ signupDeadline, observationDeadline, feedbackDeadline }` | AC/admin | edit the cycle dates |
+| exists | `PATCH /terms/:id/dates` `{ signupDeadline, observationDeadline, feedbackDeadline }` | AC/admin | edit the cycle dates |
 | mock | `GET /notifications/inbox`, `POST /notifications/:id/read`, `POST /notifications/read-all` | professor | in-app messages |
 | mock | `POST /notifications/list-reminder` `{ termId, assessmentIds? }` | AC/admin | reminders (Remind / Remind all) to sign-ups still choosing; the first "list is ready" message is sent automatically |
-| mock | `GET /assessments/alerts` (`?termId=`) | AC/admin | alerts panel + nav counter |
+| mock | `GET /assessments/alerts` (`?termId=`) | AC/admin | alerts panel + nav counter. Today the request falls through to `GET /assessments/:id` and returns **400**, so the Cycle page shows "Invalid request" |
 | exists | `GET /assessments/:id/time-options` | owner, offered observer, AC/admin | return `attemptNo` too |
 | extend | `POST /assessments/:id/time-options` `{ options: [{ proposedDate, startTime, endTime }] }` | owner, AC/admin | **4–8** options (backend accepts 1–8) |
 | extend | `POST /assessments/:id/time-options/send` `{ teacherId }` | owner, AC/admin | one request to one observer; see notes |
 | mock | `POST /assessments/:id/time-options/withdraw` `{ reason? }` | owner, AC/admin | take the request back |
 | mock | `POST /assessments/:id/time-options/decline` `{ reason? }` | the offered observer | decline, reason optional |
-| mock | `GET /time-options/incoming` | faculty / AC with a teacher profile | requests sent to me (`{ data: IncomingOfferView[] }`) |
+| mock | `GET /time-options/incoming` | faculty / AC with a teacher profile | requests sent to me (`{ data: IncomingOfferView[] }`). Returns 404 today; `lib/observationActivity.js` treats a 404 as no requests so My observations and the dashboard still load |
 | extend | `POST /time-options/:id/confirm` | the offered observer | observer confirms one date; see notes |
-| extend | `POST /assessments/:id/observations` | **AC/admin only** | manual assignment; body adds required `scheduledDate`; see the BLOCKED note |
+| exists | `POST /assessments/:id/observations` | **AC/admin only** | manual assignment; body adds required `scheduledDate`; see the BLOCKED note |
 | mock | `GET /assessments/:id/step-in-options` | AC/admin | committee members who can step in |
 | mock | `POST /assessments/:id/postpone` `{ reason }` | AC/admin | **reason required**; logs the attempt; replaces `…/cancel` |
-| mock | `GET /observations` (`?status=`) | faculty → own given/received; AC/admin → all | `{ data: ObservationView[] }` |
-| mock | `GET /observations/:id` | observer, observee, AC/admin | record page (adds `attempts`) |
-| mock | `POST /observations/:id/sign-off` `{ comment? }` | observer or observee | `comment` is the observee's perspective |
+| exists | `GET /observations` (`?status=`) | faculty → own given/received; AC/admin → all | `{ data: ObservationView[] }` |
+| extend | `GET /observations/:id` | observer, observee, AC/admin | record page (adds `attempts`) |
+| exists | `POST /observations/:id/sign-off` `{ comment? }` | observer or observee | `comment` is the observee's perspective |
 | mock | `POST /observations/:id/postpone` `{ reason }` | observer, observee, AC/admin | scheduled attempt didn't happen; replaces reschedule / "it didn't happen" |
+| exists | `GET /observations/:id/responses`, `POST /observations/:id/responses` | observer (own, before sign-off), observee after the observer signs off, AC/admin | the observer form loads and saves ratings. `notes` is not stored yet (#95), so notes only persist on the mock |
+| exists | `GET /criteria`, `POST /criteria`, `PATCH /criteria/:id`, `DELETE /criteria/:id` | AC/admin (read: any) | Evaluation Criteria page: add, edit, take off the form |
+| exists | `POST /assessments/:id/time-options/:optionId/finalize` | owner, AC/admin | on main (#78); declines the other observers' offers on the same option. Not called by the frontend yet |
 
 **Not used any more:** `POST /assessments/:id/cancel` (the frontend never cancels a
 sign-up), `POST /observations/:id/review` (no AC approval), the old
