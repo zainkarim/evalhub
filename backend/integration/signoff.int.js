@@ -6,7 +6,7 @@ import { startIntegration, USERS } from './harness.js';
 let ctx;
 let obs; // observation ids by scenario
 
-// Observee: Professor C (teacher 3, faculty@). Observer: teacher 1 (professor.a@).
+// Observee: Sofia Alvarez (teacher 3, faculty@). Observer: teacher 1 (professor.a@).
 async function makeObservation(status, scheduledDaysFromToday) {
   const [section] = await ctx.sql(
     `SELECT cs.id, cs.term_id FROM course_sections cs

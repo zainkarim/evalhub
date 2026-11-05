@@ -113,8 +113,8 @@ export async function startIntegration() {
 // Seeded demo users (db/seeds + src/db/seed.js).
 export const USERS = {
   admin: 'admin@example.edu',      // admin, no teacher profile
-  ac: 'ac@example.edu',            // ac_member, Professor B (teacher 2)
-  faculty: 'faculty@example.edu',  // faculty, Professor C (teacher 3)
+  ac: 'ac@example.edu',            // ac_member, David Okafor (teacher 2)
+  faculty: 'faculty@example.edu',  // faculty, Sofia Alvarez (teacher 3)
   profA: 'professor.a@example.edu', // faculty, teacher 1
   profD: 'professor.d@example.edu', // faculty, teacher 4
 };
