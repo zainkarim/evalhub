@@ -202,16 +202,16 @@ export function buildSeed(now = new Date()) {
 
   // mock-only: completed observations from earlier terms, so the Professors page has
   // due, overdue, not-due and never-observed professors to show. Fixed dates (not
-  // relative to today) because the terms they belong to are fixed. Professors B, I
-  // and J are deliberately never observed.
+  // relative to today) because the terms they belong to are fixed. David Okafor,
+  // Grace Kim and Omar Haddad are deliberately never observed.
   const history = [
     // [assessmentId, observee, observer, sectionId, termId, scheduledDate]
-    [6, 1, 4, 1, 4, "2024-10-16"], // A, Fall 2024
-    [7, 4, 1, 7, 7, "2025-10-14"], // D, Fall 2025
-    [8, 5, 7, 26, 4, "2024-11-05"], // E, Fall 2024
-    [9, 6, 2, 27, 5, "2025-03-07"], // F, Spring 2025
-    [10, 7, 6, 5, 2, "2024-03-12"], // G, Spring 2024
-    [11, 8, 5, 4, 5, "2025-02-10"], // H, Spring 2025
+    [6, 1, 4, 1, 4, "2024-10-16"], // Maria Chen, Fall 2024
+    [7, 4, 1, 7, 7, "2025-10-14"], // James Whitfield, Fall 2025
+    [8, 5, 7, 26, 4, "2024-11-05"], // Aisha Rahman, Fall 2024
+    [9, 6, 2, 27, 5, "2025-03-07"], // Michael Tran, Spring 2025
+    [10, 7, 6, 5, 2, "2024-03-12"], // Elena Petrova, Spring 2024
+    [11, 8, 5, 4, 5, "2025-02-10"], // Daniel Brooks, Spring 2025
   ]
   const historicAssessments = history.map(([id, teacherId, , sectionId, dueTermId, date]) => ({
     id,
@@ -426,7 +426,7 @@ export function buildSeed(now = new Date()) {
   ].map((row, index) => ({ id: index + 1, ...row }))
 
   return {
-    version: 4,
+    version: 5,
     terms: seededTerms,
     teachers,
     courses,

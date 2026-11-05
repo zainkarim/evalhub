@@ -181,22 +181,23 @@ Fall 2026 view shows every case:
 
 | Professor | Rank | Last observed | Fall 2026 | Sign-up |
 |---|---|---|---|---|
-| A | Associate | Fall 2024 | Due | no |
-| B | Full | never | Never observed | yes, Postponed (1 attempt) |
-| C | Assistant | Spring 2026 | Not due yet | yes (signed up but not due) |
-| D | Associate | Fall 2025 | Not due yet | no |
-| E | Assistant | Fall 2024 | Overdue | no |
-| F | Full | Spring 2025 | Not due yet | yes, Scheduled |
-| G | Associate | Spring 2024 | Overdue | no |
-| H | Assistant | Spring 2025 | Due | no |
-| I (EPPS) | Full | never | Never observed | yes, Selecting observer |
-| J (EPPS) | Associate | never | Never observed | no |
+| Maria Chen | Associate | Fall 2024 | Due | no |
+| David Okafor | Full | never | Never observed | yes, Postponed (1 attempt) |
+| Sofia Alvarez | Assistant | Spring 2026 | Not due yet | yes (signed up but not due) |
+| James Whitfield | Associate | Fall 2025 | Not due yet | no |
+| Aisha Rahman | Assistant | Fall 2024 | Overdue | no |
+| Michael Tran | Full | Spring 2025 | Not due yet | yes, Scheduled |
+| Elena Petrova | Associate | Spring 2024 | Overdue | no |
+| Daniel Brooks | Assistant | Spring 2025 | Due | no |
+| Grace Kim (EPPS) | Full | never | Never observed | yes, Selecting observer |
+| Omar Haddad (EPPS) | Associate | never | Never observed | no |
 
 **Click-through.** Sign in as `ac@example.edu` → **Professors**. Tiles read Due 5 (3 never
-observed), Overdue 2, Not signed up 6, Signed up 4, Completed 0. Filter *Overdue* → E and
-G. Sort *Next due*. Pick **Spring 2027**: Sofia Alvarez and F become due, H and A overdue.
-Open James Whitfield: observer load 1 of 3. Then sign off the seeded observation as D and F
-(see the demo script above) and come back: F shows Completed with the date, and the
+observed), Overdue 2, Not signed up 6, Signed up 4, Completed 0. Filter *Overdue* → Aisha
+Rahman and Elena Petrova. Sort *Next due*. Pick **Spring 2027**: Sofia Alvarez and Michael
+Tran become due, Daniel Brooks and Maria Chen overdue. Open James Whitfield: observer load
+1 of 3. Then sign off the seeded observation as James Whitfield and Michael Tran (see the
+demo script above) and come back: Michael Tran shows Completed with the date, and the
 Completed tile reads 1. Signed in as `faculty@example.edu`, `/professors` and
 `/professors/:id` show "limited to the Assessment Committee".
 

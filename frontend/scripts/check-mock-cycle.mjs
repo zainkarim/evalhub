@@ -47,7 +47,7 @@ const iso = (date) =>
 const AC = "ac@example.edu" // David Okafor
 const FACULTY = "faculty@example.edu" // Sofia Alvarez
 const ESIGN = "professor.e@example.edu"
-// The demo logins for Professors B and C are ac@ and faculty@; the others use their teacher email.
+// The demo logins for David Okafor and Sofia Alvarez are ac@ and faculty@; the others use their teacher email.
 const loginEmail = async (teacherId) =>
   teacherId === 2 ? AC : teacherId === 3 ? FACULTY : (await call(AC, `/teachers/${teacherId}`)).email
 

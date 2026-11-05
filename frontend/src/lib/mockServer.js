@@ -15,7 +15,7 @@ import { computeDue, defaultReportTerm } from "./dueStatus"
 import { courseLabel, formatRank, normalizeStatus } from "./format"
 import { APP_SETTINGS, buildSeed, DEMO_PASSWORD } from "./mockData"
 
-const STORE_KEY = "evalhub.mock.state.v4"
+const STORE_KEY = "evalhub.mock.state.v5"
 const HOUR = 60 * 60 * 1000
 const MIN_DATES = 4
 const MAX_DATES = 8
@@ -28,7 +28,7 @@ function load() {
   if (state) return state
   try {
     const saved = JSON.parse(localStorage.getItem(STORE_KEY) ?? "null")
-    if (saved?.version === 4) {
+    if (saved?.version === 5) {
       state = saved
       state.notifications ??= []
       state.nextId ??= {}

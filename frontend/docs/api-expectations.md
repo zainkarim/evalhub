@@ -67,7 +67,7 @@ sign-up), `POST /observations/:id/review` (no AC approval), the old
 
 ```jsonc
 // TeacherBrief
-{ "id": 3, "firstName": "Professor", "lastName": "C", "email": "...", "rank": "assistant_professor", "school": "ECS" }
+{ "id": 3, "firstName": "Sofia", "lastName": "Alvarez", "email": "...", "rank": "assistant_professor", "school": "ECS" }
 
 // SectionView = the flat section + nested course and term
 { "id": 21, "sectionNumber": "001", "meetingDays": "MW", "startTime": "13:00", "endTime": "14:15",
@@ -291,7 +291,7 @@ through `src/lib/dueStatus.js`, which is pure, so it can be moved to the server 
               "overdue": 2, "neverObserved": 3,   // neverObserved is a sub-count of due
               "signedUp": 4, "notSignedUp": 6, "completed": 0 },
   "data": [{                       // every teacher, signed up or not, active or not
-    "id": 5, "firstName": "Professor", "lastName": "E", "email": "professor.e@example.edu",
+    "id": 5, "firstName": "Aisha", "lastName": "Rahman", "email": "professor.e@example.edu",
     "school": "ECS", "department": "CS", "isActive": true,
     "rank": "assistant_professor", "rankLabel": "Assistant Professor",
     "dueStatus": "due | overdue | not_due | never_observed",
@@ -360,7 +360,7 @@ Nothing here is an approval state: the AC approves nothing.
 **`teachers.department` (backend migration 005, commit `e2ff681`).** The column is
 `TEXT NOT NULL`, free text with no CHECK or enum: the department-level course prefix
 (`CS`, `EPPS`, …, the same value as `courses.subject`; `dev_seed.sql` uses `CS` for the
-ECS professors and `EPPS` for Professors I and J). The mock, the report and the
+ECS professors and `EPPS` for Grace Kim and Omar Haddad). The mock, the report and the
 department filter use that field with those values. Gaps on `main` the backend team
 should know about:
 
