@@ -67,7 +67,7 @@ sign-up), `POST /observations/:id/review` (no AC approval), the old
 
 ```jsonc
 // TeacherBrief
-{ "id": 3, "firstName": "Professor", "lastName": "C", "email": "...", "rank": "assistant_professor", "school": "ECS" }
+{ "id": 3, "firstName": "Sofia", "lastName": "Alvarez", "email": "...", "rank": "assistant_professor", "school": "ECS" }
 
 // SectionView = the flat section + nested course and term
 { "id": 21, "sectionNumber": "001", "meetingDays": "MW", "startTime": "13:00", "endTime": "14:15",
@@ -111,7 +111,7 @@ sign-up), `POST /observations/:id/review` (no AC approval), the old
 // AttemptLogEntry — append-only, never edited or removed (mock-only)
 { "id", "assessmentId", "attemptNo",
   "type": "list_generated|request_sent|request_declined|no_response_expired|request_withdrawn|date_confirmed|ac_assigned|did_not_happen|postponed",
-  "by": { "name": "Professor D", "role": "faculty|ac_member|admin|system" }, "at",
+  "by": { "name": "James Whitfield", "role": "faculty|ac_member|admin|system" }, "at",
   "reason": string | null, "observer": TeacherBrief | null, "date": "YYYY-MM-DD" | null, "count": 5 | null }
 
 // IncomingOfferView = OfferView + { "observee": TeacherBrief, "section": SectionView, "assessmentStatus" }
@@ -252,7 +252,7 @@ routes, so the backend team can see what integration needs:
 
 // Notification (what a professor sees)
 { "id": 1, "type": "list_ready" | "list_reminder", "termId": 10, "subject": "Your observer list is ready", "body": "…",
-  "link": "/assessments/1" | null, "createdAt": "…", "readAt": null | "…", "sentBy": { "name": "Professor B" }, "channel": "in_app" }
+  "link": "/assessments/1" | null, "createdAt": "…", "readAt": null | "…", "sentBy": { "name": "David Okafor" }, "channel": "in_app" }
 // GET  /notifications/inbox        -> { "data": [ Notification ], "unread": 1 }       (needs a teacher profile)
 // POST /notifications/:id/read     -> Notification;   POST /notifications/read-all -> { "unread": 0 }
 
@@ -291,7 +291,7 @@ through `src/lib/dueStatus.js`, which is pure, so it can be moved to the server 
               "overdue": 2, "neverObserved": 3,   // neverObserved is a sub-count of due
               "signedUp": 4, "notSignedUp": 6, "completed": 0 },
   "data": [{                       // every teacher, signed up or not, active or not
-    "id": 5, "firstName": "Professor", "lastName": "E", "email": "professor.e@example.edu",
+    "id": 5, "firstName": "Aisha", "lastName": "Rahman", "email": "professor.e@example.edu",
     "school": "ECS", "department": "CS", "isActive": true,
     "rank": "assistant_professor", "rankLabel": "Assistant Professor",
     "dueStatus": "due | overdue | not_due | never_observed",
@@ -360,7 +360,7 @@ Nothing here is an approval state: the AC approves nothing.
 **`teachers.department` (backend migration 005, commit `e2ff681`).** The column is
 `TEXT NOT NULL`, free text with no CHECK or enum: the department-level course prefix
 (`CS`, `EPPS`, …, the same value as `courses.subject`; `dev_seed.sql` uses `CS` for the
-ECS professors and `EPPS` for Professors I and J). The mock, the report and the
+ECS professors and `EPPS` for Grace Kim and Omar Haddad). The mock, the report and the
 department filter use that field with those values. Gaps on `main` the backend team
 should know about:
 

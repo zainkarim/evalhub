@@ -44,10 +44,10 @@ const statusOf = async (promise) => {
 const iso = (date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
 
-const AC = "ac@example.edu" // Professor B
-const FACULTY = "faculty@example.edu" // Professor C
+const AC = "ac@example.edu" // David Okafor
+const FACULTY = "faculty@example.edu" // Sofia Alvarez
 const ESIGN = "professor.e@example.edu"
-// The demo logins for Professors B and C are ac@ and faculty@; the others use their teacher email.
+// The demo logins for David Okafor and Sofia Alvarez are ac@ and faculty@; the others use their teacher email.
 const loginEmail = async (teacherId) =>
   teacherId === 2 ? AC : teacherId === 3 ? FACULTY : (await call(AC, `/teachers/${teacherId}`)).email
 
@@ -79,7 +79,7 @@ const springOwner = await loginEmail(springSection.teacherId)
 const springSignUp = await post(springOwner, "/assessments/sign-up", { sectionId: springSection.id })
 assert.equal(springSignUp.status, "signed_up", "faculty can still sign up on the deadline day")
 
-// ---- before the click: Professor C is waiting, with no list
+// ---- before the click: Sofia Alvarez is waiting, with no list
 const before = (await call(FACULTY, "/assessments/mine")).data.find((a) => a.dueTermId === fall.id)
 assert.equal(before.status, "signed_up")
 assert.equal(before.candidateSummary, null)
@@ -93,7 +93,7 @@ assert.equal(
 
 // ---- one call builds lists for ALL sign-ups without one
 const preexisting = new Map((await inTerm(fall)).filter((a) => a.candidateSummary).map((a) => [a.id, JSON.stringify(a.observerList)]))
-// The seed has one waiting sign-up (Professor C); add one more before the click.
+// The seed has one waiting sign-up (Sofia Alvarez); add one more before the click.
 for (const sectionId of [20]) {
   const sec = (await call(AC, "/sections")).data.find((s) => s.id === sectionId)
   await post(AC, "/assessments/sign-up", { sectionId, teacherId: sec.teacherId })
@@ -145,7 +145,7 @@ assert.equal(await snapshot(), frozen, "list ids, candidates and history are ide
 assert.equal(
   (await listReady(FACULTY)).length,
   justListed.filter((a) => a.teacherId === before.teacherId).length,
-  "Professor C has one list_ready message per new list; the second click sent none",
+  "Sofia Alvarez has one list_ready message per new list; the second click sent none",
 )
 assert.equal(second.started, 0, "no empty list gained an observer, so nothing new")
 
@@ -207,7 +207,7 @@ assert.ok(choosing.length >= 1 && choosing.length < everyone.length, "some sign-
 assert.equal(await statusOf(post(FACULTY, "/notifications/list-reminder", { termId: fall.id })), 403, "only the AC can remind")
 const countOf = async (email, type) => (await call(email, "/notifications/inbox")).data.filter((n) => n.type === type).length
 assert.equal(before.status, "signed_up")
-assert.equal((await call(FACULTY, `/assessments/${before.id}`)).status, "approved", "Professor C already scheduled")
+assert.equal((await call(FACULTY, `/assessments/${before.id}`)).status, "approved", "Sofia Alvarez already scheduled")
 const approvedOne = await post(AC, "/notifications/list-reminder", { termId: fall.id, assessmentIds: [before.id] })
 assert.deepEqual(approvedOne, { sent: 0, skipped: 1 }, "a scheduled sign-up is never reminded")
 assert.equal(await countOf(FACULTY, "list_reminder"), 0)

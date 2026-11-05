@@ -44,20 +44,20 @@ const terms = [
 }))
 
 const teachers = [
-  [1, "A", "ECS", "associate_professor"],
-  [2, "B", "ECS", "full_professor"],
-  [3, "C", "ECS", "assistant_professor"],
-  [4, "D", "ECS", "associate_professor"],
-  [5, "E", "ECS", "assistant_professor"],
-  [6, "F", "ECS", "full_professor"],
-  [7, "G", "ECS", "associate_professor"],
-  [8, "H", "ECS", "assistant_professor"],
-  [9, "I", "EPPS", "full_professor"],
-  [10, "J", "EPPS", "associate_professor"],
-].map(([id, letter, school, rank]) => ({
+  [1, "A", "Maria", "Chen", "ECS", "associate_professor"],
+  [2, "B", "David", "Okafor", "ECS", "full_professor"],
+  [3, "C", "Sofia", "Alvarez", "ECS", "assistant_professor"],
+  [4, "D", "James", "Whitfield", "ECS", "associate_professor"],
+  [5, "E", "Aisha", "Rahman", "ECS", "assistant_professor"],
+  [6, "F", "Michael", "Tran", "ECS", "full_professor"],
+  [7, "G", "Elena", "Petrova", "ECS", "associate_professor"],
+  [8, "H", "Daniel", "Brooks", "ECS", "assistant_professor"],
+  [9, "I", "Grace", "Kim", "EPPS", "full_professor"],
+  [10, "J", "Omar", "Haddad", "EPPS", "associate_professor"],
+].map(([id, letter, firstName, lastName, school, rank]) => ({
   id,
-  firstName: "Professor",
-  lastName: letter,
+  firstName,
+  lastName,
   email: `professor.${letter.toLowerCase()}@example.edu`,
   school,
   // teachers.department (backend migration 005): free text, NOT NULL, the
@@ -113,13 +113,13 @@ const sections = [
   [20, 4, 10, "002", 5, "TR", "10:00", "11:15", "ECSS 2.412"],
   [21, 1, 10, "001", 3, "MW", "13:00", "14:15", "ECSW 1.315"],
   [22, 6, 10, "001", 6, "F", "13:00", "15:45", "ECSS 3.100"],
-  [23, 2, 10, "001", 3, "TR", "11:30", "12:45", "ECSW 1.365"], // mock-only: gives Professor C a second sign-up
+  [23, 2, 10, "001", 3, "TR", "11:30", "12:45", "ECSW 1.365"], // mock-only: gives Sofia Alvarez a second sign-up
   [24, 9, 10, "001", 9, "TR", "09:00", "10:15", "GR 3.302"], // mock-only: level with no other instructor -> zero eligible observers
   [25, 4, 11, "001", 5, "MW", "10:00", "11:15", "ECSS 2.412"], // mock-only: Spring 2027 section, its sign-up deadline is still ahead
   // mock-only history for the Professors page: same course level as each teacher's
   // current sections, so the eligible-observer pools do not change.
-  [26, 4, 4, "002", 5, "TR", "10:00", "11:15", "ECSS 2.412"], // Professor E, Fall 2024
-  [27, 6, 5, "002", 6, "F", "13:00", "15:45", "ECSS 3.100"], // Professor F, Spring 2025
+  [26, 4, 4, "002", 5, "TR", "10:00", "11:15", "ECSS 2.412"], // Aisha Rahman, Fall 2024
+  [27, 6, 5, "002", 6, "F", "13:00", "15:45", "ECSS 3.100"], // Michael Tran, Spring 2025
 ].map(
   ([id, courseId, termId, sectionNumber, teacherId, meetingDays, startTime, endTime, location]) => ({
     id,
@@ -186,11 +186,11 @@ export function buildSeed(now = new Date()) {
     // Signed up; observer selection has not run yet, so no list.
     { id: 1, teacherId: 3, sectionId: 21, dueTermId: 10, status: "signed_up", completedAt: null },
     { id: 2, teacherId: 3, sectionId: 17, dueTermId: 8, status: "completed", completedAt: iso(-150 * DAY) },
-    // mock-only: Professor F has a confirmed date that has now passed -> sign-off is open.
+    // mock-only: Michael Tran has a confirmed date that has now passed -> sign-off is open.
     { id: 3, teacherId: 6, sectionId: 22, dueTermId: 10, status: "approved", completedAt: null },
-    // mock-only: Professor I has no eligible observers -> the committee assigns manually.
+    // mock-only: Grace Kim has no eligible observers -> the committee assigns manually.
     { id: 4, teacherId: 9, sectionId: 24, dueTermId: 10, status: "signed_up", completedAt: null },
-    // mock-only: Professor B has a first attempt that did not happen -> Postponed, with its history.
+    // mock-only: David Okafor has a first attempt that did not happen -> Postponed, with its history.
     { id: 5, teacherId: 2, sectionId: 19, dueTermId: 10, status: "postponed", completedAt: null },
   ].map((row, index) => ({
     ...row,
@@ -202,16 +202,16 @@ export function buildSeed(now = new Date()) {
 
   // mock-only: completed observations from earlier terms, so the Professors page has
   // due, overdue, not-due and never-observed professors to show. Fixed dates (not
-  // relative to today) because the terms they belong to are fixed. Professors B, I
-  // and J are deliberately never observed.
+  // relative to today) because the terms they belong to are fixed. David Okafor,
+  // Grace Kim and Omar Haddad are deliberately never observed.
   const history = [
     // [assessmentId, observee, observer, sectionId, termId, scheduledDate]
-    [6, 1, 4, 1, 4, "2024-10-16"], // A, Fall 2024
-    [7, 4, 1, 7, 7, "2025-10-14"], // D, Fall 2025
-    [8, 5, 7, 26, 4, "2024-11-05"], // E, Fall 2024
-    [9, 6, 2, 27, 5, "2025-03-07"], // F, Spring 2025
-    [10, 7, 6, 5, 2, "2024-03-12"], // G, Spring 2024
-    [11, 8, 5, 4, 5, "2025-02-10"], // H, Spring 2025
+    [6, 1, 4, 1, 4, "2024-10-16"], // Maria Chen, Fall 2024
+    [7, 4, 1, 7, 7, "2025-10-14"], // James Whitfield, Fall 2025
+    [8, 5, 7, 26, 4, "2024-11-05"], // Aisha Rahman, Fall 2024
+    [9, 6, 2, 27, 5, "2025-03-07"], // Michael Tran, Spring 2025
+    [10, 7, 6, 5, 2, "2024-03-12"], // Elena Petrova, Spring 2024
+    [11, 8, 5, 4, 5, "2025-02-10"], // Daniel Brooks, Spring 2025
   ]
   const historicAssessments = history.map(([id, teacherId, , sectionId, dueTermId, date]) => ({
     id,
@@ -269,19 +269,19 @@ export function buildSeed(now = new Date()) {
     createdAt: iso(-5 * DAY),
   })
   const timeOptions = [
-    // Professor F -> Professor D, who confirmed a date that has now passed.
+    // Michael Tran -> James Whitfield, who confirmed a date that has now passed.
     option(1, 3, classDay("F", -1, 0, -1), "13:00", "15:45", 4, true),
     option(2, 3, classDay("F", 6, 0), "13:00", "15:45", null, false),
     option(3, 3, classDay("F", 6, 1), "13:00", "15:45", null, false),
     option(4, 3, classDay("F", 6, 2), "13:00", "15:45", null, false),
     option(5, 3, classDay("F", 6, 3), "13:00", "15:45", null, false),
-    // Professor B -> Professor D, confirmed, then the attempt was postponed.
+    // David Okafor -> James Whitfield, confirmed, then the attempt was postponed.
     option(6, 5, classDay("MW", 3, 0), "10:00", "11:15", 4, true),
     option(7, 5, classDay("MW", 3, 1), "10:00", "11:15", null, false),
     option(8, 5, classDay("MW", 3, 2), "10:00", "11:15", null, false),
     option(9, 5, classDay("MW", 3, 3), "10:00", "11:15", null, false),
     option(10, 5, classDay("MW", 3, 4), "10:00", "11:15", null, false),
-    // Professor B -> Professor E first: never answered, expired after 48h.
+    // David Okafor -> Aisha Rahman first: never answered, expired after 48h.
     option(11, 5, classDay("MW", 4, 0), "10:00", "11:15", null, false),
     option(12, 5, classDay("MW", 4, 1), "10:00", "11:15", null, false),
     option(13, 5, classDay("MW", 4, 2), "10:00", "11:15", null, false),
@@ -403,30 +403,30 @@ export function buildSeed(now = new Date()) {
   })
   const attemptLog = [
     entry(3, 1, "list_generated", "System", "system", -5),
-    entry(3, 1, "request_sent", "Professor F", "faculty", -4.5, { observerId: 2, count: 5 }),
-    entry(3, 1, "request_declined", "Professor B", "ac_member", -4.2, {
+    entry(3, 1, "request_sent", "Michael Tran", "faculty", -4.5, { observerId: 2, count: 5 }),
+    entry(3, 1, "request_declined", "David Okafor", "ac_member", -4.2, {
       observerId: 2,
       reason: "Teaching conflict on all five dates.",
     }),
-    entry(3, 1, "request_sent", "Professor F", "faculty", -4, { observerId: 4, count: 5 }),
-    entry(3, 1, "date_confirmed", "Professor D", "faculty", -3.5, { observerId: 4, date: classDay("F", -1, 0, -1) }),
+    entry(3, 1, "request_sent", "Michael Tran", "faculty", -4, { observerId: 4, count: 5 }),
+    entry(3, 1, "date_confirmed", "James Whitfield", "faculty", -3.5, { observerId: 4, date: classDay("F", -1, 0, -1) }),
     entry(4, 1, "list_generated", "System", "system", -3),
     entry(5, 1, "list_generated", "System", "system", -14),
-    entry(5, 1, "request_sent", "Professor B", "ac_member", -10, { observerId: 5, count: 5 }),
+    entry(5, 1, "request_sent", "David Okafor", "ac_member", -10, { observerId: 5, count: 5 }),
     entry(5, 1, "no_response_expired", "System", "system", -8, {
       observerId: 5,
       reason: "No response within 48 hours.",
     }),
-    entry(5, 1, "request_sent", "Professor B", "ac_member", -8, { observerId: 4, count: 5 }),
-    entry(5, 1, "date_confirmed", "Professor D", "faculty", -7, { observerId: 4, date: classDay("MW", 3) }),
-    entry(5, 1, "did_not_happen", "Professor D", "faculty", -2, {
+    entry(5, 1, "request_sent", "David Okafor", "ac_member", -8, { observerId: 4, count: 5 }),
+    entry(5, 1, "date_confirmed", "James Whitfield", "faculty", -7, { observerId: 4, date: classDay("MW", 3) }),
+    entry(5, 1, "did_not_happen", "James Whitfield", "faculty", -2, {
       observerId: 4,
       reason: "Out sick that week.",
     }),
   ].map((row, index) => ({ id: index + 1, ...row }))
 
   return {
-    version: 4,
+    version: 5,
     terms: seededTerms,
     teachers,
     courses,
