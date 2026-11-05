@@ -1,7 +1,7 @@
 // Fictional first and last names for imported instructors (#101; 10/21
 // review: realistic names, not "Professor XYZ"). A name is picked from a hash
-// of the Nebula professor id, so re-running the import gives the same person
-// the same name. These are common names chosen by hand, not taken from any
+// of the Nebula professor id, and a teacher keeps it across re-imports of the
+// same database. These are common names chosen by hand, not taken from any
 // source of real people; real instructor names are never fetched or stored.
 
 export const FIRST_NAMES = [

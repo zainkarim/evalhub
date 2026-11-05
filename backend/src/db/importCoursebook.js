@@ -7,9 +7,9 @@
 // /professor records at all. Each instructor gets a stable fake identity
 // derived from their Nebula professor id: a realistic fictional first and last
 // name (src/db/fictionalNames.js, #101) and prof-<hash>@example.edu. Re-running
-// the import maps the same instructor to the same fake teacher, so teaching
-// history accumulates correctly across terms, and renames any teacher still
-// carrying the old "Professor <3 letters>" placeholder.
+// the import maps the same instructor to the same fake teacher (their email is
+// the stable key), so teaching history accumulates correctly across terms, and
+// renames any teacher still carrying the old "Professor <3 letters>" placeholder.
 //
 // Scope (10/14 review: focus on regular in-person classes; online and lab
 // sections are edge cases):
@@ -123,18 +123,18 @@ function schoolCode(name) {
 // Stable fictional identity from the Nebula professor id (#101): a realistic
 // first and last name from fixed lists, and a fake email. No real name or
 // email is fetched or stored. The email is the stable key; the name only
-// moves to another combination when the first choice is already taken.
+// moves to another combination when the first choice is already taken, so a
+// colliding name can differ between databases that imported in another order.
 const hashOf = (professorId) => createHash('sha256').update(String(professorId)).digest('hex');
 const pseudonymEmail = (hash) => `prof-${hash.slice(0, 12)}@example.edu`;
 
-// The first free fictional name for this hash. `selfId` is the teacher being
-// renamed, so its own current name doesn't count as taken.
-async function uniqueFictionalName(hash, selfId = null) {
+// The first free fictional name for this hash.
+async function uniqueFictionalName(hash) {
   for (let attempt = 0; attempt < NAME_COMBINATIONS; attempt += 1) {
     const name = fictionalName(hash, attempt);
     const { rows: taken } = await query(
-      'SELECT 1 FROM teachers WHERE first_name = $1 AND last_name = $2 AND id IS DISTINCT FROM $3',
-      [name.firstName, name.lastName, selfId],
+      'SELECT 1 FROM teachers WHERE first_name = $1 AND last_name = $2',
+      [name.firstName, name.lastName],
     );
     if (!taken[0]) return name;
   }
@@ -171,7 +171,6 @@ async function upsertCourse(c) {
 const teacherCache = new Map(); // nebula professor id -> teachers.id
 let newTeachers = 0;
 let renamedTeachers = 0;
-let retiredTeachers = 0;
 
 // Teachers imported before #101 are named "Professor XYZ". Rename them in
 // place (same id, so sign-ups and history stay attached). The name comes from
@@ -184,27 +183,10 @@ async function renamePlaceholderTeachers() {
       ORDER BY id`,
   );
   for (const t of rows) {
-    const name = await uniqueFictionalName(t.email.slice(5, 17), t.id);
+    const name = await uniqueFictionalName(t.email.slice(5, 17));
     await query('UPDATE teachers SET first_name = $2, last_name = $3 WHERE id = $1', [t.id, name.firstName, name.lastName]);
     renamedTeachers += 1;
   }
-}
-
-// Nebula sometimes gives an instructor a new professor id, which makes them a
-// new fake teacher here and leaves the old one teaching nothing. Deactivate
-// (never delete) imported teachers with no sections, sign-ups, observations
-// or login, so they drop off the AC's Professors page.
-async function retireOrphanedTeachers() {
-  const { rowCount } = await query(
-    `UPDATE teachers t SET is_active = FALSE
-      WHERE t.is_active
-        AND t.email ~ '^prof-[0-9a-f]{12}@example[.]edu$'
-        AND NOT EXISTS (SELECT 1 FROM course_sections cs WHERE cs.teacher_id = t.id)
-        AND NOT EXISTS (SELECT 1 FROM assessments a WHERE a.teacher_id = t.id)
-        AND NOT EXISTS (SELECT 1 FROM observations o WHERE o.observer_id = t.id OR o.observee_id = t.id)
-        AND NOT EXISTS (SELECT 1 FROM users u WHERE u.teacher_id = t.id)`,
-  );
-  retiredTeachers = rowCount;
 }
 
 async function upsertPseudonymousTeacher(professorId, school, department) {
@@ -301,8 +283,7 @@ async function run() {
     written += 1;
   }
 
-  await retireOrphanedTeachers();
-  console.log(`Done. Upserted ${written} sections; created ${newTeachers}, renamed ${renamedTeachers} and deactivated ${retiredTeachers} pseudonymous teachers (rank defaults to assistant_professor).`);
+  console.log(`Done. Upserted ${written} sections; created ${newTeachers} and renamed ${renamedTeachers} teachers.`);
 }
 
 try {

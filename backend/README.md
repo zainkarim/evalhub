@@ -50,7 +50,7 @@ it never overwrites a `manual` or `seed` row.
 
 - **Instructors are pseudonymized.** Professor names must always be fictional,
   so the script never fetches professor records. Each instructor becomes a
-  stable fake teacher (`Professor KQZ`, `prof-<hash>@example.edu`) derived from
+  stable fake teacher (a fictional name such as `Maria Chen`, `prof-<hash>@example.edu`) derived from
   their Nebula id, so re-runs and later terms map to the same teacher. Rank
   defaults to `assistant_professor`.
 - **Scope:** `NEBULA_SUBJECTS` (default `CS`) and `NEBULA_TERMS` (Nebula session
