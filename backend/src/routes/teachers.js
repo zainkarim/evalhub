@@ -273,13 +273,20 @@ router.get(
 
     // The sign-up that stands for each teacher in this term.
     const { rows: signUpRows } = await query(
-      `SELECT a.*, cs.section_number, c.subject, c.course_number
+      `SELECT a.*, cs.section_number, c.subject, c.course_number,
+              EXISTS (
+                SELECT 1
+                  FROM cancellation_attempts ca
+                 WHERE ca.assessment_id = a.id
+                   AND ca.reason IN ('not_eligible', 'left_department')
+              ) AS excluded_from_kpis
          FROM assessments a
          JOIN course_sections cs ON cs.id = a.section_id
          JOIN courses c ON c.id = cs.course_id
         WHERE a.due_term_id = $1 AND a.status <> 'not_eligible'`,
       [term.id],
     );
+
     const signUpByTeacher = new Map();
     for (const row of signUpRows) {
       const current = signUpByTeacher.get(row.teacher_id);
@@ -365,7 +372,10 @@ const participationEligible = active.filter((r) =>
 // Use all term sign-ups, rather than the single display sign-up per teacher.
 const participatingTeacherIds = new Set(
   signUpRows
-    .filter((a) => !['cancelled', 'not_eligible'].includes(a.status))
+    .filter((a) =>
+      !['cancelled', 'not_eligible'].includes(a.status)
+      && !a.excluded_from_kpis,
+    )
     .map((a) => a.teacher_id),
 );
 
@@ -397,6 +407,12 @@ const assessmentParticipation = {
          FROM assessments a
         WHERE a.due_term_id = $1
           AND a.status NOT IN ('cancelled', 'not_eligible')
+          AND NOT EXISTS (
+            SELECT 1
+              FROM cancellation_attempts ca
+             WHERE ca.assessment_id = a.id
+               AND ca.reason IN ('not_eligible', 'left_department')
+          )
           AND NOT EXISTS (
             SELECT 1
               FROM observations o
