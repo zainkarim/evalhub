@@ -365,6 +365,13 @@ router.get(
       ]),
     );
 
+    const overdueByRank = Object.fromEntries(
+      RANKS.map((rank) => [
+        rank,
+        count((r) => r.rank === rank && r.dueStatus === 'overdue'),
+      ]),
+    );
+
 const participationEligible = active.filter((r) =>
   ['due', 'never_observed', 'overdue'].includes(r.dueStatus),
 );
@@ -437,6 +444,7 @@ const assessmentParticipation = {
         // `due` includes professors never observed; `neverObserved` says how many.
         due: count(isDue),
         dueByRank,
+        overdueByRank,
         overdue: count((r) => r.dueStatus === 'overdue'),
         // Outstanding overdue faculty: completion in this term clears the count.
         overdueOutstanding: count(

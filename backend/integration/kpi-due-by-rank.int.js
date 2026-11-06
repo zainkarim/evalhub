@@ -22,6 +22,11 @@ describe('faculty due by rank (#72)', () => {
     });
     assert.equal(res.body.counts.due, 10);
     assert.equal(res.body.counts.overdue, 0);
+    assert.deepEqual(res.body.counts.overdueByRank, {
+      assistant_professor: 0,
+      associate_professor: 0,
+      full_professor: 0,
+    });
     assert.equal(res.body.counts.neverObserved, 10);
   });
 
@@ -114,6 +119,30 @@ describe('faculty due by rank (#72)', () => {
       });
       assert.equal(res.body.counts.due, 8);
       assert.equal(res.body.counts.overdue, 1);
+      assert.deepEqual(res.body.counts.overdueByRank, {
+        assistant_professor: 0,
+        associate_professor: 1, // Professor A
+        full_professor: 0,
+      });
+      console.log(
+        'Overdue breakdown:',
+        JSON.stringify(res.body.counts.overdueByRank),
+      );
+
+      try {
+        await ctx.sql('UPDATE teachers SET is_active = FALSE WHERE id = 1');
+        const inactive = await report();
+        assert.equal(inactive.status, 200);
+        assert.deepEqual(inactive.body.counts.overdueByRank, {
+          assistant_professor: 0,
+          associate_professor: 0,
+          full_professor: 0,
+        });
+        assert.equal(inactive.body.counts.overdue, 0);
+        console.log('Inactive overdue professor excluded from breakdown');
+      } finally {
+        await ctx.sql('UPDATE teachers SET is_active = TRUE WHERE id = 1');
+      }
     } finally {
       for (const entry of created.reverse()) {
         if (entry.assessmentId) {
