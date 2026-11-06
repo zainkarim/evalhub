@@ -21,6 +21,11 @@ test('missing observations count unfinished sign-ups once', async () => {
   // Seed: assessment 1 is Fall 2026, with no observation.
   // Assessment 2 belongs to Spring 2026 and must not count.
   await check('Seed: sign-up without observation', 1);
+  await ctx.sql('UPDATE teachers SET is_active = FALSE WHERE id = 3');
+  await check('Inactive professor excluded', 0);
+
+  await ctx.sql('UPDATE teachers SET is_active = TRUE WHERE id = 3');
+  await check('Reactivated professor included again', 1);
 
   const [observation] = await ctx.sql(
     `INSERT INTO observations

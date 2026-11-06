@@ -405,7 +405,9 @@ const assessmentParticipation = {
     const { rows: missingRows } = await query(
       `SELECT COUNT(*)::int AS missing
          FROM assessments a
+         JOIN teachers t ON t.id = a.teacher_id
         WHERE a.due_term_id = $1
+          AND t.is_active = TRUE
           AND a.status NOT IN ('cancelled', 'not_eligible')
           AND NOT EXISTS (
             SELECT 1
