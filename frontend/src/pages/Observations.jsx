@@ -168,7 +168,7 @@ function AllSignUps() {
                   <Td>
                     <Link
                       to={`/assessments/${item.id}`}
-                      className="whitespace-nowrap font-medium text-primary-ink hover:underline"
+                      className="whitespace-nowrap font-medium text-primary-ink hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center pointer-coarse:px-2"
                     >
                       Open
                     </Link>
@@ -236,7 +236,7 @@ function MyActivity({ user }) {
                         <Td>
                           <Link
                             to={`/assessments/${item.id}`}
-                            className="whitespace-nowrap font-medium text-primary-ink hover:underline"
+                            className="whitespace-nowrap font-medium text-primary-ink hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center pointer-coarse:px-2"
                           >
                             Open
                           </Link>
