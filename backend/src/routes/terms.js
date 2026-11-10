@@ -18,8 +18,7 @@ const toTerm = (r) => ({
   signupDeadline: r.signup_deadline,
   observationDeadline: r.observation_deadline,
   feedbackDeadline: r.feedback_deadline,
-  // When the committee started observer selection for the term (the first
-  // candidate list built for one of its sign-ups); null until then.
+  // When the committee clicked Start Observer Selection for the term; null until then.
   selectionStartedAt: r.selection_started_at ?? null,
 });
 
@@ -44,15 +43,7 @@ const idParams = z.object({ id: z.coerce.number().int().positive() });
 
 // GET /api/terms  (any authenticated user) — newest first
 router.get('/', async (req, res) => {
-  const { rows } = await query(
-    `SELECT t.*,
-            (SELECT min(cl.generated_at)
-               FROM candidate_lists cl
-               JOIN assessments a ON a.id = cl.assessment_id
-              WHERE a.due_term_id = t.id) AS selection_started_at
-       FROM terms t
-      ORDER BY t.start_date DESC`,
-  );
+  const { rows } = await query('SELECT * FROM terms ORDER BY start_date DESC');
   res.json({ data: rows.map(toTerm) });
 });
 
@@ -123,17 +114,6 @@ router.patch(
   },
 );
 
-const selectionStartedAt = async (termId) => {
-  const { rows } = await query(
-    `SELECT min(cl.generated_at) AS at
-       FROM candidate_lists cl
-       JOIN assessments a ON a.id = cl.assessment_id
-      WHERE a.due_term_id = $1`,
-    [termId],
-  );
-  return rows[0].at;
-};
-
 // POST /api/terms/:id/start-observer-selection  (AC / admin)
 // THE one cycle-wide "Start Observer Selection". After the sign-up deadline the
 // committee clicks it once and every sign-up in the term that has no candidate
@@ -152,7 +132,7 @@ router.post(
     if (!termRows[0]) throw notFound('Term');
     const term = termRows[0];
 
-    const startedBefore = await selectionStartedAt(id);
+    const startedBefore = term.selection_started_at;
     const today = new Date().toISOString().slice(0, 10);
     if (!startedBefore && term.signup_deadline && today <= term.signup_deadline) {
       throw new HttpError(
@@ -186,10 +166,16 @@ router.post(
       built.push({ poolSize: matching.poolSize, fullListSize: matching.fullListSize });
     }
 
+    const { rows: startedRows } = await query(
+      `UPDATE terms SET selection_started_at = COALESCE(selection_started_at, now())
+        WHERE id = $1 RETURNING selection_started_at`,
+      [id],
+    );
+
     res.json({
       termId: id,
       alreadyStarted: Boolean(startedBefore),
-      startedAt: await selectionStartedAt(id),
+      startedAt: startedRows[0].selection_started_at,
       started: built.length,
       noEligible: built.filter((b) => b.poolSize === 0).length,
       limited: built.filter((b) => b.poolSize > 0 && b.poolSize < b.fullListSize).length,

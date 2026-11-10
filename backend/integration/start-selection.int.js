@@ -10,13 +10,16 @@ after(async () => { await ctx?.close(); });
 // database back the way it was (deadline, statuses, any lists fn created).
 const withTerm = async (deadline, fn) => {
   const [term] = await ctx.sql(
-    `SELECT id, signup_deadline FROM terms
+    `SELECT id, signup_deadline, selection_started_at FROM terms
       WHERE id IN (SELECT due_term_id FROM assessments WHERE status = 'signed_up')
       ORDER BY id LIMIT 1`,
   );
   const before = await ctx.sql('SELECT id, status FROM assessments WHERE due_term_id = $1', [term.id]);
   const [{ max }] = await ctx.sql('SELECT coalesce(max(id), 0)::int AS max FROM candidate_lists');
-  await ctx.sql('UPDATE terms SET signup_deadline = $2 WHERE id = $1', [term.id, deadline]);
+  await ctx.sql(
+    'UPDATE terms SET signup_deadline = $2, selection_started_at = NULL WHERE id = $1',
+    [term.id, deadline],
+  );
   try {
     await fn(term.id);
   } finally {
@@ -24,7 +27,10 @@ const withTerm = async (deadline, fn) => {
     for (const row of before) {
       await ctx.sql('UPDATE assessments SET status = $2 WHERE id = $1', [row.id, row.status]);
     }
-    await ctx.sql('UPDATE terms SET signup_deadline = $2 WHERE id = $1', [term.id, term.signup_deadline]);
+    await ctx.sql(
+      'UPDATE terms SET signup_deadline = $2, selection_started_at = $3 WHERE id = $1',
+      [term.id, term.signup_deadline, term.selection_started_at],
+    );
   }
 };
 
@@ -65,6 +71,7 @@ test('Start builds a list for every waiting sign-up, saves empty pools, and is i
       assert.equal(a.status, list.list_size > 0 ? 'candidates_generated' : 'signed_up');
     }
 
+    assert.ok(first.body.startedAt, 'the term records when selection started');
     const terms = await ctx.api('GET', '/terms', { as: USERS.ac });
     assert.ok(terms.body.data.find((t) => t.id === termId).selectionStartedAt);
 
