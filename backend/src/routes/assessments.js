@@ -308,6 +308,114 @@ router.get('/mine', async (req, res) => {
   res.json({ data: await withNestedViews(rows.map(toAssessment)) });
 });
 
+const alertsQuery = z.object({
+  termId: z.coerce.number().int().positive().optional(),
+});
+
+// GET /api/assessments/alerts?termId=   (AC / admin) -- the committee's Cycle
+// page and nav counter. Registered before GET /:id, which would otherwise read
+// "alerts" as an assessment id and answer 400.
+//   urgent  = the latest candidate list found nobody eligible (pool 0)
+//   limited = the pool is smaller than a full list (candidate_list_size)
+// An alert clears once an attempt is scheduled or the sign-up is postponed, so
+// only sign-ups still waiting on an observer are considered.
+router.get(
+  '/alerts',
+  requireRole(...AC_OR_ADMIN),
+  validate(alertsQuery, 'query'),
+  async (req, res) => {
+    const { termId } = req.valid.query;
+
+    const { rows: settingRows } = await query(
+      `SELECT value FROM app_settings WHERE key = 'candidate_list_size'`,
+    );
+    const fullListSize = Number(settingRows[0]?.value ?? 5);
+
+    const alertParams = termId ? [fullListSize, termId] : [fullListSize];
+    const { rows: alertRows } = await query(
+      `SELECT a.*, ${ASSESSMENT_COURSE_SELECT}, cl.pool_size, cl.list_size
+         FROM assessments a ${ASSESSMENT_COURSE_JOIN}
+         JOIN LATERAL (
+           SELECT pool_size, list_size FROM candidate_lists
+            WHERE assessment_id = a.id
+            ORDER BY generated_at DESC, id DESC LIMIT 1
+         ) cl ON TRUE
+        WHERE a.status IN ('signed_up', 'candidates_generated')
+          AND cl.pool_size < $1
+          ${termId ? 'AND a.due_term_id = $2' : ''}
+        ORDER BY (cl.pool_size = 0) DESC, a.signed_up_at`,
+      alertParams,
+    );
+
+    const termParams = termId ? [termId] : [];
+    const termClause = termId ? 'AND a.due_term_id = $1' : '';
+    const [{ rows: postponedRows }, { rows: signOffRows }] = await Promise.all([
+      query(
+        `SELECT a.*, ${ASSESSMENT_COURSE_SELECT}
+           FROM assessments a ${ASSESSMENT_COURSE_JOIN}
+          WHERE a.status = 'postponed' ${termClause}
+          ORDER BY a.signed_up_at`,
+        termParams,
+      ),
+      query(
+        `SELECT o.*
+           FROM observations o JOIN assessments a ON a.id = o.assessment_id
+          WHERE o.status = 'approved' ${termClause}
+          ORDER BY o.scheduled_date NULLS LAST, o.id`,
+        termParams,
+      ),
+    ]);
+
+    const alerts = await withNestedViews(
+      alertRows.map((r) => ({
+        ...toAssessment(r),
+        alert: r.pool_size === 0 ? 'no_eligible_observers' : 'limited_pool',
+        candidateSummary: { poolSize: r.pool_size, listSize: r.list_size },
+      })),
+    );
+    const postponed = await withNestedViews(postponedRows.map(toAssessment));
+
+    // Observations waiting on a sign-off, shown with who and what.
+    const parentIds = [...new Set(signOffRows.map((o) => o.assessment_id))];
+    const { rows: parentRows } = parentIds.length
+      ? await query('SELECT * FROM assessments WHERE id = ANY($1::int[])', [parentIds])
+      : { rows: [] };
+    const parents = new Map(
+      (await withNestedViews(parentRows.map(toAssessment))).map((v) => [v.id, v]),
+    );
+    const observerIds = [...new Set(signOffRows.map((o) => o.observer_id))];
+    const { rows: observerRows } = observerIds.length
+      ? await query('SELECT * FROM teachers WHERE id = ANY($1::int[])', [observerIds])
+      : { rows: [] };
+    const observers = new Map(observerRows.map((r) => [r.id, toTeacherBrief(r)]));
+
+    const awaitingSignOff = signOffRows.map((o) => ({
+      id: o.id,
+      assessmentId: o.assessment_id,
+      attemptNo: o.attempt_no,
+      status: o.status,
+      scheduledDate: o.scheduled_date,
+      observer: observers.get(o.observer_id) ?? null,
+      observee: parents.get(o.assessment_id)?.teacher ?? null,
+      section: parents.get(o.assessment_id)?.section ?? null,
+      observerSignedOffAt: o.observer_signed_off_at,
+      observeeSignedOffAt: o.observee_signed_off_at,
+    }));
+
+    res.json({
+      data: alerts,
+      postponed,
+      awaitingSignOff,
+      counts: {
+        urgent: alerts.filter((v) => v.alert === 'no_eligible_observers').length,
+        limited: alerts.filter((v) => v.alert === 'limited_pool').length,
+        postponed: postponed.length,
+        awaitingSignOff: awaitingSignOff.length,
+      },
+    });
+  },
+);
+
 // GET /api/assessments/:id
 router.get('/:id', validate(idParams, 'params'), async (req, res) => {
   const { rows } = await query(
