@@ -7,7 +7,7 @@ import { HttpError, notFound } from '../middleware/errors.js';
 
 const router = Router();
 
-const toTerm = (r) => ({
+export const toTerm = (r) => ({
   id: r.id,
   season: r.season,
   year: r.year,
