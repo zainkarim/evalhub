@@ -3,6 +3,31 @@ import { api } from "../lib/api"
 import { Callout, Label, SkeletonText, StickyActionBar, Textarea, Button } from "./ui"
 import { useToast } from "./ui/toast-context"
 
+// Unsaved answers are kept on this device, so a dropped connection or an iPad
+// going to sleep mid-class doesn't lose them. Cleared after a successful save.
+const draftKey = (id) => `evalhub.feedbackDraft.${id}`
+function readDraft(id) {
+  try {
+    return JSON.parse(localStorage.getItem(draftKey(id)) ?? "null")
+  } catch {
+    return null
+  }
+}
+function writeDraft(id, draft) {
+  try {
+    localStorage.setItem(draftKey(id), JSON.stringify(draft))
+  } catch {
+    // Storage is unavailable (private browsing, full); the form still works.
+  }
+}
+function clearDraft(id) {
+  try {
+    localStorage.removeItem(draftKey(id))
+  } catch {
+    // Nothing to clear.
+  }
+}
+
 const scale = (maxScore) => Array.from({ length: maxScore }, (_, index) => index + 1)
 
 // The observer's in-app copy of the observation template (#33, requirements
@@ -23,6 +48,7 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const [savedAt, setSavedAt] = useState(null)
+  const [draftRestored, setDraftRestored] = useState(false)
 
   // The observer's form loads the active criteria; the preview is handed them.
   const needsLoad = !given
@@ -56,8 +82,16 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
           ]),
         )
 
-        setScores(restoredScores)
-        setNotes(result?.notes ?? "")
+        // Answers changed on this device but not saved yet win over the server copy.
+        const draft = readDraft(observationId)
+        if (draft) {
+          setScores({ ...restoredScores, ...draft.scores })
+          setNotes(draft.notes ?? result?.notes ?? "")
+          setDraftRestored(true)
+        } else {
+          setScores(restoredScores)
+          setNotes(result?.notes ?? "")
+        }
       })
       .catch((err) => {
         if (active) {
@@ -106,8 +140,10 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
   const percent = Math.round((answered / criteria.length) * 100)
 
   const choose = (criterionId, score) => {
-    setScores((current) => ({ ...current, [criterionId]: score }))
+    const next = { ...scores, [criterionId]: score }
+    setScores(next)
     setSavedAt(null)
+    if (!preview) writeDraft(observationId, { scores: next, notes })
   }
 
   async function save(event) {
@@ -122,6 +158,8 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
         notes.trim(),
       )
       setSavedAt(new Date())
+      clearDraft(observationId)
+      setDraftRestored(false)
       toast.success("Observation form saved.")
       onSaved?.()
     } catch (err) {
@@ -139,6 +177,11 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
 
   return (
     <form onSubmit={save}>
+      {draftRestored && (
+        <Callout tone="info" className="mb-4">
+          We restored answers you hadn&apos;t saved yet on this device. Save the form to keep them.
+        </Callout>
+      )}
       {!preview && (
         <div className="mb-3 flex items-center justify-between gap-4 text-sm">
           <span className={complete ? "font-medium text-success" : "text-muted"}>
@@ -243,6 +286,7 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
         onChange={(event) => {
           setNotes(event.target.value)
           setSavedAt(null)
+          if (!preview) writeDraft(observationId, { scores, notes: event.target.value })
         }}
         rows={5}
         disabled={preview || busy}
