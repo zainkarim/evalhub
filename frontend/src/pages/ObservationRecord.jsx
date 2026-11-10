@@ -21,6 +21,7 @@ import {
 import { useToast } from "../components/ui/toast-context"
 import { useAuth } from "../context/auth-context"
 import { api } from "../lib/api"
+import { buildIcs, downloadIcs } from "../lib/calendar"
 import {
   courseLabel,
   formatDate,
@@ -32,6 +33,24 @@ import {
 } from "../lib/format"
 import { isAC } from "../lib/roles"
 import { useApi } from "../lib/useApi"
+
+// Downloads the scheduled observation as an .ics file for Google, Outlook or
+// Apple Calendar. Uses the section's class time when it is listed.
+function addToCalendar(observation) {
+  const { section } = observation
+  const course = section?.course
+  const label = course ? `${courseLabel(course)} · ${course.title}` : "Class observation"
+  const content = buildIcs({
+    uid: `observation-${observation.id}`,
+    day: toDateOnly(observation.scheduledDate),
+    startTime: section?.startTime,
+    endTime: section?.endTime,
+    title: `Peer observation: ${label}`,
+    location: section?.location,
+    description: `Observer: ${fullName(observation.observer)}\nBeing observed: ${fullName(observation.observee)}`,
+  })
+  downloadIcs(`evalhub-observation-${observation.id}.ics`, content)
+}
 
 function SignOffCard({ label, name, at }) {
   return (
@@ -142,6 +161,13 @@ function ObservationRecord() {
                   <Field label="Observation date">{formatDate(observation.scheduledDate)}</Field>
                   <Field label="Attempt">{observation.attemptNo}</Field>
                 </dl>
+                {status === "approved" && observation.scheduledDate && (isObserver || isObservee) && (
+                  <div className="mt-4">
+                    <Button variant="secondary" size="sm" onClick={() => addToCalendar(observation)}>
+                      Add to calendar
+                    </Button>
+                  </div>
+                )}
                 {(committee || isObservee) && (
                   <p className="mt-4 text-sm">
                     <Link
