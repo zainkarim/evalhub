@@ -1,5 +1,8 @@
-import { useCallback, useEffect, useState } from "react"
-import { Link, useNavigate, useParams } from "react-router-dom"
+import { useCallback, useState } from "react"
+import { useNavigate, useParams } from "react-router-dom"
+import StateBlock from "../components/StateBlock"
+import { Button, Callout, Card, Input, Label, PageHeader, Select, StickyActionBar } from "../components/ui"
+import { useToast } from "../components/ui/toast-context"
 import { api } from "../lib/api"
 import { useApi } from "../lib/useApi"
 import { useAuth } from "../context/auth-context"
@@ -17,6 +20,7 @@ const EMPTY_FORM = {
 function ProfessorForm() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const toast = useToast()
   const isEditing = Boolean(id)
   const { user } = useAuth()
   const committee = isAC(user)
@@ -36,24 +40,27 @@ function ProfessorForm() {
     loading,
   } = useApi(call)
 
-  useEffect(() => {
-    if (!isEditing) {
+  // Fill the form from the loaded professor (editing) or reset it (adding). Done
+  // while rendering, when what the form shows no longer matches its source, so
+  // there is no extra render with stale values.
+  const source = isEditing ? professor : "new"
+  const [filledFrom, setFilledFrom] = useState(null)
+  if (source && source !== filledFrom) {
+    setFilledFrom(source)
+    if (isEditing) {
+      setForm({
+        firstName: professor.firstName ?? "",
+        lastName: professor.lastName ?? "",
+        email: professor.email ?? "",
+        school: professor.school ?? "",
+        rank: professor.rank ?? "assistant_professor",
+        isActive: professor.isActive ?? true,
+      })
+    } else {
       setForm(EMPTY_FORM)
       setError("")
-      return
     }
-
-    if (!professor) return
-
-    setForm({
-      firstName: professor.firstName ?? "",
-      lastName: professor.lastName ?? "",
-      email: professor.email ?? "",
-      school: professor.school ?? "",
-      rank: professor.rank ?? "assistant_professor",
-      isActive: professor.isActive ?? true,
-    })
-  }, [isEditing, professor])
+  }
 
   function handleChange(event) {
     const { name, value, type, checked } = event.target
@@ -76,9 +83,11 @@ function ProfessorForm() {
           : { rank: form.rank }
 
         await api.updateProfessor(id, updates)
+        toast.success("Professor saved.")
         navigate(committee ? `/professors/${id}` : "/observations")
       } else {
         const professor = await api.createProfessor(form)
+        toast.success("Professor added.")
         navigate(`/professors/${professor.id}`)
       }
     } catch (err) {
@@ -88,119 +97,121 @@ function ProfessorForm() {
     }
   }
 
+  // Faculty editing their own profile come from, and go back to, Observations.
+  const backTo = committee ? (isEditing ? `/professors/${id}` : "/professors") : "/observations"
+  // If the professor can't be loaded there is no profile page to go back to.
+  const errorBackTo = committee ? "/professors" : "/observations"
+  const makeHeader = (to) => (
+    <PageHeader
+      backTo={{ to, label: "Back" }}
+      title={isEditing ? "Edit Professor" : "Add Professor"}
+      subtitle={
+        isEditing
+          ? committee
+            ? "Update faculty information."
+            : "You can update your rank. The committee manages your other details."
+          : "Add a faculty member to the evaluation roster."
+      }
+    />
+  )
+  const header = makeHeader(backTo)
+
   if (loading) {
-    return <p className="text-sm text-muted">Loading professor...</p>
+    return (
+      <div className="space-y-6">
+        {header}
+        <StateBlock loading skeleton="form" />
+      </div>
+    )
   }
   if (isEditing && loadError) {
     return (
-      <div>
-        <Link to={committee ? "/professors" : "/observations"} className="text-sm text-muted hover:text-ink">
-          Back
-        </Link>
-
-        <p className="mt-4 text-sm text-red-700">
+      <div className="space-y-6">
+        {makeHeader(errorBackTo)}
+        <Callout tone="danger" role="alert">
           {loadError.message}
-        </p>
+        </Callout>
       </div>
     )
   }
 
   return (
-    <div className="max-w-2xl">
-      <Link
-        to={committee ? (isEditing ? `/professors/${id}` : "/professors") : "/observations"}
-        className="text-sm text-muted hover:text-ink"
-      >
-        Back
-      </Link>
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {header}
 
-      <h1 className="mt-4 text-2xl font-semibold tracking-tight">
-        {isEditing ? "Edit Professor" : "Add Professor"}
-      </h1>
-
-      <p className="mt-1 text-sm text-muted">
-        {isEditing
-          ? "Update faculty information."
-          : "Add a faculty member to the evaluation roster."}
-      </p>
-
-      <form
-        onSubmit={handleSubmit}
-        className="mt-6 space-y-5 rounded border border-line bg-white p-6"
-      >
+      <Card className="max-w-2xl space-y-5">
         {error && (
-          <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <Callout tone="danger" role="alert">
             {error}
-          </div>
+          </Callout>
         )}
 
         <div className="grid gap-5 sm:grid-cols-2">
-          <label className="text-sm">
-            <span className="font-medium">First name</span>
-            <input
+          <div>
+            <Label htmlFor="firstName">First name</Label>
+            <Input
+              id="firstName"
               type="text"
               name="firstName"
               value={form.firstName}
               onChange={handleChange}
               required
               disabled={!committee}
-              className="mt-1 w-full rounded border border-line px-3 py-2"
+              className="mt-1.5"
             />
-          </label>
+          </div>
 
-          <label className="text-sm">
-            <span className="font-medium">Last name</span>
-            <input
+          <div>
+            <Label htmlFor="lastName">Last name</Label>
+            <Input
+              id="lastName"
               type="text"
               name="lastName"
               value={form.lastName}
               onChange={handleChange}
               required
               disabled={!committee}
-              className="mt-1 w-full rounded border border-line px-3 py-2"
+              className="mt-1.5"
             />
-          </label>
+          </div>
         </div>
 
-        <label className="block text-sm">
-          <span className="font-medium">Email</span>
-          <input
+        <div>
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
             type="email"
             name="email"
             value={form.email}
             onChange={handleChange}
             required
             disabled={!committee}
-            className="mt-1 w-full rounded border border-line px-3 py-2"
+            className="mt-1.5"
           />
-        </label>
+        </div>
 
-        <label className="block text-sm">
-          <span className="font-medium">School</span>
-          <input
+        <div>
+          <Label htmlFor="school">School</Label>
+          <Input
+            id="school"
             type="text"
             name="school"
             value={form.school}
             onChange={handleChange}
             required
             disabled={!committee}
-            className="mt-1 w-full rounded border border-line px-3 py-2"
+            className="mt-1.5"
           />
-        </label>
+        </div>
 
-        <label className="block text-sm">
-          <span className="font-medium">Rank</span>
-          <select
-            name="rank"
-            value={form.rank}
-            onChange={handleChange}
-            className="mt-1 w-full rounded border border-line px-3 py-2"
-          >
+        <div>
+          <Label htmlFor="rank">Rank</Label>
+          <Select id="rank" name="rank" value={form.rank} onChange={handleChange} className="mt-1.5">
             <option value="assistant_professor">Assistant Professor</option>
             <option value="associate_professor">Associate Professor</option>
             <option value="full_professor">Full Professor</option>
-          </select>
-        </label>
+          </Select>
+        </div>
 
         {isEditing && committee && (
           <label className="flex items-center gap-2 text-sm">
@@ -209,33 +220,19 @@ function ProfessorForm() {
               name="isActive"
               checked={form.isActive}
               onChange={handleChange}
+              className="h-4 w-4 accent-primary-ink"
             />
             <span className="font-medium">Active faculty member</span>
           </label>
         )}
+      </Card>
 
-        <div className="flex gap-3 border-t border-line pt-5">
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded bg-utd-green px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {saving
-              ? "Saving..."
-              : isEditing
-                ? "Save Changes"
-                : "Add Professor"}
-          </button>
-
-          <Link
-            to={committee ? (isEditing ? `/professors/${id}` : "/professors") : "/observations"}
-            className="rounded border border-line px-4 py-2 text-sm"
-          >
-            Cancel
-          </Link>
-        </div>
-      </form>
-    </div>
+      <StickyActionBar back={{ to: backTo, label: "Cancel" }}>
+        <Button type="submit" loading={saving}>
+          {saving ? "Saving..." : isEditing ? "Save Changes" : "Add Professor"}
+        </Button>
+      </StickyActionBar>
+    </form>
   )
 }
 

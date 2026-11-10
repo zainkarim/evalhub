@@ -1,24 +1,33 @@
-import { BrowserRouter, Navigate, Route, Routes, useParams } from "react-router-dom"
+import { Lock } from "lucide-react"
+import { Suspense, lazy } from "react"
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom"
 import Layout from "./components/Layout"
 import ProtectedRoute from "./components/ProtectedRoute"
+import RouteErrorBoundary from "./components/RouteErrorBoundary"
+import { EmptyState } from "./components/ui"
 import { AuthProvider } from "./context/AuthContext"
 import { useAuth } from "./context/auth-context"
 import { AC_ROLES, isAC, hasTeacherProfile } from "./lib/roles"
-import AssessmentDetail from "./pages/AssessmentDetail"
-import CourseDetail from "./pages/CourseDetail"
-import Courses from "./pages/Courses"
-import Cycle from "./pages/Cycle"
-import EvaluationCriteria from "./pages/EvaluationCriteria"
-import Login from "./pages/Login"
-import Notifications from "./pages/Notifications"
-import ObservationRecord from "./pages/ObservationRecord"
-import ObservationSignup from "./pages/ObservationSignup"
-import Observations from "./pages/Observations"
-import ProfessorDetail from "./pages/ProfessorDetail"
-import ProfessorManagement from "./pages/ProfessorManagement"
-import Professors from "./pages/Professors"
-import FacultyDashboard from "./pages/FacultyDashboard"
+import { ScreenFallback } from "./components/RouteFallback"
 
+// Every page is its own chunk, downloaded when the route is first visited (the
+// app shell and the route guards stay in the main bundle). Route paths and
+// guards are exactly as before.
+const AssessmentDetail = lazy(() => import("./pages/AssessmentDetail"))
+const CourseDetail = lazy(() => import("./pages/CourseDetail"))
+const Courses = lazy(() => import("./pages/Courses"))
+const Cycle = lazy(() => import("./pages/Cycle"))
+const EvaluationCriteria = lazy(() => import("./pages/EvaluationCriteria"))
+const FacultyDashboard = lazy(() => import("./pages/FacultyDashboard"))
+const Landing = lazy(() => import("./pages/Landing"))
+const Login = lazy(() => import("./pages/Login"))
+const Notifications = lazy(() => import("./pages/Notifications"))
+const ObservationRecord = lazy(() => import("./pages/ObservationRecord"))
+const ObservationSignup = lazy(() => import("./pages/ObservationSignup"))
+const Observations = lazy(() => import("./pages/Observations"))
+const ProfessorDetail = lazy(() => import("./pages/ProfessorDetail"))
+const ProfessorManagement = lazy(() => import("./pages/ProfessorManagement"))
+const Professors = lazy(() => import("./pages/Professors"))
 
 // Committee-only pages: anyone else gets a plain "limited to the committee"
 // message instead of the page (the navigation link is hidden for them too).
@@ -37,9 +46,12 @@ function ProfessorSelfEditRoute({ children }) {
   }
 
   return (
-    <p className="p-10 text-sm text-muted">
-      You can only edit your own professor profile.
-    </p>
+    <EmptyState
+      icon={Lock}
+      titleAs="h1"
+      title="You can only edit your own professor profile."
+      text="Use My Profile in the navigation to edit yours."
+    />
   )
 }
 
@@ -49,12 +61,41 @@ function Home() {
   return <Navigate to={isAC(user) ? "/cycle" : "/observations"} replace />
 }
 
+// Dev-only UI kit gallery. The guard makes the import dead code in a production
+// build, so the page never ships.
+const UiGallery = import.meta.env.DEV ? lazy(() => import("./pages/dev/UiGallery")) : null
+
+// Outermost safety net: an error on a public page (or in the app shell itself)
+// shows an error card instead of a blank screen. Pages inside the shell have their
+// own boundary in Layout, so the header stays usable there.
+function AppErrorBoundary({ children }) {
+  const location = useLocation()
+  return (
+    <RouteErrorBoundary resetKey={location.pathname} fullScreen>
+      {children}
+    </RouteErrorBoundary>
+  )
+}
+
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <AppErrorBoundary>
+        <Suspense fallback={<ScreenFallback />}>
         <Routes>
+          <Route path="/welcome" element={<Landing />} />
           <Route path="/login" element={<Login />} />
+          {import.meta.env.DEV && (
+            <Route
+              path="/dev/ui"
+              element={
+                <Suspense fallback={null}>
+                  <UiGallery />
+                </Suspense>
+              }
+            />
+          )}
 
           <Route
             element={
@@ -128,6 +169,8 @@ function App() {
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
+        </AppErrorBoundary>
       </AuthProvider>
     </BrowserRouter>
   )
