@@ -201,7 +201,7 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
                     return (
                       <label
                         key={step}
-                        className={`flex h-9 w-10 items-center justify-center border-l border-line text-sm tabular-nums first:border-l-0 has-[:focus-visible]:relative has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-primary-ink ${
+                        className={`flex h-9 w-10 pointer-coarse:h-11 pointer-coarse:w-12 items-center justify-center border-l border-line text-sm tabular-nums first:border-l-0 has-[:focus-visible]:relative has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-primary-ink ${
                           selected
                             ? "bg-primary font-semibold text-primary-fg"
                             : preview
