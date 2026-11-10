@@ -62,7 +62,7 @@ export default function ObservationRows({ rows, mode, view, empty = "No observat
               <Td>
                 <Link
                   to={`/records/${observation.id}`}
-                  className="whitespace-nowrap font-medium text-primary-ink hover:underline"
+                  className="whitespace-nowrap font-medium text-primary-ink hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center pointer-coarse:px-2"
                 >
                   {observation.status === "approved" ? "Sign off" : "View"}
                 </Link>
