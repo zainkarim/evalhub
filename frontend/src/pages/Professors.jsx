@@ -1,6 +1,7 @@
 import { Users } from "lucide-react"
 import { useCallback, useMemo, useState } from "react"
 import { useSearchParams } from "react-router-dom"
+import KpiPanel from "../components/KpiPanel"
 import ProfessorsTable from "../components/ProfessorsTable"
 import StateBlock from "../components/StateBlock"
 import { Button, Card, CardBody, EmptyState, HelpText, Input, Label, PageHeader, Select } from "../components/ui"
@@ -108,6 +109,8 @@ function Professors() {
               <Tile label="Signed up" value={counts.signedUp} />
               <Tile label="Completed" value={counts.completed} />
             </div>
+
+            <KpiPanel report={data.report} />
 
             <Card padded={false}>
               <CardBody className="py-5">
