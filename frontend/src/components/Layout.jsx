@@ -16,12 +16,15 @@ import { resetStagger } from "./ui"
 import { displayName, hasTeacherProfile, isAC, roleLabel } from "../lib/roles"
 
 // Faculty and committee members see different navigation. `badge` names the
-// live counter shown next to the link.
+// live counter shown next to the link. `menuOnly` links stay out of the inline
+// row (it is full at 1280px for the committee) and show in the menu button's
+// panel and the account menu instead.
 const links = [
   { to: "/dashboard", label: "Dashboard" },
   { to: "/professors", label: "Professors", committeeOnly: true },
   { to: "/courses", label: "Courses" },
   { to: "/observations", label: "Observations", badge: "requests" },
+  { to: "/requests", label: "My Requests", profileOnly: true, menuOnly: true },
   { to: "/cycle", label: "Cycle", committeeOnly: true, badge: "alerts" },
   { to: "/notifications", label: "Notifications", profileOnly: true, badge: "unread" },
   { to: "/evaluation-criteria", label: "Evaluation Criteria", committeeOnly: true },
@@ -129,12 +132,18 @@ function Layout() {
             onSignOut={signOut}
           />
           <BrandMark to="/" />
-          <MainNav items={visibleLinks} counts={counts} />
+          <MainNav items={visibleLinks.filter((link) => !link.menuOnly)} counts={counts} />
 
           <div className="ml-auto flex items-center gap-1 sm:gap-2">
             <NotificationBell />
             <ThemeToggle />
-            <UserMenu name={name} role={roleLabel(user)} initials={initials} onSignOut={signOut} />
+            <UserMenu
+              name={name}
+              role={roleLabel(user)}
+              initials={initials}
+              links={visibleLinks.filter((link) => link.menuOnly)}
+              onSignOut={signOut}
+            />
           </div>
         </div>
       </header>

@@ -28,6 +28,7 @@ const Observations = lazy(() => import("./pages/Observations"))
 const ProfessorDetail = lazy(() => import("./pages/ProfessorDetail"))
 const ProfessorManagement = lazy(() => import("./pages/ProfessorManagement"))
 const Professors = lazy(() => import("./pages/Professors"))
+const RequestTracking = lazy(() => import("./pages/RequestTracking"))
 
 // Committee-only pages: anyone else gets a plain "limited to the committee"
 // message instead of the page (the navigation link is hidden for them too).
@@ -51,6 +52,21 @@ function ProfessorSelfEditRoute({ children }) {
       titleAs="h1"
       title="You can only edit your own professor profile."
       text="Use My Profile in the navigation to edit yours."
+    />
+  )
+}
+
+// Pages about the person's own observations (e.g. My Requests) need a teacher
+// profile; an account without one (admin) gets a message instead.
+function TeacherProfileRoute({ children }) {
+  const { user } = useAuth()
+  if (hasTeacherProfile(user)) return children
+  return (
+    <EmptyState
+      icon={Lock}
+      titleAs="h1"
+      title="This page is for professors."
+      text="Your account has no professor profile, so it has no observation requests."
     />
   )
 }
@@ -144,6 +160,14 @@ function App() {
             <Route path="/courses/:id" element={<CourseDetail />} />
             <Route path="/dashboard" element={<FacultyDashboard />} />
             <Route path="/observations" element={<Observations />} />
+            <Route
+              path="/requests"
+              element={
+                <TeacherProfileRoute>
+                  <RequestTracking />
+                </TeacherProfileRoute>
+              }
+            />
             <Route path="/observation-signup" element={<ObservationSignup />} />
             <Route path="/assessments/:id" element={<AssessmentDetail />} />
             <Route path="/records/:id" element={<ObservationRecord />} />
