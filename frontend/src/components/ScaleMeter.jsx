@@ -13,7 +13,7 @@ function ScaleMeter({ max, value, label }) {
         <span
           key={step}
           className={`h-2 w-3 rounded-sm ${
-            value && step <= value ? "bg-utd-green" : value ? "bg-line" : "bg-utd-green/25"
+            value && step <= value ? "bg-primary-ink" : value ? "bg-line" : "bg-primary-ink/25"
           }`}
         />
       ))}
