@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { pool, query } from '../db/pool.js';
-import { AC_OR_ADMIN } from '../middleware/auth.js';
+import { AC_OR_ADMIN, isViewOnly } from '../middleware/auth.js';
 import { HttpError, notFound } from '../middleware/errors.js';
 import { idParams, pagination, paged, validate } from '../middleware/validate.js';
 
@@ -36,10 +36,16 @@ function requireParty(req, observation) {
   const isObserver = req.user.teacherId === observation.observer_id;
   const isObservee = req.user.teacherId === observation.observee_id;
   const isAcAdmin = AC_OR_ADMIN.includes(req.user.role);
+  // Dept Head / Annual Review Committee see completed records only. Anything
+  // still in progress is reported as not found, so its existence isn't leaked.
+  if (isViewOnly(req.user)) {
+    if (observation.status !== 'completed') throw notFound('Observation');
+    return { isObserver: false, isObservee: false, isAcAdmin: false, isViewOnly: true };
+  }
   if (!isObserver && !isObservee && !isAcAdmin) {
     throw new HttpError(403, 'forbidden', 'You are not part of this observation');
   }
-  return { isObserver, isObservee, isAcAdmin };
+  return { isObserver, isObservee, isAcAdmin, isViewOnly: false };
 }
 
 // Retired endpoint: selecting an observer no longer requires AC approval.
@@ -109,7 +115,8 @@ const listQuery = z.object({
 });
 
 // GET /api/observations?status=&page=&pageSize=
-// Faculty get the observations they give or receive; AC/admin get all of them.
+// Faculty get the observations they give or receive; AC/admin get all of them;
+// Dept Head / Annual Review Committee get every completed observation.
 router.get('/', validate(listQuery, 'query'), async (req, res) => {
   const { status, page, pageSize } = req.valid.query;
   const isAcAdmin = AC_OR_ADMIN.includes(req.user.role);
@@ -121,7 +128,9 @@ router.get('/', validate(listQuery, 'query'), async (req, res) => {
     where.push(sql.replaceAll('?', `$${params.length}`));
   };
 
-  if (!isAcAdmin) {
+  if (isViewOnly(req.user)) {
+    add('o.status = ?', 'completed');
+  } else if (!isAcAdmin) {
     if (!req.user.teacherId) {
       throw new HttpError(403, 'forbidden', 'This account is not linked to a teacher profile');
     }
@@ -162,7 +171,7 @@ router.get('/', validate(listQuery, 'query'), async (req, res) => {
   res.json(paged(rows.map(toObservationListItem), count[0].total, page, pageSize));
 });
 
-// GET /api/observations/:id   (observer, observee, or AC/admin)
+// GET /api/observations/:id   (observer, observee, AC/admin, or view-only once completed)
 router.get('/:id', validate(idParams, 'params'), async (req, res) => {
   const observation = await loadObservation(req.valid.params.id);
   if (!observation) throw notFound('Observation');
@@ -246,10 +255,10 @@ router.get('/:id/responses', validate(idParams, 'params'), async (req, res) => {
   const observation = await loadObservation(req.valid.params.id);
   if (!observation) throw notFound('Observation');
 
-  const { isAcAdmin, isObserver } = requireParty(req, observation);
+  const { isAcAdmin, isObserver, isViewOnly: viewOnly } = requireParty(req, observation);
 
   const observerSigned = Boolean(observation.observer_signed_off_at);
-  if (!isAcAdmin && !isObserver && !observerSigned) {
+  if (!isAcAdmin && !isObserver && !viewOnly && !observerSigned) {
     throw new HttpError(409, 'conflict', 'Responses are not visible to the observee until the observer has signed off');
   }
 
