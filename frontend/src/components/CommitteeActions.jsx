@@ -1,0 +1,154 @@
+import { useCallback, useState } from "react"
+import { api } from "../lib/api"
+import { formatDate, fullName, meetingDates } from "../lib/format"
+import { useApi } from "../lib/useApi"
+import PostponeControl from "./PostponeControl"
+import { Badge, Button, Callout, Card, Label, Select } from "./ui"
+import { useToast } from "./ui/toast-context"
+
+// TODO(BLOCKED: requirements §4.3 step 6 and §8): when the committee assigns an
+// observer manually, must the pick come from the eligible pool, or can it be any
+// faculty member? This has not been answered, so this form keeps its existing
+// behaviour (a candidate-list member, or a committee member as step-in) and must
+// not be read as the answer.
+function AssignObserver({ assessment, onChanged }) {
+  const toast = useToast()
+  const call = useCallback(() => api.stepInOptions(assessment.id), [assessment.id])
+  const { data: options } = useApi(call)
+  const [observerId, setObserverId] = useState("")
+  const [date, setDate] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState("")
+
+  const listed = assessment.candidates.map((candidate) => candidate.id)
+  const stepIn = (options?.data ?? []).filter((member) => !listed.includes(member.id))
+  const dates = meetingDates(assessment.section)
+
+  const submit = async (event) => {
+    event.preventDefault()
+    setBusy(true)
+    setError("")
+    try {
+      const fromList = listed.includes(Number(observerId))
+      await api.assignObserver(assessment.id, {
+        observerId: Number(observerId),
+        candidateListId: fromList ? assessment.candidateList.id : undefined,
+        scheduledDate: date,
+      })
+      toast.success("Observer assigned and the observation scheduled.")
+      onChanged()
+    } catch (err) {
+      setError(err.message)
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form onSubmit={submit}>
+      <h3 className="text-sm font-medium">
+        Assign an observer manually{" "}
+        <Badge size="sm" className="ml-1">
+          stretch goal
+        </Badge>
+      </h3>
+      <p className="mt-1 text-sm text-muted">
+        For an empty or short pool, or when the professor&apos;s requests didn&apos;t work out.
+        The observation is scheduled straight away.
+      </p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="assign-observer" className="text-xs font-normal text-muted">
+            Observer
+          </Label>
+          <Select
+            id="assign-observer"
+            value={observerId}
+            onChange={(event) => setObserverId(event.target.value)}
+            className="mt-1"
+          >
+            <option value="">Select observer</option>
+            {assessment.candidates.length > 0 && (
+              <optgroup label="From the candidate list">
+                {assessment.candidates.map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>
+                    {fullName(candidate)}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {stepIn.length > 0 && (
+              <optgroup label="Committee members (step-in)">
+                {stepIn.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {fullName(member)}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor="assign-date" className="text-xs font-normal text-muted">
+            Class date to observe
+          </Label>
+          <Select id="assign-date" value={date} onChange={(event) => setDate(event.target.value)} className="mt-1">
+            <option value="">Select a date</option>
+            {dates.map((value) => (
+              <option key={value} value={value}>
+                {formatDate(value)}
+              </option>
+            ))}
+          </Select>
+        </div>
+      </div>
+      <Button type="submit" className="mt-3" disabled={!observerId || !date} loading={busy}>
+        {busy ? "Assigning…" : "Assign observer"}
+      </Button>
+      {error && (
+        <Callout tone="danger" role="alert" className="mt-3">
+          {error}
+        </Callout>
+      )}
+    </form>
+  )
+}
+
+// Committee-only controls on a sign-up: assign an observer manually, or postpone
+// with a recorded reason. There is nothing to approve and nothing is cancelled.
+function CommitteeActions({ assessment, onChanged }) {
+  const { status, candidateList } = assessment
+  const canAssign =
+    ["candidates_generated", "postponed"].includes(status) ||
+    (status === "signed_up" && Boolean(candidateList))
+  const canPostpone = ["signed_up", "candidates_generated", "approved"].includes(status)
+
+  if (!canAssign && !canPostpone) return null
+
+  return (
+    <Card as="section" className="mt-6">
+      <h2 className="text-base font-semibold">Committee actions</h2>
+
+      {canAssign && (
+        <div className="mt-4">
+          <AssignObserver assessment={assessment} onChanged={onChanged} />
+        </div>
+      )}
+
+      {canPostpone && (
+        <div className={canAssign ? "mt-6 border-t border-line pt-4" : "mt-4"}>
+          <h3 className="text-sm font-medium">Can&apos;t go ahead right now?</h3>
+          <p className="mt-1 mb-3 text-sm text-muted">
+            The sign-up is kept and marked Postponed; the reason is added to the attempt history.
+          </p>
+          <PostponeControl
+            label="Postpone sign-up"
+            onSubmit={(reason) => api.postponeAssessment(assessment.id, reason)}
+            onDone={onChanged}
+          />
+        </div>
+      )}
+    </Card>
+  )
+}
+
+export default CommitteeActions
