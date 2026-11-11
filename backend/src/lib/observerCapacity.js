@@ -13,6 +13,7 @@ export const observerCommitmentsSql = `
   JOIN assessment_time_options t ON t.id = f.option_id
   JOIN assessments a ON a.id = t.assessment_id
   WHERE f.status = 'accepted'
+  AND a.status NOT IN ('completed', 'cancelled', 'not_eligible')
 
   UNION
 
