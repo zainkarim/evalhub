@@ -10,7 +10,7 @@ export const DEV_GROUPS = [
     accounts: [
       {
         email: "ac@example.edu",
-        label: "Professor B",
+        label: "David Okafor",
         note: "Runs the cycle, starts observer selection, sends reminders",
       },
     ],
@@ -20,18 +20,18 @@ export const DEV_GROUPS = [
     accounts: [
       {
         email: "faculty@example.edu",
-        label: "Professor C",
+        label: "Sofia Alvarez",
         note: "Observee: signs up, then picks one observer and dates",
       },
       {
         email: "professor.h@example.edu",
-        label: "Professor H",
+        label: "Daniel Brooks",
         note: "Observer: confirms one of the offered dates",
         mockOnly: true,
       },
       {
         email: "professor.e@example.edu",
-        label: "Professor E",
+        label: "Aisha Rahman",
         note: "CS 3354 has 6 eligible observers",
         mockOnly: true,
       },
