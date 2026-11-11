@@ -1,0 +1,22 @@
+# Local PostgreSQL for development — and the same image can run on the department VM.
+# Free / open source only: postgres:16 is the official open-source image.
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: evalhub
+      POSTGRES_PASSWORD: evalhub   # dev only — use a real secret on the VM
+      POSTGRES_DB: evalhub
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evalhub"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:

@@ -3,6 +3,20 @@ import { Link, useParams, useSearchParams } from "react-router-dom"
 import AttemptHistory from "../components/AttemptHistory"
 import StateBlock from "../components/StateBlock"
 import StatusBadge from "../components/StatusBadge"
+import {
+  Badge,
+  Button,
+  Card,
+  CardBody,
+  CardHeader,
+  EmptyState,
+  PageHeader,
+  StaggerItem,
+  Table,
+  TableCard,
+  Td,
+  Th,
+} from "../components/ui"
 import { api } from "../lib/api"
 import { describeDue, DUE_STATUS } from "../lib/dueStatus"
 import {
@@ -19,11 +33,13 @@ import {
 } from "../lib/format"
 import { useApi } from "../lib/useApi"
 
+// min-w-0 + break-words: a long email wraps inside its own cell instead of running
+// into the next one (the 390px overlap).
 function Fact({ label, children }) {
   return (
-    <div>
+    <div className="min-w-0">
       <dt className="text-xs text-muted">{label}</dt>
-      <dd className="mt-0.5 text-sm">{children}</dd>
+      <dd className="mt-0.5 break-words text-sm">{children}</dd>
     </div>
   )
 }
@@ -38,8 +54,8 @@ function ObservationList({ title, empty, rows }) {
         <ul className="mt-2 divide-y divide-line text-sm">
           {rows.map((row) => (
             <li key={row.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
-              <span>
-                <Link to={`/records/${row.id}`} className="font-medium text-utd-green hover:underline">
+              <span className="min-w-0">
+                <Link to={`/records/${row.id}`} className="font-medium text-primary-ink hover:underline">
                   {row.course}
                 </Link>
                 <span className="text-muted">
@@ -74,37 +90,28 @@ function ProfessorDetail() {
   const load = data?.observerLoad
 
   return (
-    <div>
-      <Link
-        to={backTermId ? `/professors?termId=${backTermId}` : "/professors"}
-        className="text-sm text-muted hover:text-ink"
-      >
-        Back to professors
-      </Link>
+    <div className="space-y-6">
+      <PageHeader
+        backTo={{
+          to: backTermId ? `/professors?termId=${backTermId}` : "/professors",
+          label: "Back to professors",
+        }}
+        title={professor ? `${professor.firstName} ${professor.lastName}` : "Professor"}
+        subtitle={professor ? `${formatRank(professor.rank)} · ${professor.department}` : undefined}
+        action={
+          professor && (
+            <Button variant="secondary" to={`/professors/${professor.id}/edit`}>
+              Edit Professor
+            </Button>
+          )
+        }
+      />
 
-      <div className="mt-4">
-        <StateBlock loading={loading} error={error} onRetry={reload}>
-          {professor && (
-            <>
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <h1 className="text-2xl font-semibold tracking-tight">
-                    {professor.firstName} {professor.lastName}
-                  </h1>
-                  <p className="mt-1 text-muted">
-                    {formatRank(professor.rank)} · {professor.department}
-                  </p>
-                </div>
-
-                <Link
-                  to={`/professors/${professor.id}/edit`}
-                  className="rounded border border-line bg-white px-4 py-2 text-sm font-medium hover:bg-gray-50"
-                >
-                  Edit Professor
-                </Link>
-              </div>
-
-              <dl className="mt-8 grid grid-cols-2 gap-x-8 gap-y-5 rounded border border-line bg-white p-6 sm:grid-cols-3">
+      <StateBlock loading={loading} error={error} onRetry={reload}>
+        {professor && (
+          <>
+            <Card>
+              <dl className="grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-3">
                 <Fact label="Email">{professor.email}</Fact>
                 <Fact label="School">{professor.school}</Fact>
                 <Fact label="Status">
@@ -120,16 +127,18 @@ function ProfessorDetail() {
                   {summary.lastCompleted ? formatDate(summary.lastCompleted.date) : "Never"}
                 </Fact>
               </dl>
+            </Card>
 
-              <section className="mt-6 rounded border border-line bg-white p-6">
-                <h2 className="text-sm font-semibold">Observer load · {formatTerm(data.term)}</h2>
-                <p className="mt-1 text-sm text-muted">
-                  An observer takes at most {load.cap} observations per cycle; at the limit they are no
-                  longer suggested to anyone.
-                </p>
-                <div className="mt-3 flex items-center gap-3">
+            <StaggerItem scope="professor" index={0}>
+            <Card padded={false}>
+              <CardHeader
+                title={`Observer load · ${formatTerm(data.term)}`}
+                description={`An observer takes at most ${load.cap} observations per cycle; at the limit they are no longer suggested to anyone.`}
+              />
+              <CardBody className="pb-6">
+                <div className="flex items-center gap-3">
                   <div
-                    className="h-2 w-40 rounded bg-gray-100"
+                    className="h-2 w-40 rounded bg-surface-2"
                     role="progressbar"
                     aria-label="Observations as observer"
                     aria-valuemin={0}
@@ -137,82 +146,99 @@ function ProfessorDetail() {
                     aria-valuenow={Math.min(load.count, load.cap)}
                   >
                     <div
-                      className={`h-2 rounded ${load.count >= load.cap ? "bg-utd-orange" : "bg-utd-green"}`}
+                      className={`h-2 rounded ${load.count >= load.cap ? "bg-accent" : "bg-primary-ink"}`}
                       style={{ width: `${Math.min(load.count / load.cap, 1) * 100}%` }}
                     />
                   </div>
-                  <p className="text-sm font-medium">
+                  <p className="text-sm font-medium tabular-nums">
                     {load.count} of {load.cap}
-                    {load.count >= load.cap && <span className="ml-2 text-utd-orange">At the limit</span>}
+                    {load.count >= load.cap && (
+                      <Badge tone="warning" className="ml-2">
+                        At the limit
+                      </Badge>
+                    )}
                   </p>
                 </div>
-              </section>
+              </CardBody>
+            </Card>
+            </StaggerItem>
 
-              <section className="mt-6 rounded border border-line bg-white p-6">
-                <h2 className="text-sm font-semibold">Courses</h2>
-                <p className="mt-1 text-sm text-muted">
-                  Taught in {formatTerm(data.term)} and in the last two years up to today. Observers are matched
-                  by course level and department.
-                </p>
+            <StaggerItem scope="professor" index={1}>
+            <Card padded={false}>
+              <CardHeader
+                title="Courses"
+                description={`Taught in ${formatTerm(data.term)} and in the last two years up to today. Observers are matched by course level and department.`}
+              />
+              <CardBody className="pb-6">
                 {data.courses.length === 0 ? (
-                  <p className="mt-3 text-sm text-muted">No sections on record for this period.</p>
+                  <EmptyState compact titleAs="p" title="No sections on record for this period" />
                 ) : (
-                  <div className="mt-3 overflow-x-auto">
-                    <table className="w-full min-w-[34rem] text-left text-sm">
-                      <thead className="border-b border-line text-xs text-muted">
+                  <TableCard>
+                    <Table minWidth="34rem">
+                      <thead>
                         <tr>
-                          <th className="py-2 pr-4 font-medium">Course</th>
-                          <th className="py-2 pr-4 font-medium">Level</th>
-                          <th className="py-2 pr-4 font-medium">Department</th>
-                          <th className="py-2 font-medium">Semester</th>
+                          <Th>Course</Th>
+                          <Th>Level</Th>
+                          <Th>Department</Th>
+                          <Th>Semester</Th>
                         </tr>
                       </thead>
                       <tbody>
                         {data.courses.map((course) => (
                           <tr key={course.sectionId} className="border-b border-line last:border-0">
-                            <td className="py-2.5 pr-4">
+                            <Td>
                               <span className="font-medium">{course.course}</span>
                               <span className="text-muted"> · Section {course.sectionNumber}</span>
                               <span className="block text-muted">{course.title}</span>
-                            </td>
-                            <td className="py-2.5 pr-4">{course.level}000</td>
-                            <td className="py-2.5 pr-4">{course.department}</td>
-                            <td className="py-2.5">
+                            </Td>
+                            <Td>{course.level}000</Td>
+                            <Td>{course.department}</Td>
+                            <Td>
                               {formatTerm(course.term)}
-                              {course.thisTerm && <span className="ml-2 text-xs text-utd-green-dark">This term</span>}
-                            </td>
+                              {course.thisTerm && (
+                                <Badge tone="success" size="sm" className="ml-2">
+                                  This term
+                                </Badge>
+                              )}
+                            </Td>
                           </tr>
                         ))}
                       </tbody>
-                    </table>
-                  </div>
+                    </Table>
+                  </TableCard>
                 )}
-              </section>
+              </CardBody>
+            </Card>
+            </StaggerItem>
 
-              <section className="mt-6 rounded border border-line bg-white p-6">
-                <h2 className="text-sm font-semibold">Observations</h2>
-                <div className="mt-3 space-y-5">
-                  <ObservationList
-                    title="Received (as observee)"
-                    empty="No one has observed this professor yet."
-                    rows={received}
-                  />
-                  <ObservationList
-                    title="Given (as observer)"
-                    empty="This professor has not observed anyone yet."
-                    rows={given}
-                  />
-                </div>
-              </section>
+            <StaggerItem scope="professor" index={2}>
+            <Card padded={false}>
+              <CardHeader title="Observations" />
+              <CardBody className="space-y-5 pb-6">
+                <ObservationList
+                  title="Received (as observee)"
+                  empty="No one has observed this professor yet."
+                  rows={received}
+                />
+                <ObservationList
+                  title="Given (as observer)"
+                  empty="This professor has not observed anyone yet."
+                  rows={given}
+                />
+              </CardBody>
+            </Card>
+            </StaggerItem>
 
-              <section className="mt-6 rounded border border-line bg-white p-6">
-                <h2 className="text-sm font-semibold">Sign-up · {formatTerm(data.term)}</h2>
+            <StaggerItem scope="professor" index={3}>
+            <Card padded={false}>
+              <CardHeader title={`Sign-up · ${formatTerm(data.term)}`} />
+              <CardBody className="pb-6">
                 {data.signUp ? (
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm">
-                    <span>
+                  <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+                    <span className="min-w-0">
                       <Link
                         to={`/assessments/${data.signUp.assessmentId}`}
-                        className="font-medium text-utd-green hover:underline"
+                        className="font-medium text-primary-ink hover:underline"
                       >
                         {summary.signUp.course} · Section {summary.signUp.section}
                       </Link>
@@ -229,17 +255,18 @@ function ProfessorDetail() {
                     </span>
                   </div>
                 ) : (
-                  <p className="mt-3 text-sm text-muted">
+                  <p className="text-sm text-muted">
                     This professor hasn&apos;t signed up for {formatTerm(data.term)}.
                   </p>
                 )}
-              </section>
+              </CardBody>
+            </Card>
+            </StaggerItem>
 
-              {data.signUp && <AttemptHistory attempts={data.signUp.attempts} />}
-            </>
-          )}
-        </StateBlock>
-      </div>
+            {data.signUp && <AttemptHistory attempts={data.signUp.attempts} />}
+          </>
+        )}
+      </StateBlock>
     </div>
   )
 }
