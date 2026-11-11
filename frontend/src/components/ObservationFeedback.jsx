@@ -44,8 +44,7 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
   useEffect(() => {
     if (preview || !observationId) return undefined
 
-        let active = true
-
+    let active = true
     api.getResponses(observationId)
       .then((result) => {
         if (!active) return
@@ -78,7 +77,7 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
     return <p className="text-sm text-muted">Loading saved ratings…</p>
   }
 
-    if (responsesError) {
+  if (responsesError) {
     return (
       <p role="alert" className="text-sm text-red-700">
         Unable to load observation ratings: {responsesError}

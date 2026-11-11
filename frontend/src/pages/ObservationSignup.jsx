@@ -108,7 +108,8 @@ function ObservationSignup() {
     setSubmitError("")
     try {
       const assessment = await api.signUp(selected.id, committee ? Number(teacherId) : undefined)
-      setCreated(assessment)
+      // The real backend returns a flat assessment; reuse the section the user picked.
+      setCreated({ ...assessment, section: assessment.section ?? selected.section })
       toast.success("Observation sign-up submitted.")
       reload()
     } catch (err) {
