@@ -38,6 +38,21 @@ export const DEV_GROUPS = [
     ],
   },
   {
+    title: "View-only reviewers",
+    accounts: [
+      {
+        email: "depthead@example.edu",
+        label: "Department Head",
+        note: "Reads completed observation records",
+      },
+      {
+        email: "review@example.edu",
+        label: "Annual Review Committee",
+        note: "Reads completed observation records",
+      },
+    ],
+  },
+  {
     title: "Administrator",
     accounts: [
       {

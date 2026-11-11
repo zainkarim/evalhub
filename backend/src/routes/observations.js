@@ -109,6 +109,25 @@ const toObservationListItem = (r) => {
   };
 };
 
+// Shared by the list and the detail route, so both return the same nested shape.
+const OBSERVATION_DETAIL_SQL = `SELECT o.*,
+              a.status AS assessment_status,
+              a.section_id,
+              obs.first_name AS observer_first_name, obs.last_name AS observer_last_name,
+              obs.email AS observer_email, obs.rank AS observer_rank, obs.department AS observer_department,
+              obe.first_name AS observee_first_name, obe.last_name AS observee_last_name,
+              obe.email AS observee_email, obe.rank AS observee_rank, obe.department AS observee_department,
+              cs.section_number, cs.meeting_days, cs.start_time, cs.end_time, cs.course_id, cs.term_id,
+              c.subject AS course_subject, c.course_number, c.title AS course_title,
+              t.season AS term_season, t.year AS term_year
+         FROM observations o
+         JOIN assessments a ON a.id = o.assessment_id
+         JOIN teachers obs ON obs.id = o.observer_id
+         JOIN teachers obe ON obe.id = o.observee_id
+         LEFT JOIN course_sections cs ON cs.id = a.section_id
+         LEFT JOIN courses c ON c.id = cs.course_id
+         LEFT JOIN terms t ON t.id = cs.term_id`;
+
 const listQuery = z.object({
   status: z.enum(OBSERVATION_STATUSES).optional(),
   ...pagination,
@@ -142,23 +161,7 @@ router.get('/', validate(listQuery, 'query'), async (req, res) => {
 
   const [{ rows }, { rows: count }] = await Promise.all([
     query(
-      `SELECT o.*,
-              a.status AS assessment_status,
-              a.section_id,
-              obs.first_name AS observer_first_name, obs.last_name AS observer_last_name,
-              obs.email AS observer_email, obs.rank AS observer_rank, obs.department AS observer_department,
-              obe.first_name AS observee_first_name, obe.last_name AS observee_last_name,
-              obe.email AS observee_email, obe.rank AS observee_rank, obe.department AS observee_department,
-              cs.section_number, cs.meeting_days, cs.start_time, cs.end_time, cs.course_id, cs.term_id,
-              c.subject AS course_subject, c.course_number, c.title AS course_title,
-              t.season AS term_season, t.year AS term_year
-         FROM observations o
-         JOIN assessments a ON a.id = o.assessment_id
-         JOIN teachers obs ON obs.id = o.observer_id
-         JOIN teachers obe ON obe.id = o.observee_id
-         LEFT JOIN course_sections cs ON cs.id = a.section_id
-         LEFT JOIN courses c ON c.id = cs.course_id
-         LEFT JOIN terms t ON t.id = cs.term_id
+      `${OBSERVATION_DETAIL_SQL}
          ${clause}
         ORDER BY o.id DESC
         LIMIT $${params.length + 1}
@@ -173,10 +176,17 @@ router.get('/', validate(listQuery, 'query'), async (req, res) => {
 
 // GET /api/observations/:id   (observer, observee, AC/admin, or view-only once completed)
 router.get('/:id', validate(idParams, 'params'), async (req, res) => {
-  const observation = await loadObservation(req.valid.params.id);
+  const { rows } = await query(`${OBSERVATION_DETAIL_SQL} WHERE o.id = $1`, [req.valid.params.id]);
+  const observation = rows[0];
   if (!observation) throw notFound('Observation');
   requireParty(req, observation);
-  res.json(toObservation(observation));
+  // Nested shape (observer, observee, section with course and term), the same
+  // as one list row, plus the flat ids the original response had.
+  res.json({
+    ...toObservationListItem(observation),
+    observeeId: observation.observee_id,
+    observerId: observation.observer_id,
+  });
 });
 
 // ---------------------------------------------------------------------

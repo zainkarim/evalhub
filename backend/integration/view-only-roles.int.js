@@ -96,6 +96,23 @@ for (const [label, email, role] of VIEW_ONLY) {
   });
 }
 
+describe('GET /observations/:id shape', () => {
+  test('returns the nested list shape plus the flat ids', async () => {
+    const res = await ctx.api('GET', `/observations/${completedId}`, { as: USERS.faculty });
+    assert.equal(res.status, 200);
+    const o = res.body;
+    assert.equal(o.id, completedId);
+    assert.equal(o.observeeId, 3);
+    assert.equal(o.observerId, 1);
+    assert.equal(o.observee.id, 3);
+    assert.equal(o.observer.id, 1);
+    assert.ok(o.observer.lastName);
+    assert.ok(o.section.course.courseNumber);
+    assert.ok(o.section.term.season);
+    assert.ok(o.observerSignedOffAt && o.observeeSignedOffAt);
+  });
+});
+
 describe('registering a view-only account', () => {
   test('admin can create one without a teacher profile', async () => {
     const body = { email: 'second.reviewer@example.edu', password: 'Long-enough-pass-1', role: 'annual_review' };
