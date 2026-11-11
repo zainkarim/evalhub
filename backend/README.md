@@ -33,7 +33,7 @@ curl -s "localhost:3000/api/teachers?school=ECS" -H "Authorization: Bearer $TOKE
 curl -s "localhost:3000/api/courses?school=ECS&level=4" -H "Authorization: Bearer $TOKEN"
 ```
 
-Demo accounts (dev only): `admin@example.edu` · `ac@example.edu` (Professor B) · `faculty@example.edu` (Professor C); password = `SEED_PASSWORD`. Seed instructors are personas — never use real names in test data. Every other seeded teacher also has a login now, at their own `teachers.email` with the same password.
+Demo accounts (dev only): `admin@example.edu` · `ac@example.edu` (David Okafor, teacher 2) · `faculty@example.edu` (Sofia Alvarez, teacher 3); password = `SEED_PASSWORD`. Seed instructors have realistic fictional names; never use real names in test data. Every other seeded teacher also has a login now, at their own `teachers.email` with the same password.
 
 ## Importing real course data (Coursebook / Nebula API)
 
@@ -50,7 +50,7 @@ it never overwrites a `manual` or `seed` row.
 
 - **Instructors are pseudonymized.** Professor names must always be fictional,
   so the script never fetches professor records. Each instructor becomes a
-  stable fake teacher (`Professor KQZ`, `prof-<hash>@example.edu`) derived from
+  stable fake teacher (a fictional name such as `Maria Chen`, `prof-<hash>@example.edu`) derived from
   their Nebula id, so re-runs and later terms map to the same teacher. Rank
   defaults to `assistant_professor`.
 - **Scope:** `NEBULA_SUBJECTS` (default `CS`) and `NEBULA_TERMS` (Nebula session
