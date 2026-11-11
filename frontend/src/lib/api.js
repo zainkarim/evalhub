@@ -177,6 +177,10 @@ export const api = {
   signOffObservation: (id, comment) =>
     post(`/observations/${id}/sign-off`, comment ? { comment } : {}),
   postponeObservation: (id, reason) => post(`/observations/${id}/postpone`, { reason }),
+
+  // ---- process feedback survey (#73)
+  getSurveyStatus: () => request("/surveys/status"),
+  submitSurvey: (body) => post("/surveys", body),
 }
 
 export { USE_MOCKS }

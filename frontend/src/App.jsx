@@ -28,6 +28,7 @@ const Observations = lazy(() => import("./pages/Observations"))
 const ProfessorDetail = lazy(() => import("./pages/ProfessorDetail"))
 const ProfessorManagement = lazy(() => import("./pages/ProfessorManagement"))
 const Professors = lazy(() => import("./pages/Professors"))
+const FeedbackSurvey = lazy(() => import("./pages/FeedbackSurvey"))
 
 // Committee-only pages: anyone else gets a plain "limited to the committee"
 // message instead of the page (the navigation link is hidden for them too).
@@ -157,6 +158,7 @@ function App() {
             />
 <Route path="/review" element={<Navigate to="/cycle" replace />} />
             <Route path="/notifications" element={<Notifications />} />
+            <Route path="/feedback-survey" element={<FeedbackSurvey />} />
             <Route
               path="/evaluation-criteria"
               element={
