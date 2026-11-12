@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 import { startIntegration, USERS } from './harness.js';
+import { observerCommitmentsSql } from '../src/lib/observerCapacity.js';
 
 let ctx;
 
@@ -237,8 +238,109 @@ describe('a closed sign-up cannot be scheduled', () => {
       assert.equal(observation.scheduled_date, option.proposed_date);
     });
 
+    test('rescheduling a postponed sign-up with another observer releases the original observer commitment', async () => {
+      const assessmentId = await makeAssessment();
+      const originalOption = await addOption(assessmentId, 42);
+      await offer(originalOption.id, 1, 'accepted');
+
+      await ctx.sql(
+        `UPDATE assessment_time_options
+            SET is_confirmed = TRUE, confirmed_teacher_id = 1
+          WHERE id = $1`,
+        [originalOption.id],
+      );
+      await ctx.sql(
+        `INSERT INTO observations
+           (assessment_id, observee_id, observer_id, attempt_no, status, scheduled_date)
+         VALUES ($1, 3, 1, 1, 'postponed', $2)`,
+        [assessmentId, originalOption.proposed_date],
+      );
+      await ctx.sql(
+        `UPDATE assessments SET status = 'postponed' WHERE id = $1`,
+        [assessmentId],
+      );
+
+      // Represent the rescheduled state: the old offer is closed, and the
+      // assessment now has an active observation with observer 4.
+      await ctx.sql(
+        `UPDATE time_option_offers
+            SET status = 'declined'
+          WHERE option_id = $1 AND teacher_id = 1`,
+        [originalOption.id],
+      );
+      await ctx.sql(
+        `UPDATE assessments SET status = 'approved' WHERE id = $1`,
+        [assessmentId],
+      );
+      await ctx.sql(
+        `INSERT INTO observations
+           (assessment_id, observee_id, observer_id, attempt_no, status, scheduled_date)
+         VALUES ($1, 3, 4, 2, 'approved', CURRENT_DATE - 41)`,
+        [assessmentId],
+      );
+
+      const [commitment] = await ctx.sql(
+        `WITH commitments AS (${observerCommitmentsSql})
+         SELECT COUNT(*)::int AS count
+         FROM commitments
+         WHERE observer_id = 1 AND assessment_id = $1`,
+        [assessmentId],
+      );
+      assert.equal(commitment.count, 0);
+    });
+
+    });
+
+    test('a cancelled sign-up with a confirmed date does not use observer capacity', async () => {
+      const assessmentId = await makeAssessment();
+      const option = await addOption(assessmentId, 43);
+
+      await ctx.sql(
+        `UPDATE assessment_time_options
+            SET is_confirmed = TRUE, confirmed_teacher_id = 1
+          WHERE id = $1`,
+        [option.id],
+      );
+      await ctx.sql(
+        `UPDATE assessments SET status = 'cancelled' WHERE id = $1`,
+        [assessmentId],
+      );
+
+      const [commitment] = await ctx.sql(
+        `WITH commitments AS (${observerCommitmentsSql})
+         SELECT COUNT(*)::int AS count
+         FROM commitments
+         WHERE observer_id = 1 AND assessment_id = $1`,
+        [assessmentId],
+      );
+      assert.equal(commitment.count, 0);
+    });
+
     test('an observer with three commitments cannot confirm a fourth in the same term', async () => {
-      // The earlier suites leave observer 1 with three commitments in this term.
+    test('an observer with three commitments cannot confirm a fourth in the same term', async () => {
+      // Seed this test's own three confirmed commitments for observer 1.
+      for (const daysAgo of [80, 81, 82]) {
+        const committedAssessmentId = await makeAssessment();
+        const committedOption = await addOption(committedAssessmentId, daysAgo);
+
+        await ctx.sql(
+          `UPDATE assessments SET status = 'approved' WHERE id = $1`,
+          [committedAssessmentId],
+        );
+        await ctx.sql(
+          `UPDATE assessment_time_options
+              SET is_confirmed = TRUE, confirmed_teacher_id = 1
+            WHERE id = $1`,
+          [committedOption.id],
+        );
+        await ctx.sql(
+          `INSERT INTO observations
+             (assessment_id, observee_id, observer_id, attempt_no, status, scheduled_date)
+           VALUES ($1, 3, 1, 1, 'approved', $2)`,
+          [committedAssessmentId, committedOption.proposed_date],
+        );
+      }
+
       const assessmentId = await makeAssessment();
       const option = await addOption(assessmentId, 41);
       await offer(option.id, 1, 'pending');
