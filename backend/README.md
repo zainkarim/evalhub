@@ -33,7 +33,7 @@ curl -s "localhost:3000/api/teachers?school=ECS" -H "Authorization: Bearer $TOKE
 curl -s "localhost:3000/api/courses?school=ECS&level=4" -H "Authorization: Bearer $TOKEN"
 ```
 
-Demo accounts (dev only): `admin@example.edu` · `ac@example.edu` (Professor B) · `faculty@example.edu` (Professor C); password = `SEED_PASSWORD`. Seed instructors are personas — never use real names in test data. Every other seeded teacher also has a login now, at their own `teachers.email` with the same password.
+Demo accounts (dev only): `admin@example.edu` · `ac@example.edu` (Professor B) · `faculty@example.edu` (Professor C) · `depthead@example.edu` (Department Head, view-only) · `review@example.edu` (Annual Review Committee, view-only); password = `SEED_PASSWORD`. Seed instructors are personas — never use real names in test data. Every other seeded teacher also has a login now, at their own `teachers.email` with the same password.
 
 ## Importing real course data (Coursebook / Nebula API)
 

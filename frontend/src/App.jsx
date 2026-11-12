@@ -7,7 +7,7 @@ import RouteErrorBoundary from "./components/RouteErrorBoundary"
 import { EmptyState } from "./components/ui"
 import { AuthProvider } from "./context/AuthContext"
 import { useAuth } from "./context/auth-context"
-import { AC_ROLES, isAC, hasTeacherProfile } from "./lib/roles"
+import { AC_ROLES, isAC, hasTeacherProfile, isViewOnly } from "./lib/roles"
 import { ScreenFallback } from "./components/RouteFallback"
 
 // Every page is its own chunk, downloaded when the route is first visited (the
@@ -15,6 +15,7 @@ import { ScreenFallback } from "./components/RouteFallback"
 // guards are exactly as before.
 const AssessmentDetail = lazy(() => import("./pages/AssessmentDetail"))
 const CourseDetail = lazy(() => import("./pages/CourseDetail"))
+const CompletedRecords = lazy(() => import("./pages/CompletedRecords"))
 const Courses = lazy(() => import("./pages/Courses"))
 const Cycle = lazy(() => import("./pages/Cycle"))
 const EvaluationCriteria = lazy(() => import("./pages/EvaluationCriteria"))
@@ -55,10 +56,31 @@ function ProfessorSelfEditRoute({ children }) {
   )
 }
 
-// Each role lands on the page it works from: the committee on the Cycle page.
+// Each role lands on the page it works from: the committee on the Cycle page,
+// view-only reviewers on the completed-records list.
 function Home() {
   const { user } = useAuth()
+  if (isViewOnly(user)) return <Navigate to="/records" replace />
   return <Navigate to={isAC(user) ? "/cycle" : "/observations"} replace />
+}
+
+// Department Head / Annual Review Committee accounts only ever see completed
+// records (#126). Any other page sends them back to the list; the backend
+// refuses those calls anyway.
+function ViewOnlyGate({ children }) {
+  const { user } = useAuth()
+  const location = useLocation()
+  if (isViewOnly(user) && !location.pathname.startsWith("/records")) {
+    return <Navigate to="/records" replace />
+  }
+  return children
+}
+
+// The completed-records list is for the view-only roles and the committee.
+function RecordsListRoute({ children }) {
+  const { user } = useAuth()
+  if (isViewOnly(user) || isAC(user)) return children
+  return <Navigate to="/observations" replace />
 }
 
 // Dev-only UI kit gallery. The guard makes the import dead code in a production
@@ -100,7 +122,9 @@ function App() {
           <Route
             element={
               <ProtectedRoute>
-                <Layout />
+                <ViewOnlyGate>
+                  <Layout />
+                </ViewOnlyGate>
               </ProtectedRoute>
             }
           >
@@ -146,6 +170,14 @@ function App() {
             <Route path="/observations" element={<Observations />} />
             <Route path="/observation-signup" element={<ObservationSignup />} />
             <Route path="/assessments/:id" element={<AssessmentDetail />} />
+            <Route
+              path="/records"
+              element={
+                <RecordsListRoute>
+                  <CompletedRecords />
+                </RecordsListRoute>
+              }
+            />
             <Route path="/records/:id" element={<ObservationRecord />} />
             <Route
               path="/cycle"
