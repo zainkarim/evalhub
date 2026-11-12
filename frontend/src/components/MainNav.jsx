@@ -18,7 +18,7 @@ export function NavBadge({ count }) {
 // aria-current="page" on the active link by itself.
 function MainNav({ items, counts }) {
   return (
-    <nav aria-label="Main" className="hidden h-full items-stretch gap-1 lg:flex">
+    <nav aria-label="Main" className="hidden h-full items-stretch gap-1 xl:flex">
       {items.map((link) => (
         <NavLink
           key={link.to}

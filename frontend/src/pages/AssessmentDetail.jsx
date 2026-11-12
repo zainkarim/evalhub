@@ -131,6 +131,7 @@ function AssessmentDetail() {
               )}
 
               <AttemptHistory attempts={assessment.attempts} />
+              {owner && <p className="sky-scrim mt-3 text-right text-sm"><Link to="/requests" className="font-medium text-primary-ink hover:underline">View all requests</Link></p>}
             </>
           )}
         </StateBlock>

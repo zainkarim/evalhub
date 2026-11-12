@@ -182,7 +182,7 @@ function MyActivity({ user }) {
     <StateBlock loading={loading} error={error} onRetry={reload}>
       {data && (
         <div className="space-y-6">
-          <Section index={0} title="My sign-ups" hint="Each section you've signed up for, and what happens next.">
+          <Section index={0} title="My sign-ups" hint={<>Each section you've signed up for, and what happens next. <Link to="/requests" className="font-medium text-primary-ink hover:underline">View all requests</Link></>}>
             {data.signUps.length === 0 ? (
               <EmptyState
                 compact
