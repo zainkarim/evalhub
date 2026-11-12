@@ -224,11 +224,35 @@ describe('a closed sign-up cannot be scheduled', () => {
     });
   }
 
-  test('a postponed sign-up can still be rescheduled', async () => {
-    const { a, option } = await closedSignUp('postponed', 40);
-    assert.equal((await finalize(a, option.id, 1)).status, 200);
-    const [row] = await ctx.sql('SELECT status FROM assessments WHERE id = $1', [a]);
-    assert.equal(row.status, 'approved');
-    assert.equal((await observationsFor(a))[0].scheduled_date, option.proposed_date);
-  });
+    test('a postponed sign-up can still be rescheduled', async () => {
+      const { a, option } = await closedSignUp('postponed', 40);
+      const res = await finalize(a, option.id, 4);
+      assert.equal(res.status, 200, JSON.stringify(res.body));
+
+      const [row] = await ctx.sql('SELECT status FROM assessments WHERE id = $1', [a]);
+      assert.equal(row.status, 'approved');
+
+      const [observation] = await observationsFor(a);
+      assert.equal(observation.observer_id, 4);
+      assert.equal(observation.scheduled_date, option.proposed_date);
+    });
+
+    test('an observer with three commitments cannot confirm a fourth in the same term', async () => {
+      // The earlier suites leave observer 1 with three commitments in this term.
+      const assessmentId = await makeAssessment();
+      const option = await addOption(assessmentId, 41);
+      await offer(option.id, 1, 'pending');
+
+      const res = await confirm(option.id, USERS.profA);
+      assert.equal(res.status, 409, JSON.stringify(res.body));
+      assert.equal(res.body.error.code, 'observer_capacity_reached');
+
+      const [saved] = await ctx.sql(
+        'SELECT is_confirmed FROM assessment_time_options WHERE id = $1',
+        [option.id],
+      );
+      assert.equal(saved.is_confirmed, false);
+      assert.equal(await offerStatus(option.id, 1), 'pending');
+      assert.equal((await observationsFor(assessmentId)).length, 0);
+    });
 });
