@@ -95,6 +95,10 @@ router.post(
       }
 
       if (req.valid.body.status === 'accepted') {
+        if (offer.status === 'declined') {
+          throw new HttpError(409, 'conflict', 'This offer is no longer open');
+        }
+
         if (['completed', 'cancelled', 'not_eligible'].includes(assessment.status)) {
           throw new HttpError(
             409, 'conflict', 'This assessment is no longer open for scheduling',

@@ -256,3 +256,130 @@ describe('a closed sign-up cannot be scheduled', () => {
       assert.equal((await observationsFor(assessmentId)).length, 0);
     });
 });
+
+describe('closing observer requests (#124)', () => {
+  const closeRequest = (id, action, as, body = {}) =>
+    ctx.api('POST', `/assessments/${id}/time-options/${action}`, { as, body });
+
+  test('withdraw closes all open offers, records the reason, and blocks stale acceptance', async () => {
+    const id = await makeAssessment();
+    const option = await addOption(id, 50);
+    await offer(option.id, 1, 'accepted');
+    await offer(option.id, 4, 'pending');
+
+    assert.equal((await closeRequest(id, 'withdraw', USERS.profA)).status, 403);
+
+    const res = await closeRequest(id, 'withdraw', USERS.faculty, {
+      reason: 'Need different dates',
+    });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    assert.equal(res.body.offersClosed, 2);
+
+    const rows = await ctx.sql(
+      `SELECT f.id, f.teacher_id, f.status, h.action, h.reason
+         FROM time_option_offers f
+         JOIN time_option_offer_actions h ON h.offer_id = f.id
+        WHERE f.option_id = $1
+        ORDER BY f.teacher_id`,
+      [option.id],
+    );
+    assert.deepEqual(
+      rows.map(({ teacher_id, status, action, reason }) => [teacher_id, status, action, reason]),
+      [
+        [1, 'declined', 'withdrawn', 'Need different dates'],
+        [4, 'declined', 'withdrawn', 'Need different dates'],
+      ],
+    );
+
+    const stale = await ctx.api('POST', `/time-options/offers/${rows[0].id}/respond`, {
+      as: USERS.profA,
+      body: { status: 'accepted' },
+    });
+    assert.equal(stale.status, 409, JSON.stringify(stale.body));
+    assert.equal(await offerStatus(option.id, 1), 'declined');
+  });
+
+  test('decline closes only the calling observer’s offers and records the reason', async () => {
+    const id = await makeAssessment();
+    const first = await addOption(id, 51);
+    const second = await addOption(id, 52);
+    await offer(first.id, 1, 'accepted');
+    await offer(second.id, 1, 'pending');
+    await offer(first.id, 4, 'pending');
+
+    assert.equal((await closeRequest(id, 'decline', USERS.faculty)).status, 403);
+
+    const res = await closeRequest(id, 'decline', USERS.profA, {
+      reason: 'Unavailable',
+    });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    assert.equal(res.body.offersClosed, 2);
+    assert.equal(await offerStatus(first.id, 1), 'declined');
+    assert.equal(await offerStatus(second.id, 1), 'declined');
+    assert.equal(await offerStatus(first.id, 4), 'pending');
+
+    const history = await ctx.sql(
+      `SELECT h.action, h.reason
+         FROM time_option_offer_actions h
+         JOIN time_option_offers f ON f.id = h.offer_id
+        WHERE f.teacher_id = 1 AND f.option_id IN ($1, $2)`,
+      [first.id, second.id],
+    );
+    assert.deepEqual(history, [
+      { action: 'declined', reason: 'Unavailable' },
+      { action: 'declined', reason: 'Unavailable' },
+    ]);
+  });
+
+  test('neither action can close a finalized request', async () => {
+    const id = await makeAssessment();
+    const option = await addOption(id, 53);
+    await offer(option.id, 4, 'accepted');
+
+    const scheduled = await finalize(id, option.id, 4);
+    assert.equal(scheduled.status, 200, JSON.stringify(scheduled.body));
+
+    assert.equal((await closeRequest(id, 'withdraw', USERS.faculty)).status, 409);
+    assert.equal((await closeRequest(id, 'decline', USERS.profD)).status, 409);
+    assert.equal(await offerStatus(option.id, 4), 'accepted');
+    assert.equal((await observationsFor(id)).length, 1);
+  });
+  for (const action of ['withdraw', 'decline']) {
+    test(`${action} frees a slot for another assessment`, async () => {
+      // The earlier tests leave observer 4 with two confirmed assignments.
+      const reservedId = await makeAssessment();
+      const reserved = await addOption(reservedId, 54);
+      await offer(reserved.id, 4, 'accepted');
+
+      const nextId = await makeAssessment();
+      const next = await addOption(nextId, 55);
+      await offer(next.id, 4, 'pending');
+      const [pending] = await ctx.sql(
+        'SELECT id FROM time_option_offers WHERE option_id = $1 AND teacher_id = $2',
+        [next.id, 4],
+      );
+
+      const respond = (status) =>
+        ctx.api('POST', `/time-options/offers/${pending.id}/respond`, {
+          as: USERS.profD,
+          body: { status },
+        });
+
+      const blocked = await respond('accepted');
+      assert.equal(blocked.status, 409, JSON.stringify(blocked.body));
+      assert.equal(blocked.body.error.code, 'observer_capacity_reached');
+      assert.equal(await offerStatus(next.id, 4), 'pending');
+
+      const actor = action === 'withdraw' ? USERS.faculty : USERS.profD;
+      const closed = await closeRequest(reservedId, action, actor);
+      assert.equal(closed.status, 200, JSON.stringify(closed.body));
+
+      const accepted = await respond('accepted');
+      assert.equal(accepted.status, 200, JSON.stringify(accepted.body));
+      assert.equal(await offerStatus(next.id, 4), 'accepted');
+
+      // Release this reservation so the next case starts at the same capacity.
+      assert.equal((await respond('declined')).status, 200);
+    });
+  }
+});
