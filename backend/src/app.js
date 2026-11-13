@@ -14,6 +14,7 @@ import sectionRoutes from './routes/sections.js';
 import teacherRoutes from './routes/teachers.js';
 import termRoutes from './routes/terms.js';
 import timeOptionRoutes from './routes/timeOptions.js';
+import surveyRoutes from './routes/surveys.js';
 
 export function createApp() {
   const app = express();
@@ -37,6 +38,7 @@ export function createApp() {
   app.use('/api/sections', authenticate, sectionRoutes);
   app.use('/api/time-options', authenticate, timeOptionRoutes);
   app.use('/api/criteria', authenticate, criteriaRoutes);
+  app.use('/api/surveys', authenticate, surveyRoutes);
   // observations.js was never mounted before this -- its one existing route
   // (POST /:id/review, the retired AC-review stub) was unreachable dead
   // code. #23 adds real routes to this same file (sign-off, response

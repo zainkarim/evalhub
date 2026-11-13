@@ -400,13 +400,36 @@ router.get(
         ) / 100,
     };
 
-    // Survey completion cannot be measured until submission is implemented.
+
+    // Count completed observations with a term survey from the observee.
+    // One survey can cover multiple observations for the same observee.
+    const { rows: surveyRows } = await query(
+      `SELECT COUNT(*)::int AS expected,
+              COUNT(*) FILTER (
+                WHERE EXISTS (
+                  SELECT 1
+                    FROM process_feedback pf
+                   WHERE pf.respondent_id = o.observee_id
+                     AND pf.term_id = a.due_term_id
+                     AND pf.observation_id IS NULL
+                )
+              )::int AS submitted
+         FROM observations o
+         JOIN assessments a ON a.id = o.assessment_id
+         JOIN teachers observee ON observee.id = o.observee_id
+        WHERE a.due_term_id = $1
+          AND o.status = 'completed'
+          AND observee.is_active = TRUE`,
+      [term.id],
+    );
+
+    const { expected, submitted } = surveyRows[0];
     const surveyCompletion = {
-      submitted: null,
-      expected: null,
-      ratePercent: null,
-      status: 'unavailable',
-      reason: 'Survey submission is not implemented yet (#103)',
+      submitted,
+      expected,
+      ratePercent: expected === 0
+        ? null
+        : Math.round((submitted / expected) * 10000) / 100,
     };
 
     const { rows: missingRows } = await query(
