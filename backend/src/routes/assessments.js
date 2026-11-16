@@ -880,6 +880,98 @@ const sendRequestBody = z.object({
   message: 'Provide teacherId or teacherIds',
 });
 
+const closeTimeOptionsBody = z.object({
+  reason: z.string().trim().max(2000).optional(),
+}).default({});
+
+for (const operation of ['withdraw', 'decline']) {
+  const withdrawing = operation === 'withdraw';
+
+  router.post(
+    `/:id/time-options/${operation}`,
+    validate(idParams, 'params'),
+    validate(closeTimeOptionsBody),
+    async (req, res) => {
+      const assessmentId = req.valid.params.id;
+      const actorTeacherId = req.user.teacherId ?? null;
+      const client = await pool.connect();
+
+      try {
+        await client.query('BEGIN');
+
+        const { rows: [assessment] } = await client.query(
+          'SELECT * FROM assessments WHERE id = $1 FOR UPDATE',
+          [assessmentId],
+        );
+        if (!assessment) throw notFound('Assessment');
+
+        if (withdrawing) {
+          const isOwner = actorTeacherId === assessment.teacher_id;
+          if (!isOwner && !AC_OR_ADMIN.includes(req.user.role)) {
+            throw new HttpError(403, 'forbidden', 'You cannot withdraw this request');
+          }
+        } else {
+          const { rowCount } = await client.query(
+            `SELECT 1
+               FROM time_option_offers f
+               JOIN assessment_time_options t ON t.id = f.option_id
+              WHERE t.assessment_id = $1 AND f.teacher_id = $2
+              LIMIT 1`,
+            [assessmentId, actorTeacherId],
+          );
+          if (!rowCount) {
+            throw new HttpError(403, 'forbidden', 'This request was not sent to you');
+          }
+        }
+
+        const { rowCount: confirmed } = await client.query(
+          `SELECT 1 FROM assessment_time_options
+            WHERE assessment_id = $1 AND is_confirmed LIMIT 1`,
+          [assessmentId],
+        );
+        if (confirmed || TIME_OPTIONS_BLOCKED_STATUSES.includes(assessment.status)) {
+          throw new HttpError(409, 'conflict', 'This request is no longer open');
+        }
+
+        const { rowCount: offersClosed } = await client.query(
+          `WITH closed AS (
+             UPDATE time_option_offers f
+                SET status = 'declined', updated_at = now()
+               FROM assessment_time_options t
+              WHERE t.id = f.option_id
+                AND t.assessment_id = $1
+                AND ($2::boolean OR f.teacher_id = $3)
+                AND f.status IN ('pending', 'accepted')
+              RETURNING f.id
+           )
+           INSERT INTO time_option_offer_actions
+             (offer_id, actor_user_id, action, reason)
+           SELECT id, $4, $5, $6 FROM closed`,
+          [
+            assessmentId,
+            withdrawing,
+            actorTeacherId,
+            req.user.id,
+            withdrawing ? 'withdrawn' : 'declined',
+            req.valid.body.reason || null,
+          ],
+        );
+        if (!offersClosed) {
+          throw new HttpError(409, 'conflict', 'There is no open request to close');
+        }
+
+        await client.query('COMMIT');
+        res.json({ assessmentId, offersClosed });
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+    },
+  );
+}
+
 // POST /api/assessments/:id/time-options/send   (owner, or AC/admin)
 // Sends the observee's open (unconfirmed) date options to one or more
 // observer candidates. Each candidate only gets offered the slots they are
