@@ -3,7 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { config } from './config.js';
 import { query } from './db/pool.js';
-import { authenticate } from './middleware/auth.js';
+import { authenticate, denyViewOnly, readOnlyForViewOnly } from './middleware/auth.js';
 import { errorHandler } from './middleware/errors.js';
 import assessmentRoutes from './routes/assessments.js';
 import authRoutes from './routes/auth.js';
@@ -30,18 +30,22 @@ export function createApp() {
   });
 
   app.use('/api/auth', authRoutes); // /login is public; /me and /register authenticate inside the router
-  app.use('/api/assessments', authenticate, assessmentRoutes);
-  app.use('/api/teachers', authenticate, teacherRoutes);
-  app.use('/api/terms', authenticate, termRoutes);
-  app.use('/api/courses', authenticate, courseRoutes);
-  app.use('/api/sections', authenticate, sectionRoutes);
-  app.use('/api/time-options', authenticate, timeOptionRoutes);
-  app.use('/api/criteria', authenticate, criteriaRoutes);
+  // View-only roles (Dept Head, Annual Review Committee) are allow-listed:
+  // they can read terms, criteria and completed observations, and nothing
+  // else. New routers are closed to them unless added here on purpose.
+  app.use('/api/assessments', authenticate, denyViewOnly, assessmentRoutes);
+  app.use('/api/teachers', authenticate, denyViewOnly, teacherRoutes);
+  app.use('/api/terms', authenticate, readOnlyForViewOnly, termRoutes);
+  app.use('/api/courses', authenticate, denyViewOnly, courseRoutes);
+  app.use('/api/sections', authenticate, denyViewOnly, sectionRoutes);
+  app.use('/api/time-options', authenticate, denyViewOnly, timeOptionRoutes);
+  app.use('/api/criteria', authenticate, readOnlyForViewOnly, criteriaRoutes);
   // observations.js was never mounted before this -- its one existing route
   // (POST /:id/review, the retired AC-review stub) was unreachable dead
   // code. #23 adds real routes to this same file (sign-off, response
   // submit/view), so it needs to actually be wired in.
-  app.use('/api/observations', authenticate, observationRoutes);
+  // View-only roles can read completed observations; observations.js filters them.
+  app.use('/api/observations', authenticate, readOnlyForViewOnly, observationRoutes);
 
   app.use((req, res) => {
     res.status(404).json({ error: { code: 'not_found', message: `No route for ${req.method} ${req.path}` } });

@@ -117,4 +117,6 @@ export const USERS = {
   faculty: 'faculty@example.edu',  // faculty, Professor C (teacher 3)
   profA: 'professor.a@example.edu', // faculty, teacher 1
   profD: 'professor.d@example.edu', // faculty, teacher 4
+  deptHead: 'depthead@example.edu', // dept_head, view-only, no teacher profile
+  review: 'review@example.edu',     // annual_review, view-only, no teacher profile
 };
