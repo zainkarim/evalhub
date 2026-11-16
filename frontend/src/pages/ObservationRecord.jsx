@@ -30,7 +30,7 @@ import {
   todayISO,
   toDateOnly,
 } from "../lib/format"
-import { isAC } from "../lib/roles"
+import { isAC, isViewOnly } from "../lib/roles"
 import { useApi } from "../lib/useApi"
 
 function SignOffCard({ label, name, at }) {
@@ -81,6 +81,8 @@ function ObservationRecord() {
   const isObservee = observation?.observee.id === user?.teacherId
   const isParty = isObserver || isObservee
   const committee = isAC(user)
+  // Department Head / Annual Review Committee (#126): read-only, completed records only.
+  const viewOnly = isViewOnly(user)
 
   const status = observation?.status
   const locked = status === "completed"
@@ -96,7 +98,7 @@ function ObservationRecord() {
   // after the observer signs; the committee retains its access.
   const formOpen = isObserver && status === "approved" && !observation?.observerSignedOffAt
   const observerSigned = Boolean(observation?.observerSignedOffAt)
-  const canViewResults = committee || isObserver || (isObservee && observerSigned)
+  const canViewResults = committee || viewOnly || isObserver || (isObservee && observerSigned)
 
   const doSignOff = () =>
     run(
@@ -107,7 +109,11 @@ function ObservationRecord() {
   return (
     <div className="space-y-6">
       <PageHeader
-        backTo={{ to: "/observations", label: "Back to observations" }}
+        backTo={
+          viewOnly
+            ? { to: "/records", label: "Back to completed observations" }
+            : { to: "/observations", label: "Back to observations" }
+        }
         title="Observation record"
         subtitle={
           observation
