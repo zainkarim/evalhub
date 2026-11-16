@@ -6,8 +6,9 @@ const eligibleObserversSql = readFileSync(
   'utf8',
 );
 
-export const latestCandidateList = async (assessmentId) => {
-  const { rows } = await query(
+// `db` is the pool by default, or a transaction client.
+export const latestCandidateList = async (assessmentId, db = { query }) => {
+  const { rows } = await db.query(
     `SELECT * FROM candidate_lists WHERE assessment_id = $1
       ORDER BY generated_at DESC, id DESC LIMIT 1`,
     [assessmentId],
@@ -59,9 +60,13 @@ export async function findEligibleObservers(assessment) {
 // list. An empty pool is saved too (a 0/0 list), so the committee alert and the
 // unmatched-faculty / list-sufficiency KPIs can see it. The sign-up only moves
 // on to 'candidates_generated' when the list has somebody on it.
-export async function saveCandidateList(assessment, matching, actingUserId) {
+//
+// `client` must be inside a transaction: the list, its candidates and the
+// status change are saved together or not at all. A list saved without its
+// candidates would look finished, and a retry would skip it.
+export async function saveCandidateList(client, assessment, matching, actingUserId) {
   const { section, candidates, poolSize } = matching;
-  const { rows: listRows } = await query(
+  const { rows: listRows } = await client.query(
     `INSERT INTO candidate_lists
        (assessment_id, target_level, target_school, pool_size, list_size, generated_by)
      VALUES ($1, $2, $3, $4, $5, $6)
@@ -71,13 +76,13 @@ export async function saveCandidateList(assessment, matching, actingUserId) {
   const list = listRows[0];
 
   for (let i = 0; i < candidates.length; i += 1) {
-    await query(
+    await client.query(
       'INSERT INTO observer_candidates (list_id, teacher_id, position) VALUES ($1, $2, $3)',
       [list.id, candidates[i].id, i + 1],
     );
   }
   if (candidates.length > 0) {
-    await query(`UPDATE assessments SET status = 'candidates_generated' WHERE id = $1`, [assessment.id]);
+    await client.query(`UPDATE assessments SET status = 'candidates_generated' WHERE id = $1`, [assessment.id]);
   }
   return list;
 }

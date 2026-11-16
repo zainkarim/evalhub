@@ -82,3 +82,62 @@ test('Start builds a list for every waiting sign-up, saves empty pools, and is i
     assert.equal(second.body.stillEmpty, first.body.noEligible);
   });
 });
+
+test('a failure partway through saves nothing for that sign-up, and a retry builds the full list', async () => {
+  await withTerm('2000-01-01', async (termId) => {
+    const waiting = await ctx.sql(
+      `SELECT id FROM assessments WHERE due_term_id = $1 AND status = 'signed_up' ORDER BY id`,
+      [termId],
+    );
+    const [{ max: listsBefore }] = await ctx.sql('SELECT coalesce(max(id), 0)::int AS max FROM candidate_lists');
+
+    // Make every candidate insert fail, as a database error would mid-way through a list.
+    await ctx.sql(`
+      CREATE OR REPLACE FUNCTION fail_candidate_insert() RETURNS trigger AS $$
+      BEGIN RAISE EXCEPTION 'injected failure'; END $$ LANGUAGE plpgsql`);
+    await ctx.sql(`
+      CREATE TRIGGER fail_candidate_insert BEFORE INSERT ON observer_candidates
+      FOR EACH ROW EXECUTE FUNCTION fail_candidate_insert()`);
+    let failed;
+    try {
+      failed = await ctx.api('POST', `/terms/${termId}/start-observer-selection`, { as: USERS.ac });
+    } finally {
+      await ctx.sql('DROP TRIGGER IF EXISTS fail_candidate_insert ON observer_candidates');
+      await ctx.sql('DROP FUNCTION IF EXISTS fail_candidate_insert()');
+    }
+    assert.equal(failed.status, 500);
+
+    // No list was left without its candidates, and no status moved on.
+    const orphans = await ctx.sql(
+      `SELECT l.id FROM candidate_lists l
+        WHERE l.id > $1 AND l.list_size > 0
+          AND NOT EXISTS (SELECT 1 FROM observer_candidates c WHERE c.list_id = l.id)`,
+      [listsBefore],
+    );
+    assert.deepEqual(orphans, []);
+    const moved = await ctx.sql(
+      `SELECT id FROM assessments WHERE id = ANY($1) AND status <> 'signed_up'`,
+      [waiting.map((row) => row.id)],
+    );
+    assert.deepEqual(moved, []);
+
+    // The retry builds every list, each with all of its candidates.
+    const retry = await ctx.api('POST', `/terms/${termId}/start-observer-selection`, { as: USERS.ac });
+    assert.equal(retry.status, 200);
+    assert.ok(retry.body.limited + retry.body.full > 0, 'seed has a sign-up with eligible observers');
+    for (const { id } of waiting) {
+      const [list] = await ctx.sql(
+        'SELECT * FROM candidate_lists WHERE assessment_id = $1 ORDER BY id DESC LIMIT 1',
+        [id],
+      );
+      assert.ok(list, `sign-up ${id} has a list after the retry`);
+      const [{ n }] = await ctx.sql(
+        'SELECT count(*)::int AS n FROM observer_candidates WHERE list_id = $1',
+        [list.id],
+      );
+      assert.equal(n, list.list_size, `sign-up ${id}'s list has all of its candidates`);
+      const [a] = await ctx.sql('SELECT status FROM assessments WHERE id = $1', [id]);
+      assert.equal(a.status, list.list_size > 0 ? 'candidates_generated' : 'signed_up');
+    }
+  });
+});

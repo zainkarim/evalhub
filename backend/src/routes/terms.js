@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { query } from '../db/pool.js';
+import { pool, query } from '../db/pool.js';
 import { AC_OR_ADMIN, requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { HttpError, notFound } from '../middleware/errors.js';
@@ -114,6 +114,46 @@ router.patch(
   },
 );
 
+// One sign-up's list, in its own transaction. The sign-up row is locked and
+// re-read first, so two clicks at once can't both build a list for it. If
+// anything fails, nothing for this sign-up is saved and the error goes to the
+// caller; sign-ups already done stay done, and a retry carries on from here.
+// Returns the built list's sizes, 'stillEmpty', or null when there is nothing
+// to do.
+async function buildListFor(assessmentId, actingUserId) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: [assessment] } = await client.query(
+      'SELECT * FROM assessments WHERE id = $1 FOR UPDATE',
+      [assessmentId],
+    );
+
+    let outcome = null;
+    if (assessment?.status === 'signed_up') {
+      const existing = await latestCandidateList(assessment.id, client);
+      if (!existing || existing.list_size === 0) {
+        const matching = await findEligibleObservers(assessment);
+        if (matching && existing && matching.poolSize === 0) {
+          // Empty list from an earlier call: only replace it when somebody is eligible now.
+          outcome = 'stillEmpty';
+        } else if (matching) {
+          await saveCandidateList(client, assessment, matching, actingUserId);
+          outcome = { poolSize: matching.poolSize, fullListSize: matching.fullListSize };
+        }
+      }
+    }
+
+    await client.query('COMMIT');
+    return outcome;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 // POST /api/terms/:id/start-observer-selection  (AC / admin)
 // THE one cycle-wide "Start Observer Selection". After the sign-up deadline the
 // committee clicks it once and every sign-up in the term that has no candidate
@@ -151,19 +191,10 @@ router.post(
 
     const built = [];
     let stillEmpty = 0;
-    for (const assessment of signUps) {
-      const existing = await latestCandidateList(assessment.id);
-      if (existing && existing.list_size > 0) continue;
-
-      const matching = await findEligibleObservers(assessment);
-      if (!matching) continue;
-      // Empty list from an earlier call: only replace it when somebody is eligible now.
-      if (existing && matching.poolSize === 0) {
-        stillEmpty += 1;
-        continue;
-      }
-      await saveCandidateList(assessment, matching, req.user.id);
-      built.push({ poolSize: matching.poolSize, fullListSize: matching.fullListSize });
+    for (const { id: assessmentId } of signUps) {
+      const outcome = await buildListFor(assessmentId, req.user.id);
+      if (outcome === 'stillEmpty') stillEmpty += 1;
+      else if (outcome) built.push(outcome);
     }
 
     const { rows: startedRows } = await query(
