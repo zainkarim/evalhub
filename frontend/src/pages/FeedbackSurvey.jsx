@@ -49,7 +49,7 @@ export default function FeedbackSurvey() {
   }, [])
 
   const handleSubmit = async () => {
-    if (submitting || surveyStatus !== "available") return
+    if (submitting || !rating || surveyStatus !== "available") return
 
     setError("")
     setSubmitting(true)
@@ -63,11 +63,13 @@ export default function FeedbackSurvey() {
 
       setSurveyStatus("submitted")
     } catch (err) {
-      if (
-        err.status === 409 &&
-        err.message?.includes("already submitted")
-      ) {
+      // 409: already submitted, or the deadline passed while the page was
+      // open. Show whichever state the server now reports.
+      const status = err.status === 409 ? await api.getSurveyStatus().catch(() => null) : null
+      if (status?.submitted) {
         setSurveyStatus("submitted")
+      } else if (status && !status.available) {
+        setSurveyStatus("unavailable")
       } else {
         setError(err.message || "Failed to submit feedback.")
       }
@@ -186,7 +188,7 @@ export default function FeedbackSurvey() {
               variant="primary"
               onClick={handleSubmit}
               loading={submitting}
-              disabled={submitting}
+              disabled={submitting || !rating}
             >
               Submit Feedback
             </Button>

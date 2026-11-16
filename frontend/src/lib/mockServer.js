@@ -33,6 +33,7 @@ function load() {
       state.notifications ??= []
       state.nextId ??= {}
       state.surveyResponses ??= []
+      state.nextId.survey ??= 1
 
       if (!state.criteria || !state.observationResponses) {
         const seed = buildSeed()
@@ -239,13 +240,13 @@ const teacherBrief = (id) => {
   const t = byId(load().teachers, id)
   return t
     ? {
-      id: t.id,
-      firstName: t.firstName,
-      lastName: t.lastName,
-      email: t.email,
-      rank: t.rank,
-      school: t.school,
-    }
+        id: t.id,
+        firstName: t.firstName,
+        lastName: t.lastName,
+        email: t.email,
+        rank: t.rank,
+        school: t.school,
+      }
     : null
 }
 
@@ -469,13 +470,13 @@ function assessmentDetail(assessment) {
     ...assessmentView(assessment),
     candidateList: list
       ? {
-        id: list.id,
-        targetSchool: list.targetSchool,
-        targetLevel: list.targetLevel,
-        poolSize: list.poolSize,
-        listSize: list.listSize,
-        generatedAt: list.generatedAt,
-      }
+          id: list.id,
+          targetSchool: list.targetSchool,
+          targetLevel: list.targetLevel,
+          poolSize: list.poolSize,
+          listSize: list.listSize,
+          generatedAt: list.generatedAt,
+        }
       : null,
     candidates: rows.map((candidate) => ({
       ...teacherBrief(candidate.teacherId),
@@ -583,7 +584,7 @@ function shuffle(rows) {
   const copy = [...rows]
   for (let i = copy.length - 1; i > 0; i -= 1) {
     const j = Math.floor(Math.random() * (i + 1))
-      ;[copy[i], copy[j]] = [copy[j], copy[i]]
+    ;[copy[i], copy[j]] = [copy[j], copy[i]]
   }
   return copy
 }
@@ -864,10 +865,10 @@ function reportRow(teacher, term) {
     ...currentStatusOf(signUpRow),
     signUp: signUpRow
       ? {
-        assessmentId: signUpRow.id,
-        course: courseLabel(courseOfSection(signUpRow.sectionId)),
-        section: byId(load().sections, signUpRow.sectionId).sectionNumber,
-      }
+          assessmentId: signUpRow.id,
+          course: courseLabel(courseOfSection(signUpRow.sectionId)),
+          section: byId(load().sections, signUpRow.sectionId).sectionNumber,
+        }
       : null,
   }
 }
@@ -961,11 +962,11 @@ route("GET", "/teachers/(\\d+)/profile", ({ user, match, params }) => {
     observerLoad: { count: observerCount, cap: APP_SETTINGS.observerCap },
     signUp: signUpRow
       ? {
-        assessmentId: signUpRow.id,
-        status: signUpRow.status,
-        section: sectionView(signUpRow.sectionId),
-        attempts: s.attemptLog.filter((row) => row.assessmentId === signUpRow.id).map(logView),
-      }
+          assessmentId: signUpRow.id,
+          status: signUpRow.status,
+          section: sectionView(signUpRow.sectionId),
+          attempts: s.attemptLog.filter((row) => row.assessmentId === signUpRow.id).map(logView),
+        }
       : null,
   }
 })
@@ -1969,78 +1970,58 @@ route("POST", "/notifications/list-reminder", ({ user, body }) => {
   return { sent, skipped }
 })
 
-route("GET", "/surveys/status", ({ user }) => {
-  const s = load()
+// --------------------------------------------- process feedback survey ----
+// Same rules as backend/src/routes/surveys.js: one survey per teacher per
+// term, open until the term's feedback deadline.
 
-  const term = [...s.terms]
+function currentSurveyTerm() {
+  return [...load().terms]
     .filter((item) => item.startDate <= today())
     .sort((a, b) => b.startDate.localeCompare(a.startDate))[0]
+}
 
-  if (!term) {
-    return { submitted: false, available: false }
-  }
+const surveyOpen = (term) => !term.feedbackDeadline || today() <= term.feedbackDeadline
 
-  const submitted = (s.surveyResponses ?? []).some(
-    (response) =>
-      response.userId === user.id &&
-      response.termId === term.id,
-  )
+const hasSubmittedSurvey = (teacherId, termId) =>
+  load().surveyResponses.some((row) => row.teacherId === teacherId && row.termId === termId)
 
+route("GET", "/surveys/status", ({ user }) => {
+  const teacherId = requireTeacher(user)
+  const term = currentSurveyTerm()
+  if (!term) return { submitted: false, available: false }
   return {
-    submitted,
-    available: !term.feedbackDeadline || today() <= term.feedbackDeadline,
+    submitted: hasSubmittedSurvey(teacherId, term.id),
+    available: surveyOpen(term),
     termId: term.id,
   }
 })
 
-
 route("POST", "/surveys", ({ user, body }) => {
+  const teacherId = requireTeacher(user)
   const s = load()
-  s.surveyResponses ??= []
-
-  const term = [...s.terms]
-    .filter((item) => item.startDate <= today())
-    .sort((a, b) => b.startDate.localeCompare(a.startDate))[0]
-
-  if (!term) {
-    throw fail(400, "validation_error", "There is no active term for this survey.")
-  }
-
-  if (term.feedbackDeadline && today() > term.feedbackDeadline) {
-    throw fail(409, "conflict", "The feedback survey deadline has passed.")
-  }
-
-  const alreadySubmitted = s.surveyResponses.some(
-    (response) =>
-      response.userId === user.id &&
-      response.termId === term.id,
-  )
-
-  if (alreadySubmitted) {
+  const term = currentSurveyTerm()
+  if (!term) throw fail(400, "validation_error", "There is no active term for this survey.")
+  if (hasSubmittedSurvey(teacherId, term.id)) {
     throw fail(409, "conflict", "You have already submitted this survey for this term.")
   }
-
+  if (!surveyOpen(term)) throw fail(409, "conflict", "The feedback survey deadline has passed.")
   if (!["1", "2", "3", "4", "5"].includes(String(body?.rating))) {
-    throw fail(400, "validation_error", "Please select a rating.")
+    throw fail(400, "validation_error", "Invalid request")
   }
 
   const response = {
-    id: Date.now(),
-    userId: user.id,
+    id: s.nextId.survey++,
+    teacherId,
     termId: term.id,
     rating: Number(body.rating),
     feedback: body.feedback ?? "",
     suggestions: body.suggestions ?? "",
     submittedAt: nowISO(),
   }
-
   s.surveyResponses.push(response)
   save()
-
   return response
 })
-
-
 
 // ---------------------------------------------------------------- entry ----
 
