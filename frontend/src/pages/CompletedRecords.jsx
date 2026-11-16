@@ -4,7 +4,7 @@ import { Link } from "react-router-dom"
 import StateBlock from "../components/StateBlock"
 import { Callout, EmptyState, Input, PageHeader, Select, Table, TableCard, Td, Th } from "../components/ui"
 import { useAuth } from "../context/auth-context"
-import { api } from "../lib/api"
+import { api, fetchAllPages } from "../lib/api"
 import { courseLabel, formatDate, formatTerm, fullName } from "../lib/format"
 import { isViewOnly } from "../lib/roles"
 import { useApi } from "../lib/useApi"
@@ -17,7 +17,8 @@ const termKey = (term) => (term ? `${term.year}-${term.season}` : "")
 function CompletedRecords() {
   const { user } = useAuth()
   const viewOnly = isViewOnly(user)
-  const call = useCallback(() => api.listObservations({ status: "completed", pageSize: 100 }), [])
+  // All pages, not just the first 100: search and the term filter run here.
+  const call = useCallback(() => fetchAllPages(api.listObservations, { status: "completed" }), [])
   const { data, error, loading, reload } = useApi(call)
   const [search, setSearch] = useState("")
   const [term, setTerm] = useState("")
