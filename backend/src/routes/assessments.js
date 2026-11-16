@@ -135,19 +135,94 @@ async function withNestedViews(assessments) {
 // detail page renders; they are filled in once those features exist here.
 const OBSERVATION_VIEW_STATUS = { not_completed: 'postponed' };
 
+// The observee's requests, in the frontend's offer shape (OfferView): one
+// offer per observer, covering the dates offered to them. The backend keeps
+// one time_option_offers row per date and observer, so the rows are grouped.
+// Statuses use the frontend's names:
+//  - confirmed: one of this observer's dates is the confirmed one;
+//  - pending: any row still waiting. 'accepted' counts as pending, since the
+//    frontend has no separate step for the observee to finalize an accepted
+//    offer (#75);
+//  - withdrawn / declined: every row is closed. #129's action log says which;
+//    rows closed because another observer's date was confirmed have no action
+//    and read as withdrawn, since this observer never declined.
+function buildOffers(offerRows, optionRows, people, attemptNo) {
+  const options = new Map(optionRows.map((r) => [r.id, r]));
+  const byObserver = new Map();
+  for (const row of offerRows) {
+    if (!byObserver.has(row.teacher_id)) byObserver.set(row.teacher_id, []);
+    byObserver.get(row.teacher_id).push(row);
+  }
+
+  return [...byObserver.entries()].map(([observerId, rows]) => {
+    const offered = rows.map((row) => options.get(row.option_id)).filter(Boolean);
+    const latestAction = rows
+      .filter((row) => row.action)
+      .sort((a, b) => new Date(b.action_at) - new Date(a.action_at))[0];
+
+    let status;
+    if (offered.some((o) => o.is_confirmed && o.confirmed_teacher_id === observerId)) status = 'confirmed';
+    else if (rows.some((row) => ['pending', 'accepted'].includes(row.status))) status = 'pending';
+    else status = latestAction?.action === 'declined' ? 'declined' : 'withdrawn';
+
+    const times = (key) => rows.map((row) => new Date(row[key]).getTime());
+    return {
+      id: Math.min(...rows.map((row) => row.id)),
+      assessmentId: rows[0].assessment_id,
+      observerId,
+      attemptNo,
+      status,
+      sentAt: new Date(Math.min(...times('created_at'))).toISOString(),
+      expiresAt: null,
+      respondedAt: status === 'pending' ? null : new Date(Math.max(...times('updated_at'))).toISOString(),
+      reason: latestAction?.reason ?? null,
+      observer: people.get(observerId) ?? null,
+      options: offered
+        .sort((a, b) => String(a.proposed_date).localeCompare(String(b.proposed_date)))
+        .map((o) => ({ ...toTimeOption({ ...o, offers: undefined }), attemptNo })),
+    };
+  });
+}
+
 async function withDetailExtras(view) {
-  const [{ rows: listRows }, { rows: optionRows }, { rows: observationRows }] = await Promise.all([
+  const [
+    { rows: listRows },
+    { rows: optionRows },
+    { rows: observationRows },
+    { rows: offerRows },
+  ] = await Promise.all([
     query(
       `SELECT * FROM candidate_lists WHERE assessment_id = $1
         ORDER BY generated_at DESC, id DESC LIMIT 1`,
       [view.id],
     ),
+    // Same per-option `offers` as GET /assessments/:id/time-options.
     query(
-      'SELECT * FROM assessment_time_options WHERE assessment_id = $1 ORDER BY proposed_date, id',
+      `SELECT ato.*,
+              COALESCE(
+                (SELECT json_agg(json_build_object('id', o.id, 'optionId', o.option_id, 'teacherId', o.teacher_id, 'status', o.status) ORDER BY o.id)
+                   FROM time_option_offers o WHERE o.option_id = ato.id),
+                '[]'
+              ) AS offers
+         FROM assessment_time_options ato
+        WHERE ato.assessment_id = $1
+        ORDER BY ato.proposed_date, ato.id`,
       [view.id],
     ),
     query(
       'SELECT * FROM observations WHERE assessment_id = $1 ORDER BY attempt_no, id',
+      [view.id],
+    ),
+    query(
+      `SELECT f.*, t.assessment_id, h.action, h.reason, h.created_at AS action_at
+         FROM time_option_offers f
+         JOIN assessment_time_options t ON t.id = f.option_id
+         LEFT JOIN LATERAL (
+           SELECT action, reason, created_at FROM time_option_offer_actions
+            WHERE offer_id = f.id ORDER BY id DESC LIMIT 1
+         ) h ON TRUE
+        WHERE t.assessment_id = $1
+        ORDER BY f.id`,
       [view.id],
     ),
   ]);
@@ -164,7 +239,10 @@ async function withDetailExtras(view) {
       )
     : { rows: [] };
 
-  const personIds = [...new Set(observationRows.flatMap((o) => [o.observer_id, o.observee_id]))];
+  const personIds = [...new Set([
+    ...observationRows.flatMap((o) => [o.observer_id, o.observee_id]),
+    ...offerRows.map((row) => row.teacher_id),
+  ])];
   const { rows: personRows } = personIds.length
     ? await query('SELECT * FROM teachers WHERE id = ANY($1::int[])', [personIds])
     : { rows: [] };
@@ -202,6 +280,7 @@ async function withDetailExtras(view) {
       ? latest.attemptNo
       : latest.attemptNo + 1;
   const pairing = observations.find((o) => o.status === 'approved') ?? latest ?? null;
+  const offers = buildOffers(offerRows, optionRows, people, attemptNo);
 
   return {
     ...view,
@@ -224,8 +303,8 @@ async function withDetailExtras(view) {
     candidates: candidateRows.map((r) => ({ ...toTeacherBrief(r), position: r.position })),
     observerList: [],
     listReadyNotifiedAt: null,
-    offer: null,
-    offers: [],
+    offer: [...offers].reverse().find((o) => o.status === 'pending') ?? null,
+    offers,
     timeOptions: optionRows.map((r) => ({ ...toTimeOption(r), attemptNo })),
     observations,
     attempts: [],
