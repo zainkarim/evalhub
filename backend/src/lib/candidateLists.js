@@ -1,10 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { query } from '../db/pool.js';
+import { OBSERVER_CAPACITY, observerCommitmentsSql } from './observerCapacity.js';
 
+// Same query and parameters as POST /assessments/:id/candidates
+// (routes/assessments.js), including the 3-per-term observer cap (#70).
 const eligibleObserversSql = readFileSync(
   new URL('../../db/queries/eligible_observers.sql', import.meta.url),
   'utf8',
-);
+).replace('/* OBSERVER_COMMITMENTS_SQL */', observerCommitmentsSql);
 
 // `db` is the pool by default, or a transaction client.
 export const latestCandidateList = async (assessmentId, db = { query }) => {
@@ -46,6 +49,8 @@ export async function findEligibleObservers(assessment) {
     new Date().toISOString().slice(0, 10),
     fullListSize,
     setting('observer_lookback_years', 2),
+    assessment.due_term_id,
+    OBSERVER_CAPACITY,
   ]);
 
   return {
