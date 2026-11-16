@@ -94,8 +94,7 @@ const courseLabel = (subject, courseNumber) => `${subject} ${courseNumber}`;
 const termBrief = (t) => ({ id: t.id, season: t.season, year: t.year });
 
 // dueStatus.js: termIndex/termFromIndex -- position in the Spring/Fall sequence.
-// Summer has no slot of its own: an observation held in Summer counts as the
-// Spring before it, and a Summer report term is never due/overdue at all.
+// Summer has no slot of its own: both a Summer observation and a Summer report term are treated as the Spring of that year.
 const termIndex = (season, year) => year * 2 + (season === 'fall' ? 1 : 0);
 const termFromIndex = (index) => ({
   season: index % 2 === 1 ? 'fall' : 'spring',
@@ -274,13 +273,20 @@ router.get(
 
     // The sign-up that stands for each teacher in this term.
     const { rows: signUpRows } = await query(
-      `SELECT a.*, cs.section_number, c.subject, c.course_number
+      `SELECT a.*, cs.section_number, c.subject, c.course_number,
+              EXISTS (
+                SELECT 1
+                  FROM cancellation_attempts ca
+                 WHERE ca.assessment_id = a.id
+                   AND ca.reason IN ('not_eligible', 'left_department')
+              ) AS excluded_from_kpis
          FROM assessments a
          JOIN course_sections cs ON cs.id = a.section_id
          JOIN courses c ON c.id = cs.course_id
         WHERE a.due_term_id = $1 AND a.status <> 'not_eligible'`,
       [term.id],
     );
+
     const signUpByTeacher = new Map();
     for (const row of signUpRows) {
       const current = signUpByTeacher.get(row.teacher_id);
@@ -325,6 +331,7 @@ router.get(
         rank: t.rank,
         rankLabel: rankLabel(t.rank),
         dueStatus: due.status,
+        hasCompletedInTerm: history.some((h) => h.term_id === term.id),
         dueTerm: due.dueTerm,
         dueWindow: due.dueWindow,
         lastCompleted: lastShown
@@ -348,16 +355,106 @@ router.get(
     const active = data.filter((r) => r.isActive);
     const count = (test) => active.filter(test).length;
 
+    const isDue = (r) =>
+      r.dueStatus === 'due' || r.dueStatus === 'never_observed';
+
+    const dueByRank = Object.fromEntries(
+      RANKS.map((rank) => [
+        rank,
+        count((r) => r.rank === rank && isDue(r)),
+      ]),
+    );
+
+    const overdueByRank = Object.fromEntries(
+      RANKS.map((rank) => [
+        rank,
+        count((r) => r.rank === rank && r.dueStatus === 'overdue'),
+      ]),
+    );
+
+    const participationEligible = active.filter((r) =>
+      ['due', 'never_observed', 'overdue'].includes(r.dueStatus),
+    );
+
+    // Use all term sign-ups, rather than the single display sign-up per teacher.
+    const participatingTeacherIds = new Set(
+      signUpRows
+        .filter((a) =>
+          !['cancelled', 'not_eligible'].includes(a.status)
+          && !a.excluded_from_kpis,
+        )
+        .map((a) => a.teacher_id),
+    );
+
+    const participating = participationEligible.filter(
+      (r) => participatingTeacherIds.has(r.id),
+    ).length;
+
+    const assessmentParticipation = {
+      participating,
+      eligible: participationEligible.length,
+      ratePercent: participationEligible.length === 0
+        ? null
+        : Math.round(
+          (participating / participationEligible.length) * 10000,
+        ) / 100,
+    };
+
+    // Survey completion cannot be measured until submission is implemented.
+    const surveyCompletion = {
+      submitted: null,
+      expected: null,
+      ratePercent: null,
+      status: 'unavailable',
+      reason: 'Survey submission is not implemented yet (#103)',
+    };
+
+    const { rows: missingRows } = await query(
+      `SELECT COUNT(*)::int AS missing
+         FROM assessments a
+         JOIN teachers t ON t.id = a.teacher_id
+        WHERE a.due_term_id = $1
+          AND t.is_active = TRUE
+          AND a.status NOT IN ('cancelled', 'not_eligible')
+          AND NOT EXISTS (
+            SELECT 1
+              FROM cancellation_attempts ca
+             WHERE ca.assessment_id = a.id
+               AND ca.reason IN ('not_eligible', 'left_department')
+          )
+          AND NOT EXISTS (
+            SELECT 1
+              FROM observations o
+             WHERE o.assessment_id = a.id
+               AND o.status = 'completed'
+          )`,
+      [term.id],
+    );
+
     res.json({
       term: termBrief(term),
+      assessmentParticipation,
+      surveyCompletion,
+      evaluationEligibilityAccuracy: {
+        ratePercent: null,
+        status: 'unavailable',
+        reason: 'Verified eligibility decisions and prediction snapshots are not recorded',
+      },
       counts: {
         // `due` includes professors never observed; `neverObserved` says how many.
-        due: count((r) => r.dueStatus === 'due' || r.dueStatus === 'never_observed'),
+        due: count(isDue),
+        dueByRank,
+        overdueByRank,
         overdue: count((r) => r.dueStatus === 'overdue'),
+        // Outstanding overdue faculty: completion in this term clears the count.
+        overdueOutstanding: count(
+          (r) => r.dueStatus === 'overdue' && !r.hasCompletedInTerm,
+        ),
         neverObserved: count((r) => r.dueStatus === 'never_observed'),
         signedUp: count((r) => r.signUp),
         notSignedUp: count((r) => !r.signUp),
         completed: count((r) => r.currentStatus === 'completed'),
+        missingObservations: missingRows[0].missing,
       },
       data,
     });
