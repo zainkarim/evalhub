@@ -26,6 +26,18 @@ export const observerCommitmentsSql = `
   WHERE t.is_confirmed
     AND COALESCE(t.confirmed_teacher_id, t.offered_to_teacher_id)
         IS NOT NULL
+    AND a.status NOT IN ('completed', 'cancelled', 'not_eligible')
+    AND (
+      a.status = 'postponed'
+      OR EXISTS (
+        SELECT 1
+        FROM observations o
+        WHERE o.assessment_id = a.id
+          AND o.observer_id =
+              COALESCE(t.confirmed_teacher_id, t.offered_to_teacher_id)
+          AND o.status IN ('proposed', 'approved')
+      )
+    )
 
   UNION
 
