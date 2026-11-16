@@ -289,8 +289,6 @@ describe('a closed sign-up cannot be scheduled', () => {
       assert.equal(commitment.count, 0);
     });
 
-    });
-
     test('a cancelled sign-up with a confirmed date does not use observer capacity', async () => {
       const assessmentId = await makeAssessment();
       const option = await addOption(assessmentId, 43);
@@ -316,7 +314,6 @@ describe('a closed sign-up cannot be scheduled', () => {
       assert.equal(commitment.count, 0);
     });
 
-    test('an observer with three commitments cannot confirm a fourth in the same term', async () => {
     test('an observer with three commitments cannot confirm a fourth in the same term', async () => {
       // Seed this test's own three confirmed commitments for observer 1.
       for (const daysAgo of [80, 81, 82]) {
