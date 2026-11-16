@@ -31,7 +31,7 @@ const surveyBody = {
   suggestions: 'Make scheduling easier.',
 };
 
-test('one term survey covers all completed observations for the observee', async () => {
+test('survey completion counts observees, not observations', async () => {
   // No completed observations yet.
   await check(0, 0, null);
 
@@ -60,7 +60,7 @@ test('one term survey covers all completed observations for the observee', async
 
   await check(1, 0, 0);
 
-  // Add another observation for the same observee.
+  // A second completed observation for the same observee is still one person. for the same observee.
   await ctx.sql(
     `INSERT INTO observations
        (assessment_id, observee_id, observer_id, attempt_no,
@@ -69,7 +69,7 @@ test('one term survey covers all completed observations for the observee', async
              '2026-10-02T18:00:00Z', '2026-10-02T18:00:00Z')`,
   );
 
-  await check(2, 0, 0);
+  await check(1, 0, 0);
 
   // Open the survey.
   await ctx.sql(
@@ -87,7 +87,7 @@ test('one term survey covers all completed observations for the observee', async
   assert.equal(submit.status, 201);
 
   // One survey covers both completed observations.
-  await check(2, 2, 100);
+  await check(1, 1, 100);
 
   // A second survey is not allowed.
   const duplicate = await ctx.api('POST', '/surveys', {
@@ -96,7 +96,7 @@ test('one term survey covers all completed observations for the observee', async
   });
 
   assert.equal(duplicate.status, 409);
-  await check(2, 2, 100);
+  await check(1, 1, 100);
 
   // Inactive observees should not count.
   await ctx.sql(

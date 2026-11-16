@@ -400,12 +400,12 @@ router.get(
         ) / 100,
     };
 
-
-    // Count completed observations with a term survey from the observee.
-    // One survey can cover multiple observations for the same observee.
+    // Count observees with a completed observation this term, and how many of
+    // them sent the term survey. One survey covers all of a person's
+    // observations, so count people, not observations.
     const { rows: surveyRows } = await query(
-      `SELECT COUNT(*)::int AS expected,
-              COUNT(*) FILTER (
+      `SELECT COUNT(DISTINCT o.observee_id)::int AS expected,
+              COUNT(DISTINCT o.observee_id) FILTER (
                 WHERE EXISTS (
                   SELECT 1
                     FROM process_feedback pf

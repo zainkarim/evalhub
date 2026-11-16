@@ -1,4 +1,3 @@
-
 import { Router } from 'express';
 import { z } from 'zod';
 import { query } from '../db/pool.js';
@@ -18,18 +17,20 @@ const surveyQuery = z.object({
   termId: z.coerce.number().int().positive(),
 });
 
-// Only faculty with a teacher profile can submit.
-function checkFaculty(req, res, next) {
-  if (req.user.role !== 'faculty' || !req.user.teacherId) {
-    return next(new HttpError(403, 'forbidden', 'Faculty profile is required.'));
+// Anyone with a teacher profile can answer: faculty, and AC members, who can
+// be observed too. Admin and the view-only roles have no profile.
+function requireTeacherProfile(req, res, next) {
+  if (!req.user.teacherId) {
+    return next(new HttpError(403, 'forbidden', 'A faculty profile is required.'));
   }
   next();
 }
 
-// Find the latest term that has started.
+// The latest term that has started, and whether its survey is still open.
 async function getCurrentTerm() {
   const { rows } = await query(
-    `SELECT *
+    `SELECT id,
+            (feedback_deadline IS NULL OR CURRENT_DATE <= feedback_deadline) AS survey_open
      FROM terms
      WHERE start_date <= CURRENT_DATE
      ORDER BY start_date DESC
@@ -38,94 +39,51 @@ async function getCurrentTerm() {
   return rows[0] ?? null;
 }
 
-// GET /api/surveys/status
-router.get('/status', checkFaculty, async (req, res) => {
-  const term = await getCurrentTerm();
-
-  if (!term) {
-    return res.json({
-      submitted: false,
-      available: false,
-    });
-  }
-
+async function hasSubmitted(teacherId, termId) {
   const { rows } = await query(
-    `SELECT id
+    `SELECT 1
      FROM process_feedback
      WHERE respondent_id = $1
        AND term_id = $2
        AND observation_id IS NULL
      LIMIT 1`,
-    [req.user.teacherId, term.id],
+    [teacherId, termId],
   );
+  return rows.length > 0;
+}
 
-  const submitted = rows.length > 0;
+const alreadySubmitted = () =>
+  new HttpError(409, 'conflict', 'You have already submitted this survey for this term.');
 
-  // Check the feedback deadline.
-  const { rows: deadlineRows } = await query(
-    `SELECT (
-       feedback_deadline IS NULL
-       OR CURRENT_DATE <= feedback_deadline
-     ) AS available
-     FROM terms
-     WHERE id = $1`,
-    [term.id],
-  );
+// GET /api/surveys/status
+router.get('/status', requireTeacherProfile, async (req, res) => {
+  const term = await getCurrentTerm();
+
+  if (!term) {
+    return res.json({ submitted: false, available: false });
+  }
 
   res.json({
-    submitted,
-    available: deadlineRows[0].available,
+    submitted: await hasSubmitted(req.user.teacherId, term.id),
+    available: term.survey_open,
     termId: term.id,
   });
 });
 
 // POST /api/surveys
-router.post('/', checkFaculty, validate(surveyBody), async (req, res) => {
+router.post('/', requireTeacherProfile, validate(surveyBody), async (req, res) => {
   const term = await getCurrentTerm();
 
   if (!term) {
-    throw new HttpError(
-      400,
-      'validation_error',
-      'There is no active term for this survey.',
-    );
+    throw new HttpError(400, 'validation_error', 'There is no active term for this survey.');
   }
 
-  const { rows: existing } = await query(
-    `SELECT id
-     FROM process_feedback
-     WHERE respondent_id = $1
-       AND term_id = $2
-       AND observation_id IS NULL
-     LIMIT 1`,
-    [req.user.teacherId, term.id],
-  );
-
-  if (existing.length > 0) {
-    throw new HttpError(
-      409,
-      'conflict',
-      'You have already submitted this survey for this term.',
-    );
+  if (await hasSubmitted(req.user.teacherId, term.id)) {
+    throw alreadySubmitted();
   }
 
-  // Check the feedback deadline.
-  const { rows: deadlineRows } = await query(
-    `SELECT (
-       feedback_deadline IS NULL
-       OR CURRENT_DATE <= feedback_deadline
-     ) AS available
-     FROM terms
-     WHERE id = $1`,
-    [term.id],
-  );
-
-  if (!deadlineRows[0].available) {
-    throw new HttpError(
-      409,
-      'conflict',
-      'The feedback survey deadline has passed.',
-    );
+  if (!term.survey_open) {
+    throw new HttpError(409, 'conflict', 'The feedback survey deadline has passed.');
   }
 
   const { rating, feedback, suggestions } = req.valid.body;
@@ -148,14 +106,8 @@ router.post('/', checkFaculty, validate(surveyBody), async (req, res) => {
       submittedAt: rows[0].submitted_at,
     });
   } catch (err) {
-    // Prevent duplicate submissions at the same time.
-    if (err.code === '23505') {
-      throw new HttpError(
-        409,
-        'conflict',
-        'You have already submitted this survey for this term.',
-      );
-    }
+    // Two submissions at the same moment: the unique index rejects the second.
+    if (err.code === '23505') throw alreadySubmitted();
     throw err;
   }
 });

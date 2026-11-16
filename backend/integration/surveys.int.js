@@ -29,17 +29,15 @@ async function setSurveyDates(startOffset, endOffset) {
   );
 }
 
-test('survey requires login and faculty profile', async () => {
+test('survey requires login and a teacher profile', async () => {
   assert.equal(
     (await ctx.api('GET', '/surveys/status')).status,
     401,
   );
 
+  // Admin has no teacher profile.
   assert.equal(
-    (await ctx.api('POST', '/surveys', {
-      as: USERS.ac,
-      body: surveyBody,
-    })).status,
+    (await ctx.api('GET', '/surveys/status', { as: USERS.admin })).status,
     403,
   );
 
@@ -50,6 +48,19 @@ test('survey requires login and faculty profile', async () => {
     })).status,
     403,
   );
+});
+
+test('AC members with a teacher profile can answer the survey', async () => {
+  // AC members can be observed too, so they count toward survey completion.
+  const status = await ctx.api('GET', '/surveys/status', { as: USERS.ac });
+  assert.equal(status.status, 200);
+  assert.equal(status.body.submitted, false);
+
+  const submit = await ctx.api('POST', '/surveys', {
+    as: USERS.ac,
+    body: surveyBody,
+  });
+  assert.equal(submit.status, 201);
 });
 
 test('survey is available before observation deadline', async () => {
