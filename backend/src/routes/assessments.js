@@ -78,17 +78,18 @@ async function withNestedViews(assessments) {
     query(
       `SELECT cs.*, c.subject, c.school AS course_school, c.course_number,
               c.title AS course_title, c.course_level, c.source AS course_source,
-              c.external_id AS course_external_id,
-              t.id AS t_id, t.season, t.year, t.start_date, t.end_date,
-              t.is_long_term, t.signup_deadline, t.observation_deadline,
-              t.feedback_deadline
+              c.external_id AS course_external_id
          FROM course_sections cs
          JOIN courses c ON c.id = cs.course_id
-         JOIN terms t ON t.id = cs.term_id
         WHERE cs.id = ANY($1::int[])`,
       [sectionIds],
     ),
   ]);
+  // Whole term rows through the same toTerm as GET /terms, so the nested term
+  // matches it exactly, including columns added later (#121's selection_started_at).
+  const termIds = [...new Set(sectionRows.map((r) => r.term_id))];
+  const { rows: termRows } = await query('SELECT * FROM terms WHERE id = ANY($1::int[])', [termIds]);
+  const terms = new Map(termRows.map((r) => [r.id, toTerm(r)]));
 
   const teachers = new Map(teacherRows.map((r) => [r.id, toTeacherBrief(r)]));
   const sections = new Map(
@@ -106,17 +107,7 @@ async function withNestedViews(assessments) {
           source: r.course_source,
           external_id: r.course_external_id,
         }),
-        term: toTerm({
-          id: r.t_id,
-          season: r.season,
-          year: r.year,
-          start_date: r.start_date,
-          end_date: r.end_date,
-          is_long_term: r.is_long_term,
-          signup_deadline: r.signup_deadline,
-          observation_deadline: r.observation_deadline,
-          feedback_deadline: r.feedback_deadline,
-        }),
+        term: terms.get(r.term_id) ?? null,
       },
     ]),
   );
@@ -285,7 +276,8 @@ async function withDetailExtras(view) {
   return {
     ...view,
     signupDeadline: view.section?.term?.signupDeadline ?? null,
-    selectionStartedAt: null,
+    // Set once #121's Start Observer Selection runs for the term; null until then.
+    selectionStartedAt: view.section?.term?.selectionStartedAt ?? null,
     alert: null,
     attemptNo,
     pairing,

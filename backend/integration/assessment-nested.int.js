@@ -29,6 +29,13 @@ test('GET /assessments/:id carries nested teacher and section, and keeps the fla
   assert.equal(res.body.section.course.subject + res.body.section.course.courseNumber, res.body.courseCode);
 });
 
+test('the nested term matches GET /terms field for field', async () => {
+  const list = await ctx.api('GET', '/assessments?teacherId=3', { as: USERS.ac });
+  const nested = list.body.data[0].section.term;
+  const terms = await ctx.api('GET', '/terms', { as: USERS.ac });
+  assert.deepEqual(nested, terms.body.data.find((t) => t.id === nested.id));
+});
+
 test('the AC list and the faculty "mine" list carry the nested view too', async () => {
   const list = await ctx.api('GET', '/assessments?teacherId=3', { as: USERS.ac });
   assert.equal(list.status, 200);
