@@ -49,23 +49,32 @@ describe('signUp.attempts on the teacher profile', () => {
     assert.equal(attempt.attemptNo, 1);
     assert.equal(attempt.type, 'postponed');
     assert.equal(attempt.reason, 'other');
-    assert.equal(attempt.by.name, 'Professor B');
+    assert.equal(attempt.notes, 'integration test', 'the written reason is returned, not just the code');
+    // Expected name comes from the table, so a seed rename (#101/#115) can't break this.
+    const [ac] = await ctx.sql('SELECT first_name, last_name FROM teachers WHERE id = 2');
+    assert.equal(attempt.by.name, `${ac.first_name} ${ac.last_name}`);
     assert.equal(attempt.by.role, 'ac_member');
   });
 
   test('a not_completed observation is an attempt with the observer and no actor', async () => {
     await ctx.sql(
-      `INSERT INTO observations (assessment_id, observer_id, observee_id, attempt_no, status)
-       VALUES ($1, 2, 3, 1, 'not_completed')`,
+      `INSERT INTO observations (assessment_id, observer_id, observee_id, attempt_no, status, ac_notes)
+       VALUES ($1, 2, 3, 1, 'not_completed', 'committee only')`,
       [assessmentId],
     );
 
     const { attempts } = await profile();
-    const closed = attempts.find((a) => a.type === 'not_completed');
-    assert.ok(closed, 'not_completed attempt missing');
-    assert.equal(closed.by, null);
+    // 'not_completed' is reported as the frontend's 'did_not_happen' label.
+    const closed = attempts.find((a) => a.type === 'did_not_happen');
+    assert.ok(closed, 'did_not_happen attempt missing');
+    // by is an object with null fields: AttemptHistory.jsx reads entry.by.name.
+    assert.deepEqual(closed.by, { name: null, role: null });
+    // The committee's private ac_notes must not reach the professor's profile.
+    assert.equal(closed.reason, null);
+    assert.equal(closed.notes, null);
     assert.equal(closed.observer.id, 2);
-    assert.equal(closed.observer.lastName, 'B');
+    const [observer] = await ctx.sql('SELECT last_name FROM teachers WHERE id = 2');
+    assert.equal(closed.observer.lastName, observer.last_name);
     assert.deepEqual(attempts.map((a) => a.attemptNo), [1, 2]);
   });
 

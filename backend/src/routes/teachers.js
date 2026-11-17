@@ -200,6 +200,12 @@ function currentStatusOf(assessment, observations, cancellationCount = 0) {
   return { currentStatus: 'selecting_observer', currentDate: null, attempts: 0 };
 }
 
+// The frontend's ATTEMPT_EVENT (lib/format.js) is keyed by the mock's event
+// names. An observation that closed as 'not_completed' is its
+// 'did_not_happen' ("Did not happen -- postponed"); 'postponed' is the same in
+// both. Without this the page would show the raw status text.
+const ATTEMPT_TYPE_BY_STATUS = { not_completed: 'did_not_happen' };
+
 // #96 (follow-up to #91/#71): signUp.attempts, backed by real data instead of
 // the frontend mock's full event log, which has no backend equivalent. Two
 // real sources exist for "an attempt on this sign-up closed without
@@ -218,6 +224,7 @@ function attemptsFor(cancellationRows, closingObservations, teachersById = new M
     type: 'postponed',
     at: row.requested_at,
     reason: row.reason,
+    notes: row.notes ?? null,
     by: {
       name: row.requester_first_name
         ? `${row.requester_first_name} ${row.requester_last_name}`
@@ -231,17 +238,21 @@ function attemptsFor(cancellationRows, closingObservations, teachersById = new M
 
   // No actor/timestamp is recorded for an observation closing today (no
   // closed_at or closed_by column) -- updated_at is the closest available
-  // approximation. Nobody is recorded as having closed it, so `by` is null
-  // rather than guessing (it used to claim "Academic Council"). The observer
+  // approximation. Nobody is recorded as having closed it, so `by` has a null
+  // name and role (AttemptHistory.jsx reads entry.by.name, so the object has
+  // to exist) rather than guessing. The observer
   // is known, though: it comes from the observation itself.
   const fromObservations = closingObservations.map((o) => {
     const obs = teachersById.get(o.observer_id);
     return {
       id: `observation-${o.id}`,
-      type: o.status,
+      type: ATTEMPT_TYPE_BY_STATUS[o.status] ?? o.status,
       at: o.updated_at,
-      reason: o.ac_notes ?? null,
-      by: null,
+      // Not o.ac_notes: those are committee-only notes, and this response is
+      // also served to the professor on their own profile.
+      reason: null,
+      notes: null,
+      by: { name: null, role: null },
       observer: obs
         ? {
           id: obs.id,
