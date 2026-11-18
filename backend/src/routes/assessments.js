@@ -801,7 +801,10 @@ router.post(
     }
 
     for (const opt of req.valid.body.options) {
-      const conflict = await findTeacherConflict(assessment.teacher_id, opt.proposedDate, opt.startTime, opt.endTime);
+      const conflict = await findTeacherConflict(
+        assessment.teacher_id, opt.proposedDate, opt.startTime, opt.endTime, undefined,
+        { exceptSectionId: assessment.section_id },
+      );
       if (conflict) {
         throw new HttpError(
           409,
@@ -1231,6 +1234,7 @@ router.post(
 
       const observeeConflict = await findTeacherConflict(
         assessment.teacher_id, date, start, end, client,
+        { exceptSectionId: assessment.section_id },
       );
       if (observeeConflict) {
         throw new HttpError(
