@@ -119,7 +119,7 @@ test('a term with no observation deadline uses its end date for outstanding obse
       'the term has not ended yet');
 
     await ctx.sql(
-      `UPDATE terms SET start_date = current_date - 100, end_date = current_date - 1 WHERE id = $1`, [TERM],
+      `UPDATE terms SET start_date = current_date - 100, end_date = current_date - 2 WHERE id = $1`, [TERM],
     );
     body = await report();
     assert.ok(body.outstandingObservations.some((o) => o.assessmentId === assessmentId),
