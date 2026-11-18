@@ -451,6 +451,8 @@ export function buildSeed(now = new Date()) {
     notifications: [],
     criteria,
     observationResponses,
+    // Process feedback survey answers (#73).
+    surveyResponses: [],
     nextId: {
       criterion: criteria.length + 1,
       response: observationResponses.length + 1,
@@ -460,6 +462,7 @@ export function buildSeed(now = new Date()) {
       observation: 10,
       log: attemptLog.length + 1,
       notification: 1,
+      survey: 1,
     },
   }
 }
