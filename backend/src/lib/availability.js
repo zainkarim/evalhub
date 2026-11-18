@@ -41,8 +41,15 @@ export function timesOverlap(aStart, aEnd, bStart, bEnd) {
 /**
  * Returns a short description of what's blocking this teacher at this date +
  * time window, or null if they're free.
+ *
+ * `exceptSectionId` skips one of the teacher's own sections. Pass the observed
+ * section when checking the observee: they are teaching that class at that
+ * time by definition, which is the point of the observation, not a conflict
+ * (#136). Their other classes and confirmed observations still count.
  */
-export async function findTeacherConflict(teacherId, date, startTime, endTime, db = { query }, ) {
+export async function findTeacherConflict(
+  teacherId, date, startTime, endTime, db = { query }, { exceptSectionId = null } = {},
+) {
   const dayCode = dayCodeFor(date);
 
   const { rows: teaching } = await db.query(
@@ -55,8 +62,9 @@ export async function findTeacherConflict(teacherId, date, startTime, endTime, d
         AND cs.end_time IS NOT NULL
         AND strpos(cs.meeting_days, $2) > 0
         AND tm.start_date <= $3::date
-        AND tm.end_date   >= $3::date`,
-    [teacherId, dayCode, date],
+        AND tm.end_date   >= $3::date
+        AND ($4::int IS NULL OR cs.id <> $4::int)`,
+    [teacherId, dayCode, date, exceptSectionId],
   );
 
   for (const row of teaching) {

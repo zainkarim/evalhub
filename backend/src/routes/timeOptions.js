@@ -262,6 +262,7 @@ router.post('/:id/confirm', validate(idParams, 'params'), async (req, res) => {
       startTime,
       endTime,
       client,
+      { exceptSectionId: assessment.section_id },
     );
     if (observeeConflict) {
       throw new HttpError(
