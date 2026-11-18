@@ -117,12 +117,16 @@ const statusOf = async (promise) => {
     return error.status
   }
 }
-const AC = "ac@example.edu" // Professor B
-const FACULTY = "faculty@example.edu" // Professor C
+const AC = "ac@example.edu" // David Okafor
+const FACULTY = "faculty@example.edu" // Sofia Alvarez
 const FALL_2026 = 10
 const SPRING_2027 = 11
 const report = async (termId) => call(AC, `/teachers/report${termId ? `?termId=${termId}` : ""}`)
-const byLetter = (rows) => Object.fromEntries(rows.data.map((row) => [row.lastName, row]))
+// Seeded professors by their login letter (professor.a@ -> A); anyone else by last name.
+const byLetter = (rows) => Object.fromEntries(rows.data.map((row) => [
+  row.email.match(/^professor\.(.)@/)?.[1].toUpperCase() ?? row.lastName,
+  row,
+]))
 
 // Faculty must not reach either route.
 assert.equal(await statusOf(call(FACULTY, "/teachers/report")), 403)
@@ -277,7 +281,7 @@ resetMockData()
 
 // A request sent for a postponed sign-up reads "Request sent", not "Postponed".
 setMockToday(TODAY)
-const sendDates = ["2026-10-19", "2026-10-21", "2026-10-26", "2026-10-28"] // Professor B's MW class
+const sendDates = ["2026-10-19", "2026-10-21", "2026-10-26", "2026-10-28"] // David Okafor's MW class
 await call(AC, "/assessments/5/time-options", {
   method: "POST",
   body: { options: sendDates.map((proposedDate) => ({ proposedDate, startTime: "10:00", endTime: "11:15" })) },
@@ -296,7 +300,7 @@ assert.deepEqual(
   profileC.courses.map((course) => [course.course, course.thisTerm]),
   [
     ["CS 1337", true],
-    ["CS 2305", true], // the second Fall 2026 section the seed gives Professor C
+    ["CS 2305", true], // the second Fall 2026 section the seed gives Sofia Alvarez
     ["CS 2305", false], // Spring 2026
     ["CS 1337", false], // Fall 2025
   ],
@@ -307,7 +311,7 @@ assert.deepEqual(
 )
 const received = profileC.observations.find((o) => o.role === "observee")
 assert.equal(received.status, "completed")
-assert.equal(received.partner.lastName, "G")
+assert.equal(received.partner.lastName, "Petrova")
 assert.equal(profileC.signUp.status, "signed_up")
 
 const profileD = await call(AC, `/teachers/4/profile?termId=${FALL_2026}`)
