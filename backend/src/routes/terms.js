@@ -8,7 +8,7 @@ import { findEligibleObservers, latestCandidateList, saveCandidateList } from '.
 
 const router = Router();
 
-const toTerm = (r) => ({
+export const toTerm = (r) => ({
   id: r.id,
   season: r.season,
   year: r.year,

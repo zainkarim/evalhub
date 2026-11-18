@@ -8,6 +8,9 @@ import { AC_OR_ADMIN, requireRole } from '../middleware/auth.js';
 import { HttpError, notFound } from '../middleware/errors.js';
 import { idParams, pagination, paged, validate } from '../middleware/validate.js';
 import { OBSERVER_CAPACITY, observerCommitmentsSql, getObserverCapacity } from '../lib/observerCapacity.js';
+import { toCourse } from './courses.js';
+import { toSection } from './sections.js';
+import { toTerm } from './terms.js';
 
 const router = Router();
 
@@ -51,6 +54,254 @@ const toAssessment = (r) => {
     updatedAt: r.updated_at,
   };
 };
+
+// Additive nested view the redesigned frontend reads (api-expectations.md,
+// AssessmentView): `teacher` (TeacherBrief) and `section` (the section plus its
+// nested `course` and `term`). The flat fields above stay exactly as they were.
+const toTeacherBrief = (r) => ({
+  id: r.id,
+  firstName: r.first_name,
+  lastName: r.last_name,
+  email: r.email,
+  rank: r.rank,
+  school: r.school,
+});
+
+async function withNestedViews(assessments) {
+  if (assessments.length === 0) return assessments;
+
+  const teacherIds = [...new Set(assessments.map((a) => a.teacherId))];
+  const sectionIds = [...new Set(assessments.map((a) => a.sectionId).filter(Boolean))];
+
+  const [{ rows: teacherRows }, { rows: sectionRows }] = await Promise.all([
+    query('SELECT * FROM teachers WHERE id = ANY($1::int[])', [teacherIds]),
+    query(
+      `SELECT cs.*, c.subject, c.school AS course_school, c.course_number,
+              c.title AS course_title, c.course_level, c.source AS course_source,
+              c.external_id AS course_external_id
+         FROM course_sections cs
+         JOIN courses c ON c.id = cs.course_id
+        WHERE cs.id = ANY($1::int[])`,
+      [sectionIds],
+    ),
+  ]);
+  // Whole term rows through the same toTerm as GET /terms, so the nested term
+  // matches it exactly, including columns added later (#121's selection_started_at).
+  const termIds = [...new Set(sectionRows.map((r) => r.term_id))];
+  const { rows: termRows } = await query('SELECT * FROM terms WHERE id = ANY($1::int[])', [termIds]);
+  const terms = new Map(termRows.map((r) => [r.id, toTerm(r)]));
+
+  const teachers = new Map(teacherRows.map((r) => [r.id, toTeacherBrief(r)]));
+  const sections = new Map(
+    sectionRows.map((r) => [
+      r.id,
+      {
+        ...toSection({ ...r, course_subject: r.subject }),
+        course: toCourse({
+          id: r.course_id,
+          subject: r.subject,
+          school: r.course_school,
+          course_number: r.course_number,
+          title: r.course_title,
+          course_level: r.course_level,
+          source: r.course_source,
+          external_id: r.course_external_id,
+        }),
+        term: terms.get(r.term_id) ?? null,
+      },
+    ]),
+  );
+
+  return assessments.map((a) => ({
+    ...a,
+    teacher: teachers.get(a.teacherId) ?? null,
+    section: sections.get(a.sectionId) ?? null,
+  }));
+}
+
+// The rest of AssessmentDetail (api-expectations.md) for GET /assessments/:id.
+// Real data where the tables already hold it: the candidate list and its
+// candidates, the date options, and the observation attempts. The mock-only
+// parts (offers, alert, observer list, attempt log) come back empty so the
+// detail page renders; they are filled in once those features exist here.
+const OBSERVATION_VIEW_STATUS = { not_completed: 'postponed' };
+
+// The observee's requests, in the frontend's offer shape (OfferView): one
+// offer per observer, covering the dates offered to them. The backend keeps
+// one time_option_offers row per date and observer, so the rows are grouped.
+// Statuses use the frontend's names:
+//  - confirmed: one of this observer's dates is the confirmed one;
+//  - pending: any row still waiting. 'accepted' counts as pending, since the
+//    frontend has no separate step for the observee to finalize an accepted
+//    offer (#75);
+//  - withdrawn / declined: every row is closed. #129's action log says which;
+//    rows closed because another observer's date was confirmed have no action
+//    and read as withdrawn, since this observer never declined.
+function buildOffers(offerRows, optionRows, people, attemptNo) {
+  const options = new Map(optionRows.map((r) => [r.id, r]));
+  const byObserver = new Map();
+  for (const row of offerRows) {
+    if (!byObserver.has(row.teacher_id)) byObserver.set(row.teacher_id, []);
+    byObserver.get(row.teacher_id).push(row);
+  }
+
+  return [...byObserver.entries()].map(([observerId, rows]) => {
+    const offered = rows.map((row) => options.get(row.option_id)).filter(Boolean);
+    const latestAction = rows
+      .filter((row) => row.action)
+      .sort((a, b) => new Date(b.action_at) - new Date(a.action_at))[0];
+
+    let status;
+    if (offered.some((o) => o.is_confirmed && o.confirmed_teacher_id === observerId)) status = 'confirmed';
+    else if (rows.some((row) => ['pending', 'accepted'].includes(row.status))) status = 'pending';
+    else status = latestAction?.action === 'declined' ? 'declined' : 'withdrawn';
+
+    const times = (key) => rows.map((row) => new Date(row[key]).getTime());
+    return {
+      id: Math.min(...rows.map((row) => row.id)),
+      assessmentId: rows[0].assessment_id,
+      observerId,
+      attemptNo,
+      status,
+      sentAt: new Date(Math.min(...times('created_at'))).toISOString(),
+      expiresAt: null,
+      respondedAt: status === 'pending' ? null : new Date(Math.max(...times('updated_at'))).toISOString(),
+      reason: latestAction?.reason ?? null,
+      observer: people.get(observerId) ?? null,
+      options: offered
+        .sort((a, b) => String(a.proposed_date).localeCompare(String(b.proposed_date)))
+        .map((o) => ({ ...toTimeOption({ ...o, offers: undefined }), attemptNo })),
+    };
+  });
+}
+
+async function withDetailExtras(view) {
+  const [
+    { rows: listRows },
+    { rows: optionRows },
+    { rows: observationRows },
+    { rows: offerRows },
+  ] = await Promise.all([
+    query(
+      `SELECT * FROM candidate_lists WHERE assessment_id = $1
+        ORDER BY generated_at DESC, id DESC LIMIT 1`,
+      [view.id],
+    ),
+    // Same per-option `offers` as GET /assessments/:id/time-options.
+    query(
+      `SELECT ato.*,
+              COALESCE(
+                (SELECT json_agg(json_build_object('id', o.id, 'optionId', o.option_id, 'teacherId', o.teacher_id, 'status', o.status) ORDER BY o.id)
+                   FROM time_option_offers o WHERE o.option_id = ato.id),
+                '[]'
+              ) AS offers
+         FROM assessment_time_options ato
+        WHERE ato.assessment_id = $1
+        ORDER BY ato.proposed_date, ato.id`,
+      [view.id],
+    ),
+    query(
+      'SELECT * FROM observations WHERE assessment_id = $1 ORDER BY attempt_no, id',
+      [view.id],
+    ),
+    query(
+      `SELECT f.*, t.assessment_id, h.action, h.reason, h.created_at AS action_at
+         FROM time_option_offers f
+         JOIN assessment_time_options t ON t.id = f.option_id
+         LEFT JOIN LATERAL (
+           SELECT action, reason, created_at FROM time_option_offer_actions
+            WHERE offer_id = f.id ORDER BY id DESC LIMIT 1
+         ) h ON TRUE
+        WHERE t.assessment_id = $1
+        ORDER BY f.id`,
+      [view.id],
+    ),
+  ]);
+
+  const list = listRows[0] ?? null;
+  const { rows: candidateRows } = list
+    ? await query(
+        `SELECT t.*, oc.position
+           FROM observer_candidates oc
+           JOIN teachers t ON t.id = oc.teacher_id
+          WHERE oc.list_id = $1
+          ORDER BY oc.position`,
+        [list.id],
+      )
+    : { rows: [] };
+
+  const personIds = [...new Set([
+    ...observationRows.flatMap((o) => [o.observer_id, o.observee_id]),
+    ...offerRows.map((row) => row.teacher_id),
+  ])];
+  const { rows: personRows } = personIds.length
+    ? await query('SELECT * FROM teachers WHERE id = ANY($1::int[])', [personIds])
+    : { rows: [] };
+  const people = new Map(personRows.map((r) => [r.id, toTeacherBrief(r)]));
+
+  const observations = observationRows.map((o) => ({
+    id: o.id,
+    assessmentId: o.assessment_id,
+    assessmentStatus: view.status,
+    attemptNo: o.attempt_no,
+    status: OBSERVATION_VIEW_STATUS[o.status] ?? o.status,
+    isAcStepin: o.is_ac_stepin,
+    sourceListId: o.source_list_id,
+    sourceList: list && o.source_list_id === list.id
+      ? { id: list.id, poolSize: list.pool_size, listSize: list.list_size }
+      : null,
+    scheduledDate: o.scheduled_date,
+    observer: people.get(o.observer_id) ?? null,
+    observee: people.get(o.observee_id) ?? null,
+    section: view.section,
+    observerSignedOffAt: o.observer_signed_off_at,
+    observeeSignedOffAt: o.observee_signed_off_at,
+    observeeComment: o.observee_comment ?? null,
+    retryAfter: o.retry_after,
+    createdAt: o.created_at,
+    updatedAt: o.updated_at,
+  }));
+
+  // The attempt that is current / next: a scheduled or finished observation is
+  // the current attempt, otherwise the one after the last closed attempt.
+  const latest = observations[observations.length - 1];
+  const attemptNo = !latest
+    ? 1
+    : ['approved', 'completed'].includes(latest.status)
+      ? latest.attemptNo
+      : latest.attemptNo + 1;
+  const pairing = observations.find((o) => o.status === 'approved') ?? latest ?? null;
+  const offers = buildOffers(offerRows, optionRows, people, attemptNo);
+
+  return {
+    ...view,
+    signupDeadline: view.section?.term?.signupDeadline ?? null,
+    // Set once #121's Start Observer Selection runs for the term; null until then.
+    selectionStartedAt: view.section?.term?.selectionStartedAt ?? null,
+    alert: null,
+    attemptNo,
+    pairing,
+    candidateSummary: list ? { poolSize: list.pool_size, listSize: list.list_size } : null,
+    candidateList: list
+      ? {
+          id: list.id,
+          targetSchool: list.target_school,
+          targetLevel: list.target_level,
+          poolSize: list.pool_size,
+          listSize: list.list_size,
+          generatedAt: list.generated_at,
+        }
+      : null,
+    candidates: candidateRows.map((r) => ({ ...toTeacherBrief(r), position: r.position })),
+    observerList: [],
+    listReadyNotifiedAt: null,
+    offer: [...offers].reverse().find((o) => o.status === 'pending') ?? null,
+    offers,
+    timeOptions: optionRows.map((r) => ({ ...toTimeOption(r), attemptNo })),
+    observations,
+    attempts: [],
+  };
+}
 
 // Joined onto `assessments AS a` wherever a human will read the result, so
 // courseCode/sectionCode above can be populated.
@@ -106,7 +357,7 @@ router.get(
       ),
     ]);
 
-    res.json(paged(rows.map(toAssessment), count[0].total, page, pageSize));
+    res.json(paged(await withNestedViews(rows.map(toAssessment)), count[0].total, page, pageSize));
   },
 );
 
@@ -127,7 +378,7 @@ router.get('/mine', async (req, res) => {
     [req.user.teacherId],
   );
 
-  res.json({ data: rows.map(toAssessment) });
+  res.json({ data: await withNestedViews(rows.map(toAssessment)) });
 });
 
 // GET /api/assessments/:id
@@ -151,7 +402,8 @@ router.get('/:id', validate(idParams, 'params'), async (req, res) => {
     );
   }
 
-  res.json(toAssessment(rows[0]));
+  const [detail] = await withNestedViews([toAssessment(rows[0])]);
+  res.json(await withDetailExtras(detail));
 });
 
 const signUpBody = z.object({
