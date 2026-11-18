@@ -179,7 +179,7 @@ for (let day = 1; dates.length < 8 && day < 200; day++) {
 assert.ok(dates.length >= 4, "enough class dates left in the term")
 const options = (list) => list.map((proposedDate) => ({ proposedDate, startTime: section.startTime, endTime: section.endTime }))
 assert.equal(await statusOf(post(FACULTY, `/assessments/${before.id}/time-options`, { options: options(dates.slice(0, 3)) })), 400, "fewer than 4 dates refused")
-assert.equal(await statusOf(post(FACULTY, `/assessments/${before.id}/time-options`, { options: options([...dates, dates[0]].slice(0, 9)) })), 400, "more than 8 dates refused")
+assert.equal(await statusOf(post(FACULTY, `/assessments/${before.id}/time-options`, { options: options(Array.from({ length: 9 }, (_, i) => dates[i % dates.length])) })), 400, "more than 8 dates refused")
 await post(FACULTY, `/assessments/${before.id}/time-options`, { options: options(dates.slice(0, 4)) })
 const observer = detail.candidates[0]
 const outsider = (await call(AC, "/teachers")).data.find((t) => !detail.candidates.some((c) => c.id === t.id) && t.id !== detail.teacherId)
