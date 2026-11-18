@@ -218,6 +218,26 @@ const ATTEMPT_TYPE_BY_STATUS = { not_completed: 'did_not_happen' };
 // sources combined, matching the mock's "closing events increment the
 // attempt counter" behavior.
 function attemptsFor(cancellationRows, closingObservations, teachersById = new Map()) {
+  // Since #134 a postponement also closes the attempt it interrupted, and its
+  // cancellation row points at that observation (observation_id). That is one
+  // event, so it is listed once: the cancellation's who/why plus the closed
+  // attempt's observer and date.
+  const observationsById = new Map(closingObservations.map((o) => [o.id, o]));
+  const linked = new Set(cancellationRows.map((row) => row.observation_id).filter(Boolean));
+  const observerOf = (o) => {
+    const obs = o ? teachersById.get(o.observer_id) : null;
+    return obs
+      ? {
+        id: obs.id,
+        firstName: obs.first_name,
+        lastName: obs.last_name,
+        email: obs.email,
+        rank: obs.rank,
+        department: obs.department,
+      }
+      : null;
+  };
+
   const fromCancellations = cancellationRows.map((row) => ({
     id: `cancellation-${row.id}`,
     type: 'postponed',
@@ -230,8 +250,8 @@ function attemptsFor(cancellationRows, closingObservations, teachersById = new M
         : row.requester_email ?? 'Unknown',
       role: row.requester_role ?? null,
     },
-    observer: null,
-    date: null,
+    observer: observerOf(observationsById.get(row.observation_id)),
+    date: observationsById.get(row.observation_id)?.scheduled_date ?? null,
     count: null,
   }));
 
@@ -241,8 +261,7 @@ function attemptsFor(cancellationRows, closingObservations, teachersById = new M
   // name and role (AttemptHistory.jsx reads entry.by.name, so the object has
   // to exist) rather than guessing. The observer
   // is known, though: it comes from the observation itself.
-  const fromObservations = closingObservations.map((o) => {
-    const obs = teachersById.get(o.observer_id);
+  const fromObservations = closingObservations.filter((o) => !linked.has(o.id)).map((o) => {
     return {
       id: `observation-${o.id}`,
       type: ATTEMPT_TYPE_BY_STATUS[o.status] ?? o.status,
@@ -252,16 +271,7 @@ function attemptsFor(cancellationRows, closingObservations, teachersById = new M
       reason: null,
       notes: null,
       by: { name: null, role: null },
-      observer: obs
-        ? {
-          id: obs.id,
-          firstName: obs.first_name,
-          lastName: obs.last_name,
-          email: obs.email,
-          rank: obs.rank,
-          department: obs.department,
-        }
-        : null,
+      observer: observerOf(o),
       date: o.scheduled_date,
       count: null,
     };
@@ -380,7 +390,8 @@ router.get(
     const { rows: cancellationCountRows } = assessmentIds.length
       ? await query(
         `SELECT assessment_id, count(*)::int AS n FROM cancellation_attempts
-          WHERE assessment_id = ANY($1) GROUP BY assessment_id`,
+          WHERE assessment_id = ANY($1) AND observation_id IS NULL
+          GROUP BY assessment_id`,
         [assessmentIds],
       )
       : { rows: [] };
@@ -644,7 +655,12 @@ router.get(
       ? await query('SELECT * FROM teachers WHERE id = ANY($1::int[])', [closingObservers])
       : { rows: [] };
     const observersById = new Map(observerRows.map((t) => [t.id, t]));
-    const status = currentStatusOf(signUp, signUpObservations, cancellationRows.length);
+    // Cancellations that closed an attempt are already counted with it.
+    const status = currentStatusOf(
+      signUp,
+      signUpObservations,
+      cancellationRows.filter((row) => !row.observation_id).length,
+    );
 
     const summary = {
       id: teacher.id,

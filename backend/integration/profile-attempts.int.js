@@ -86,4 +86,42 @@ describe('signUp.attempts on the teacher profile', () => {
     const row = report.body.data.find((r) => r.id === 3);
     assert.equal(row.attempts, res.body.signUp.attempts.length);
   });
+
+  test('postponing a scheduled attempt is one entry with the observer, the date and the reason', async () => {
+    const [option] = await ctx.sql(
+      `INSERT INTO assessment_time_options (assessment_id, proposed_date, start_time, end_time)
+       VALUES ($1, CURRENT_DATE - 3, '06:00', '06:30') RETURNING id, proposed_date`,
+      [assessmentId],
+    );
+    await ctx.sql(
+      `INSERT INTO time_option_offers (option_id, teacher_id, status) VALUES ($1, 1, 'accepted')`,
+      [option.id],
+    );
+    const finalized = await ctx.api('POST', `/assessments/${assessmentId}/time-options/${option.id}/finalize`, {
+      as: USERS.faculty, body: { teacherId: 1 },
+    });
+    assert.equal(finalized.status, 200, JSON.stringify(finalized.body));
+    const [scheduled] = await ctx.sql(
+      `SELECT id FROM observations WHERE assessment_id = $1 AND status = 'approved'`,
+      [assessmentId],
+    );
+    const postponed = await ctx.api('POST', `/observations/${scheduled.id}/postpone`, {
+      as: USERS.profA, body: { reason: 'Observer out sick' },
+    });
+    assert.equal(postponed.status, 200, JSON.stringify(postponed.body));
+
+    const res = await ctx.api('GET', `/teachers/3/profile?termId=${termId}`, { as: USERS.ac });
+    const { attempts } = res.body.signUp;
+    assert.equal(attempts.length, 3, 'the postponement and the attempt it closed are one entry');
+    const last = attempts.at(-1);
+    assert.equal(last.type, 'postponed');
+    assert.equal(last.notes, 'Observer out sick');
+    assert.equal(last.observer.id, 1);
+    assert.equal(last.date, option.proposed_date);
+    assert.ok(last.by.name, 'who postponed it is recorded');
+
+    assert.equal(res.body.summary.attempts, 3);
+    const report = await ctx.api('GET', `/teachers/report?termId=${termId}`, { as: USERS.ac });
+    assert.equal(report.body.data.find((r) => r.id === 3).attempts, 3);
+  });
 });
