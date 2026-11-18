@@ -177,3 +177,46 @@ test('postponing needs a reason', async () => {
   const res = await ctx.api('POST', `/assessments/${a[0].id}/postpone`, { as: USERS.ac, body: { reason: ' ' } });
   assert.equal(res.status, 400);
 });
+
+test('a date released by a postponement can be proposed again', async () => {
+  // Professor C's seeded sign-up, with its term moved around today.
+  const [signUp] = await ctx.sql(
+    `SELECT a.id, a.section_id, cs.meeting_days FROM assessments a
+       JOIN course_sections cs ON cs.id = a.section_id
+      WHERE a.teacher_id = 3 AND a.status = 'signed_up' AND cs.meeting_days IS NOT NULL
+      ORDER BY a.id LIMIT 1`,
+  );
+  await ctx.sql(
+    `UPDATE terms SET start_date = CURRENT_DATE - 30, end_date = CURRENT_DATE + 60, observation_deadline = CURRENT_DATE + 50
+      WHERE id = (SELECT term_id FROM course_sections WHERE id = $1)`,
+    [signUp.section_id],
+  );
+  const codes = { U: 0, M: 1, T: 2, W: 3, R: 4, F: 5, S: 6 };
+  const days = [...signUp.meeting_days].map((c) => codes[c]);
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + 7);
+  while (!days.includes(d.getUTCDay())) d.setUTCDate(d.getUTCDate() + 1);
+  const slot = { proposedDate: d.toISOString().slice(0, 10), startTime: '06:00', endTime: '06:30' };
+
+  const propose = () => ctx.api('POST', `/assessments/${signUp.id}/time-options`, {
+    as: USERS.faculty, body: { options: [slot] },
+  });
+  const first = await propose();
+  assert.equal(first.status, 201, JSON.stringify(first.body));
+  const optionId = first.body.data[0].id;
+  assert.equal((await propose()).status, 409, 'an open slot cannot be proposed twice');
+
+  await ctx.sql(`INSERT INTO time_option_offers (option_id, teacher_id, status) VALUES ($1, 1, 'accepted')`, [optionId]);
+  assert.equal((await finalize(signUp.id, optionId, 1)).status, 200);
+  assert.equal((await ctx.api('POST', `/assessments/${signUp.id}/postpone`, { as: USERS.ac, body: { reason: 'Observer ill next week' } })).status, 200);
+
+  const again = await propose();
+  assert.equal(again.status, 201, JSON.stringify(again.body));
+  assert.equal(again.body.data[0].id, optionId);
+  assert.equal(again.body.data[0].releasedAt, null);
+
+  const sent = await ctx.api('POST', `/assessments/${signUp.id}/time-options/send`, { as: USERS.faculty, body: { teacherId: 4 } });
+  assert.equal(sent.status, 200, JSON.stringify(sent.body));
+  const confirmed = await ctx.api('POST', `/time-options/${optionId}/confirm`, { as: USERS.profD });
+  assert.equal(confirmed.status, 200, JSON.stringify(confirmed.body));
+});

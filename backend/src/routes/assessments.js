@@ -826,12 +826,21 @@ router.post(
     const inserted = [];
 
     for (const opt of req.valid.body.options) {
+      // A date released by a postponement (#134) can be proposed again: the
+      // old row is reopened. The postponed attempt keeps the old booking on
+      // record. Any other repeat of an existing slot is still a 409.
       const { rows } = await query(
         `INSERT INTO assessment_time_options (assessment_id, proposed_date, start_time, end_time)
          VALUES ($1, $2, $3, $4)
+         ON CONFLICT (assessment_id, proposed_date, start_time) DO UPDATE
+           SET end_time = EXCLUDED.end_time, released_at = NULL, confirmed_teacher_id = NULL
+           WHERE assessment_time_options.released_at IS NOT NULL
          RETURNING *`,
         [assessmentId, opt.proposedDate, opt.startTime, opt.endTime],
       );
+      if (!rows[0]) {
+        throw new HttpError(409, 'conflict', `${opt.proposedDate} ${opt.startTime} is already proposed for this sign-up`);
+      }
 
       inserted.push(rows[0]);
     }
