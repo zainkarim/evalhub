@@ -57,7 +57,7 @@ erDiagram
 | Table | Purpose |
 |---|---|
 | `terms` | Spring / Summer / Fall terms; `is_long_term` (generated) is false for Summer. |
-| `teachers` | Faculty profile: name, email (unique, case-insensitive), home `school` code (ECS, EPPS, …), rank (`assistant_professor` / `associate_professor` / `full_professor`), `is_active`. Test data uses personas (Professor A, B, C…), never real names. |
+| `teachers` | Faculty profile: name, email (unique, case-insensitive), home `school` code (ECS, EPPS, …), rank (`assistant_professor` / `associate_professor` / `full_professor`), `is_active`. Test data uses fictional names (e.g. Sofia Alvarez), never real names. |
 | `users` | Login accounts; role `faculty` \| `ac_member` \| `admin`; non-admins link to a teacher. Passwords stored as bcrypt hashes. |
 | `courses` | Subject + owning `school` + 4-digit number + title. `course_level` is **generated** from the first digit. |
 | `course_sections` | One offering = course + term + section number + instructor. This is the teaching-history data the matching query and the UTD Course Book integration read/write. |
