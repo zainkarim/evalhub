@@ -318,4 +318,22 @@ assert.equal(await statusOf(call(FACULTY, `/terms/${fall.id}/dates`, { method: "
 assert.equal(await statusOf(post(AC, `/assessments/${before.id}/candidates`)), 404)
 assert.equal(await statusOf(post(AC, "/assessments/start-selection", { termId: fall.id })), 404)
 
+// ---- view-only roles (#126): completed records only, nothing else
+for (const email of ["depthead@example.edu", "review@example.edu"]) {
+  const records = (await call(email, "/observations")).data
+  assert.ok(records.length > 0, `${email}: sees the completed records`)
+  assert.ok(records.every((o) => o.status === "completed"), `${email}: completed only`)
+  assert.equal(await statusOf(call(email, `/observations/${records[0].id}`)), 200)
+  assert.equal(await statusOf(call(email, `/observations/${records[0].id}/responses`)), 200)
+  const open = (await call(AC, "/observations")).data.find((o) => o.status !== "completed")
+  if (open) assert.equal(await statusOf(call(email, `/observations/${open.id}`)), 404, `${email}: in-progress is not found`)
+  assert.equal(await statusOf(call(email, "/terms")), 200)
+  assert.equal(await statusOf(call(email, "/criteria")), 200)
+  for (const path of ["/assessments", "/teachers", "/courses", "/sections", "/assessments/mine"]) {
+    assert.equal(await statusOf(call(email, path)), 403, `${email}: GET ${path} refused`)
+  }
+  assert.equal(await statusOf(post(email, `/observations/${records[0].id}/sign-off`, {})), 403)
+  assert.equal(await statusOf(post(email, "/criteria", { name: "x" })), 403)
+}
+
 console.log("mock cycle checks passed")

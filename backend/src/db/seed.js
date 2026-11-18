@@ -1,4 +1,4 @@
-// Loads synthetic development data + three demo accounts. Refuses to run in production.
+// Loads synthetic development data + five demo accounts. Refuses to run in production.
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,7 +22,9 @@ try {
     `INSERT INTO users (email, password_hash, role, teacher_id) VALUES
        ('admin@example.edu',   $1, 'admin',     NULL),
        ('ac@example.edu',      $1, 'ac_member', 2),
-       ('faculty@example.edu', $1, 'faculty',   3)`,
+       ('faculty@example.edu', $1, 'faculty',   3),
+       ('depthead@example.edu', $1, 'dept_head',     NULL),
+       ('review@example.edu',   $1, 'annual_review', NULL)`,
     [hash],
   );
 
@@ -48,7 +50,8 @@ try {
     );
   }
 
-  console.log('Seeded. Demo logins (dev only): admin@example.edu, ac@example.edu, faculty@example.edu');
+  console.log('Seeded. Demo logins (dev only): admin@example.edu, ac@example.edu, faculty@example.edu,');
+  console.log('  depthead@example.edu (Dept Head, view-only), review@example.edu (Annual Review Committee, view-only)');
   console.log(`Plus one faculty login per seeded teacher (their own teachers.email, e.g. professor.h@example.edu)`);
   console.log(`Password: ${demoPassword}`);
 } catch (err) {
