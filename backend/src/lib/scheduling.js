@@ -21,10 +21,17 @@ export async function lockInDate(client, { assessment, option, observerId }) {
     throw new HttpError(409, 'conflict', 'This assessment is no longer open for scheduling');
   }
 
+  if (option.released_at) {
+    throw new HttpError(
+      409, 'conflict',
+      'This date was released when the sign-up was postponed. Propose a new date.',
+    );
+  }
+
   const { rows: confirmedRows } = await client.query(
     `UPDATE assessment_time_options
         SET is_confirmed = TRUE, confirmed_teacher_id = $2
-      WHERE id = $1 AND NOT is_confirmed
+      WHERE id = $1 AND NOT is_confirmed AND released_at IS NULL
       RETURNING *`,
     [option.id, observerId],
   );
@@ -103,4 +110,67 @@ export async function lockInDate(client, { assessment, option, observerId }) {
   );
 
   return { option: confirmedRows[0], observation };
+}
+
+// Postpones a sign-up (#134, workflow step 8: never delete, mark Postponed,
+// log who, when and why). Must run inside a transaction on `client`, after the
+// caller has locked the assessment row. In one step it:
+//   1. marks the active attempt (proposed/approved observation) postponed,
+//      keeping its observer and scheduled date on record
+//   2. releases the confirmed date (is_confirmed -> FALSE, released_at set),
+//      so the one-confirmed-date index lets a new date be confirmed
+//   3. closes open offers, logged as withdrawn with the postponement reason
+//   4. logs the attempt in cancellation_attempts, linked to the closed attempt
+//   5. marks the sign-up postponed
+// A new attempt is created by lockInDate when a new date is confirmed, with
+// the same observer or a different one.
+export async function postponeSignUp(client, assessment, { userId, reason, notes = null }) {
+  if (['completed', 'cancelled'].includes(assessment.status)) {
+    throw new HttpError(409, 'conflict', 'This assessment is already finished and cannot be postponed');
+  }
+
+  const { rows: closedObservations } = await client.query(
+    `UPDATE observations SET status = 'postponed'
+      WHERE assessment_id = $1 AND status IN ('proposed', 'approved')
+      RETURNING id`,
+    [assessment.id],
+  );
+
+  await client.query(
+    `UPDATE assessment_time_options
+        SET is_confirmed = FALSE, released_at = now()
+      WHERE assessment_id = $1 AND is_confirmed`,
+    [assessment.id],
+  );
+
+  await client.query(
+    `WITH closed AS (
+       UPDATE time_option_offers f
+          SET status = 'declined', updated_at = now()
+         FROM assessment_time_options t
+        WHERE t.id = f.option_id
+          AND t.assessment_id = $1
+          AND f.status IN ('pending', 'accepted')
+        RETURNING f.id
+     )
+     INSERT INTO time_option_offer_actions (offer_id, actor_user_id, action, reason)
+     SELECT id, $2, 'withdrawn', 'Sign-up postponed' FROM closed`,
+    [assessment.id, userId],
+  );
+
+  await client.query(
+    `INSERT INTO cancellation_attempts (assessment_id, requested_by, reason, notes, observation_id)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [assessment.id, userId, reason, notes, closedObservations[0]?.id ?? null],
+  );
+
+  const { rows } = await client.query(
+    `UPDATE assessments
+        SET status = 'postponed',
+            notes = COALESCE($2, notes)
+      WHERE id = $1
+      RETURNING *`,
+    [assessment.id, notes],
+  );
+  return { assessment: rows[0], observationId: closedObservations[0]?.id ?? null };
 }

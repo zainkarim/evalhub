@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { pool, query } from '../db/pool.js';
 import { findTeacherConflict,  dayCodeFor } from '../lib/availability.js';
-import { lockInDate } from '../lib/scheduling.js';
+import { lockInDate, postponeSignUp } from '../lib/scheduling.js';
 import { AC_OR_ADMIN, requireRole } from '../middleware/auth.js';
 import { HttpError, notFound } from '../middleware/errors.js';
 import { idParams, pagination, paged, validate } from '../middleware/validate.js';
@@ -296,37 +296,47 @@ router.post(
   validate(cancelBody),
   async (req, res) => {
     const { reason, notes } = req.valid.body;
-    const assessmentId = req.valid.params.id;
+    res.json(await postponeById(req.valid.params.id, req.user.id, { reason, notes: notes ?? null }));
+  },
+);
 
-    const { rows: assessmentRows } = await query(
-      'SELECT * FROM assessments WHERE id = $1',
+// Runs postponeSignUp in a transaction with the sign-up locked; returns the
+// updated assessment.
+async function postponeById(assessmentId, userId, { reason, notes }) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      'SELECT * FROM assessments WHERE id = $1 FOR UPDATE',
       [assessmentId],
     );
+    if (!rows[0]) throw notFound('Assessment');
+    const { assessment } = await postponeSignUp(client, rows[0], { userId, reason, notes });
+    await client.query('COMMIT');
+    return toAssessment(assessment);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
 
-    if (!assessmentRows[0]) throw notFound('Assessment');
+// POST /api/assessments/:id/postpone   (AC/admin)
+// What the committee's Postpone button calls (CommitteeActions.jsx). Same as
+// /cancel with reason "other"; the free-text reason becomes the notes.
+const postponeBody = z.object({ reason: z.string().trim().min(1).max(2000) });
 
-    const assessment = assessmentRows[0];
-
-    if (['completed', 'cancelled'].includes(assessment.status)) {
-      throw new HttpError(409, 'conflict', 'This assessment is already finished and cannot be postponed');
-    }
-
-    await query(
-      `INSERT INTO cancellation_attempts (assessment_id, requested_by, reason, notes)
-       VALUES ($1, $2, $3, $4)`,
-      [assessmentId, req.user.id, reason, notes ?? null],
-    );
-
-    const { rows } = await query(
-      `UPDATE assessments
-          SET status = 'postponed',
-              notes = COALESCE($2, notes)
-        WHERE id = $1
-        RETURNING *`,
-      [assessmentId, notes ?? null],
-    );
-
-    res.json(toAssessment(rows[0]));
+router.post(
+  '/:id/postpone',
+  requireRole(...AC_OR_ADMIN),
+  validate(idParams, 'params'),
+  validate(postponeBody),
+  async (req, res) => {
+    res.json(await postponeById(req.valid.params.id, req.user.id, {
+      reason: 'other',
+      notes: req.valid.body.reason,
+    }));
   },
 );
 
@@ -721,6 +731,7 @@ const toTimeOption = (r) => ({
   offeredToTeacherId: r.offered_to_teacher_id,
   confirmedTeacherId: r.confirmed_teacher_id,
   isConfirmed: r.is_confirmed,
+  releasedAt: r.released_at ?? null,
   offers: r.offers ?? undefined,
 });
 
@@ -818,12 +829,21 @@ router.post(
     const inserted = [];
 
     for (const opt of req.valid.body.options) {
+      // A date released by a postponement (#134) can be proposed again: the
+      // old row is reopened. The postponed attempt keeps the old booking on
+      // record. Any other repeat of an existing slot is still a 409.
       const { rows } = await query(
         `INSERT INTO assessment_time_options (assessment_id, proposed_date, start_time, end_time)
          VALUES ($1, $2, $3, $4)
+         ON CONFLICT (assessment_id, proposed_date, start_time) DO UPDATE
+           SET end_time = EXCLUDED.end_time, released_at = NULL, confirmed_teacher_id = NULL
+           WHERE assessment_time_options.released_at IS NOT NULL
          RETURNING *`,
         [assessmentId, opt.proposedDate, opt.startTime, opt.endTime],
       );
+      if (!rows[0]) {
+        throw new HttpError(409, 'conflict', `${opt.proposedDate} ${opt.startTime} is already proposed for this sign-up`);
+      }
 
       inserted.push(rows[0]);
     }
@@ -1039,7 +1059,7 @@ router.post(
 
       const { rows: openOptions } = await client.query(
         `SELECT * FROM assessment_time_options
-         WHERE assessment_id = $1 AND NOT is_confirmed`,
+         WHERE assessment_id = $1 AND NOT is_confirmed AND released_at IS NULL`,
         [assessmentId],
       );
       if (!openOptions.length) {
