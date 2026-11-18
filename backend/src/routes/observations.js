@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { pool, query } from '../db/pool.js';
-import { AC_OR_ADMIN } from '../middleware/auth.js';
+import { AC_OR_ADMIN, isViewOnly } from '../middleware/auth.js';
 import { HttpError, notFound } from '../middleware/errors.js';
 import { idParams, pagination, paged, validate } from '../middleware/validate.js';
+import { postponeSignUp } from '../lib/scheduling.js';
 
 const router = Router();
 
@@ -36,10 +37,16 @@ function requireParty(req, observation) {
   const isObserver = req.user.teacherId === observation.observer_id;
   const isObservee = req.user.teacherId === observation.observee_id;
   const isAcAdmin = AC_OR_ADMIN.includes(req.user.role);
+  // Dept Head / Annual Review Committee see completed records only. Anything
+  // still in progress is reported as not found, so its existence isn't leaked.
+  if (isViewOnly(req.user)) {
+    if (observation.status !== 'completed') throw notFound('Observation');
+    return { isObserver: false, isObservee: false, isAcAdmin: false, isViewOnly: true };
+  }
   if (!isObserver && !isObservee && !isAcAdmin) {
     throw new HttpError(403, 'forbidden', 'You are not part of this observation');
   }
-  return { isObserver, isObservee, isAcAdmin };
+  return { isObserver, isObservee, isAcAdmin, isViewOnly: false };
 }
 
 // Retired endpoint: selecting an observer no longer requires AC approval.
@@ -103,37 +110,8 @@ const toObservationListItem = (r) => {
   };
 };
 
-const listQuery = z.object({
-  status: z.enum(OBSERVATION_STATUSES).optional(),
-  ...pagination,
-});
-
-// GET /api/observations?status=&page=&pageSize=
-// Faculty get the observations they give or receive; AC/admin get all of them.
-router.get('/', validate(listQuery, 'query'), async (req, res) => {
-  const { status, page, pageSize } = req.valid.query;
-  const isAcAdmin = AC_OR_ADMIN.includes(req.user.role);
-  const where = [];
-  const params = [];
-
-  const add = (sql, value) => {
-    params.push(value);
-    where.push(sql.replaceAll('?', `$${params.length}`));
-  };
-
-  if (!isAcAdmin) {
-    if (!req.user.teacherId) {
-      throw new HttpError(403, 'forbidden', 'This account is not linked to a teacher profile');
-    }
-    add('(o.observer_id = ? OR o.observee_id = ?)', req.user.teacherId);
-  }
-  if (status) add('o.status = ?', status);
-
-  const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
-
-  const [{ rows }, { rows: count }] = await Promise.all([
-    query(
-      `SELECT o.*,
+// Shared by the list and the detail route, so both return the same nested shape.
+const OBSERVATION_DETAIL_SQL = `SELECT o.*,
               a.status AS assessment_status,
               a.section_id,
               obs.first_name AS observer_first_name, obs.last_name AS observer_last_name,
@@ -149,7 +127,42 @@ router.get('/', validate(listQuery, 'query'), async (req, res) => {
          JOIN teachers obe ON obe.id = o.observee_id
          LEFT JOIN course_sections cs ON cs.id = a.section_id
          LEFT JOIN courses c ON c.id = cs.course_id
-         LEFT JOIN terms t ON t.id = cs.term_id
+         LEFT JOIN terms t ON t.id = cs.term_id`;
+
+const listQuery = z.object({
+  status: z.enum(OBSERVATION_STATUSES).optional(),
+  ...pagination,
+});
+
+// GET /api/observations?status=&page=&pageSize=
+// Faculty get the observations they give or receive; AC/admin get all of them;
+// Dept Head / Annual Review Committee get every completed observation.
+router.get('/', validate(listQuery, 'query'), async (req, res) => {
+  const { status, page, pageSize } = req.valid.query;
+  const isAcAdmin = AC_OR_ADMIN.includes(req.user.role);
+  const where = [];
+  const params = [];
+
+  const add = (sql, value) => {
+    params.push(value);
+    where.push(sql.replaceAll('?', `$${params.length}`));
+  };
+
+  if (isViewOnly(req.user)) {
+    add('o.status = ?', 'completed');
+  } else if (!isAcAdmin) {
+    if (!req.user.teacherId) {
+      throw new HttpError(403, 'forbidden', 'This account is not linked to a teacher profile');
+    }
+    add('(o.observer_id = ? OR o.observee_id = ?)', req.user.teacherId);
+  }
+  if (status) add('o.status = ?', status);
+
+  const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+  const [{ rows }, { rows: count }] = await Promise.all([
+    query(
+      `${OBSERVATION_DETAIL_SQL}
          ${clause}
         ORDER BY o.id DESC
         LIMIT $${params.length + 1}
@@ -162,12 +175,19 @@ router.get('/', validate(listQuery, 'query'), async (req, res) => {
   res.json(paged(rows.map(toObservationListItem), count[0].total, page, pageSize));
 });
 
-// GET /api/observations/:id   (observer, observee, or AC/admin)
+// GET /api/observations/:id   (observer, observee, AC/admin, or view-only once completed)
 router.get('/:id', validate(idParams, 'params'), async (req, res) => {
-  const observation = await loadObservation(req.valid.params.id);
+  const { rows } = await query(`${OBSERVATION_DETAIL_SQL} WHERE o.id = $1`, [req.valid.params.id]);
+  const observation = rows[0];
   if (!observation) throw notFound('Observation');
   requireParty(req, observation);
-  res.json(toObservation(observation));
+  // Nested shape (observer, observee, section with course and term), the same
+  // as one list row, plus the flat ids the original response had.
+  res.json({
+    ...toObservationListItem(observation),
+    observeeId: observation.observee_id,
+    observerId: observation.observer_id,
+  });
 });
 
 // ---------------------------------------------------------------------
@@ -246,10 +266,10 @@ router.get('/:id/responses', validate(idParams, 'params'), async (req, res) => {
   const observation = await loadObservation(req.valid.params.id);
   if (!observation) throw notFound('Observation');
 
-  const { isAcAdmin, isObserver } = requireParty(req, observation);
+  const { isAcAdmin, isObserver, isViewOnly: viewOnly } = requireParty(req, observation);
 
   const observerSigned = Boolean(observation.observer_signed_off_at);
-  if (!isAcAdmin && !isObserver && !observerSigned) {
+  if (!isAcAdmin && !isObserver && !viewOnly && !observerSigned) {
     throw new HttpError(409, 'conflict', 'Responses are not visible to the observee until the observer has signed off');
   }
 
@@ -388,6 +408,49 @@ router.post('/:id/sign-off', validate(idParams, 'params'), async (req, res) => {
   }
 
   res.json(toObservation(updated));
+});
+
+// POST /api/observations/:id/postpone   (observer, observee, or AC/admin)
+// #134: a scheduled observation that can't happen on its date (illness, a
+// conflict). The attempt is kept and marked postponed, its date is released,
+// and the sign-up can be rescheduled in the same semester. Nothing is deleted.
+const postponeBody = z.object({ reason: z.string().trim().min(1).max(2000) });
+
+router.post('/:id/postpone', validate(idParams, 'params'), validate(postponeBody), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      'SELECT * FROM observations WHERE id = $1 FOR UPDATE',
+      [req.valid.params.id],
+    );
+    const observation = rows[0];
+    if (!observation) throw notFound('Observation');
+    const { isViewOnly: viewOnly } = requireParty(req, observation);
+    if (viewOnly) throw new HttpError(403, 'forbidden', 'View-only access');
+    if (observation.status !== 'approved') {
+      throw new HttpError(409, 'conflict', 'Only a scheduled observation can be postponed');
+    }
+
+    const { rows: assessments } = await client.query(
+      'SELECT * FROM assessments WHERE id = $1 FOR UPDATE',
+      [observation.assessment_id],
+    );
+    await postponeSignUp(client, assessments[0], {
+      userId: req.user.id,
+      reason: 'other',
+      notes: req.valid.body.reason,
+    });
+
+    const { rows: updated } = await client.query('SELECT * FROM observations WHERE id = $1', [observation.id]);
+    await client.query('COMMIT');
+    res.json(toObservation(updated[0]));
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 });
 
 export default router;

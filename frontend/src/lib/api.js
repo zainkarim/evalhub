@@ -32,6 +32,20 @@ export class ApiError extends Error {
 // Fired after every successful write so shared UI (the nav counters) can refresh.
 export const CHANGED_EVENT = "evalhub:changed"
 
+// List endpoints cap pageSize at 100. For pages that filter in the browser and
+// need every row, fetch page after page until `total` rows are in hand.
+export async function fetchAllPages(list, params = {}) {
+  const pageSize = 100
+  const rows = []
+  for (let page = 1; ; page += 1) {
+    const result = await list({ ...params, page, pageSize })
+    rows.push(...result.data)
+    if (result.data.length === 0 || rows.length >= result.total) {
+      return { data: rows, page: 1, pageSize: rows.length, total: result.total }
+    }
+  }
+}
+
 async function request(path, options = {}) {
   const result = await send(path, options)
   if ((options.method ?? "GET") !== "GET") window.dispatchEvent(new Event(CHANGED_EVENT))
@@ -177,6 +191,10 @@ export const api = {
   signOffObservation: (id, comment) =>
     post(`/observations/${id}/sign-off`, comment ? { comment } : {}),
   postponeObservation: (id, reason) => post(`/observations/${id}/postpone`, { reason }),
+
+  // ---- process feedback survey (#73)
+  getSurveyStatus: () => request("/surveys/status"),
+  submitSurvey: (body) => post("/surveys", body),
 }
 
 export { USE_MOCKS }

@@ -41,11 +41,18 @@ export function timesOverlap(aStart, aEnd, bStart, bEnd) {
 /**
  * Returns a short description of what's blocking this teacher at this date +
  * time window, or null if they're free.
+ *
+ * `exceptSectionId` skips one of the teacher's own sections. Pass the observed
+ * section when checking the observee: they are teaching that class at that
+ * time by definition, which is the point of the observation, not a conflict
+ * (#136). Their other classes and confirmed observations still count.
  */
-export async function findTeacherConflict(teacherId, date, startTime, endTime) {
+export async function findTeacherConflict(
+  teacherId, date, startTime, endTime, db = { query }, { exceptSectionId = null } = {},
+) {
   const dayCode = dayCodeFor(date);
 
-  const { rows: teaching } = await query(
+  const { rows: teaching } = await db.query(
     `SELECT cs.meeting_days, cs.start_time, cs.end_time, c.subject, c.course_number, cs.section_number
        FROM course_sections cs
        JOIN courses c ON c.id = cs.course_id
@@ -55,8 +62,9 @@ export async function findTeacherConflict(teacherId, date, startTime, endTime) {
         AND cs.end_time IS NOT NULL
         AND strpos(cs.meeting_days, $2) > 0
         AND tm.start_date <= $3::date
-        AND tm.end_date   >= $3::date`,
-    [teacherId, dayCode, date],
+        AND tm.end_date   >= $3::date
+        AND ($4::int IS NULL OR cs.id <> $4::int)`,
+    [teacherId, dayCode, date, exceptSectionId],
   );
 
   for (const row of teaching) {
@@ -70,13 +78,15 @@ export async function findTeacherConflict(teacherId, date, startTime, endTime) {
     }
   }
 
-  const { rows: commitments } = await query(
+  const { rows: commitments } = await db.query(
     `SELECT ato.start_time, ato.end_time
        FROM assessment_time_options ato
        JOIN assessments a ON a.id = ato.assessment_id
       WHERE ato.is_confirmed
         AND ato.proposed_date = $2::date
-        AND (ato.offered_to_teacher_id = $1 OR a.teacher_id = $1)`,
+        AND (
+          COALESCE(ato.confirmed_teacher_id, ato.offered_to_teacher_id) = $1
+          OR a.teacher_id = $1)`,
     [teacherId, date],
   );
 
