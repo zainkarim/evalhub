@@ -1,13 +1,14 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { query } from '../db/pool.js';
+import { pool, query } from '../db/pool.js';
 import { AC_OR_ADMIN, requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { HttpError, notFound } from '../middleware/errors.js';
+import { findEligibleObservers, latestCandidateList, saveCandidateList } from '../lib/candidateLists.js';
 
 const router = Router();
 
-const toTerm = (r) => ({
+export const toTerm = (r) => ({
   id: r.id,
   season: r.season,
   year: r.year,
@@ -17,6 +18,8 @@ const toTerm = (r) => ({
   signupDeadline: r.signup_deadline,
   observationDeadline: r.observation_deadline,
   feedbackDeadline: r.feedback_deadline,
+  // When the committee clicked Start Observer Selection for the term; null until then.
+  selectionStartedAt: r.selection_started_at ?? null,
 });
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD');
@@ -108,6 +111,108 @@ router.patch(
       [id, signupDeadline, observationDeadline, feedbackDeadline],
     );
     res.json(toTerm(rows[0]));
+  },
+);
+
+// One sign-up's list, in its own transaction. The sign-up row is locked and
+// re-read first, so two clicks at once can't both build a list for it. If
+// anything fails, nothing for this sign-up is saved and the error goes to the
+// caller; sign-ups already done stay done, and a retry carries on from here.
+// Returns the built list's sizes, 'stillEmpty', or null when there is nothing
+// to do.
+async function buildListFor(assessmentId, actingUserId) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: [assessment] } = await client.query(
+      'SELECT * FROM assessments WHERE id = $1 FOR UPDATE',
+      [assessmentId],
+    );
+
+    let outcome = null;
+    if (assessment?.status === 'signed_up') {
+      const existing = await latestCandidateList(assessment.id, client);
+      if (!existing || existing.list_size === 0) {
+        const matching = await findEligibleObservers(assessment);
+        if (matching && existing && matching.poolSize === 0) {
+          // Empty list from an earlier call: only replace it when somebody is eligible now.
+          outcome = 'stillEmpty';
+        } else if (matching) {
+          await saveCandidateList(client, assessment, matching, actingUserId);
+          outcome = { poolSize: matching.poolSize, fullListSize: matching.fullListSize };
+        }
+      }
+    }
+
+    await client.query('COMMIT');
+    return outcome;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// POST /api/terms/:id/start-observer-selection  (AC / admin)
+// THE one cycle-wide "Start Observer Selection". After the sign-up deadline the
+// committee clicks it once and every sign-up in the term that has no candidate
+// list gets one. It approves nothing.
+//  - idempotent: a sign-up that already has a non-empty list is never re-rolled;
+//  - a sign-up whose list is empty is re-checked on every call, and only gets a
+//    new list when somebody has become eligible ("stillEmpty" counts the rest);
+//  - zero eligible saves a 0/0 list so the alert and KPIs can see it.
+router.post(
+  '/:id/start-observer-selection',
+  requireRole(...AC_OR_ADMIN),
+  validate(idParams, 'params'),
+  async (req, res) => {
+    const { id } = req.valid.params;
+    const { rows: termRows } = await query('SELECT * FROM terms WHERE id = $1', [id]);
+    if (!termRows[0]) throw notFound('Term');
+    const term = termRows[0];
+
+    const startedBefore = term.selection_started_at;
+    const today = new Date().toISOString().slice(0, 10);
+    if (!startedBefore && term.signup_deadline && today <= term.signup_deadline) {
+      throw new HttpError(
+        409,
+        'conflict',
+        `Observer selection opens the day after the sign-up deadline (${term.signup_deadline}).`,
+      );
+    }
+
+    const { rows: signUps } = await query(
+      `SELECT * FROM assessments
+        WHERE due_term_id = $1 AND status = 'signed_up'
+        ORDER BY signed_up_at, id`,
+      [id],
+    );
+
+    const built = [];
+    let stillEmpty = 0;
+    for (const { id: assessmentId } of signUps) {
+      const outcome = await buildListFor(assessmentId, req.user.id);
+      if (outcome === 'stillEmpty') stillEmpty += 1;
+      else if (outcome) built.push(outcome);
+    }
+
+    const { rows: startedRows } = await query(
+      `UPDATE terms SET selection_started_at = COALESCE(selection_started_at, now())
+        WHERE id = $1 RETURNING selection_started_at`,
+      [id],
+    );
+
+    res.json({
+      termId: id,
+      alreadyStarted: Boolean(startedBefore),
+      startedAt: startedRows[0].selection_started_at,
+      started: built.length,
+      noEligible: built.filter((b) => b.poolSize === 0).length,
+      limited: built.filter((b) => b.poolSize > 0 && b.poolSize < b.fullListSize).length,
+      full: built.filter((b) => b.poolSize >= b.fullListSize).length,
+      stillEmpty,
+    });
   },
 );
 

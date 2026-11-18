@@ -1,0 +1,184 @@
+import { Bell } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { useLocation, useNavigate } from "react-router-dom"
+import { api, CHANGED_EVENT } from "../lib/api"
+import { notificationLink, timeAgo } from "../lib/notifications"
+
+// The bell in the header: unread count, a list of the newest notifications,
+// mark-as-read on open, and "Mark all as read". Notifications come from
+// GET /notifications (proposed contract, see docs/api-expectations.md). If
+// that call fails (the real backend has no route yet), the bell stays quiet
+// instead of breaking the header.
+function NotificationBell() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [items, setItems] = useState([])
+  const [available, setAvailable] = useState(true)
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const wrapper = useRef(null)
+  const trigger = useRef(null)
+
+  // Refresh on navigation and after any change in the app (every POST/PATCH,
+  // including marking notifications read, fires CHANGED_EVENT).
+  useEffect(() => {
+    let active = true
+    async function refresh() {
+      try {
+        const result = await api.inbox()
+        if (active) {
+          setItems(result?.data ?? [])
+          setAvailable(true)
+        }
+      } catch {
+        if (active) setAvailable(false)
+      }
+    }
+    refresh()
+    window.addEventListener(CHANGED_EVENT, refresh)
+    return () => {
+      active = false
+      window.removeEventListener(CHANGED_EVENT, refresh)
+    }
+  }, [location.pathname])
+
+  // Same behaviour as the account menu: a click or focus outside closes the panel,
+  // and Escape closes it and puts focus back on the bell.
+  useEffect(() => {
+    if (!open) return undefined
+    const onClick = (event) => {
+      if (wrapper.current && !wrapper.current.contains(event.target)) setOpen(false)
+    }
+    const onKey = (event) => {
+      if (event.key === "Escape") {
+        setOpen(false)
+        trigger.current?.focus()
+      }
+    }
+    document.addEventListener("mousedown", onClick)
+    document.addEventListener("focusin", onClick)
+    document.addEventListener("keydown", onKey)
+    return () => {
+      document.removeEventListener("mousedown", onClick)
+      document.removeEventListener("focusin", onClick)
+      document.removeEventListener("keydown", onKey)
+    }
+  }, [open])
+
+  const unread = items.filter((item) => !item.readAt).length
+
+  const openNotification = async (notification) => {
+    setOpen(false)
+    if (!notification.readAt) {
+      try {
+        await api.markNotificationRead(notification.id)
+      } catch {
+        // still take the person where they wanted to go
+      }
+    }
+    navigate(notificationLink(notification))
+  }
+
+  const markAll = async () => {
+    setBusy(true)
+    try {
+      await api.markAllNotificationsRead() // the list refreshes via CHANGED_EVENT
+    } catch {
+      // the list simply stays as it was
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div ref={wrapper} className="relative">
+      <button
+        ref={trigger}
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        aria-haspopup="true"
+        aria-expanded={open}
+        aria-label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}
+        title={unread > 0 ? `${unread} unread notifications` : "Notifications"}
+        className="relative flex h-9 w-9 items-center justify-center rounded-md text-muted hover:bg-surface-2 hover:text-ink"
+      >
+        <Bell aria-hidden="true" className="h-5 w-5" />
+        {unread > 0 && (
+          <span className="absolute -right-0.5 -top-0.5 min-w-[1.1rem] rounded-full bg-accent px-1 text-center text-[10px] font-semibold leading-4 text-accent-fg ring-2 ring-surface">
+            {unread > 99 ? "99+" : unread}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div
+          role="dialog"
+          aria-label="Notifications"
+          className="fixed inset-x-4 top-[4.25rem] z-50 overflow-hidden rounded-card border border-line bg-surface text-ink shadow-lg sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80"
+        >
+          <div className="flex items-center justify-between border-b border-line px-4 py-3">
+            <h3 className="text-sm font-semibold">Notifications</h3>
+            {unread > 0 && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={markAll}
+                className="text-xs font-medium text-primary-ink hover:underline disabled:opacity-50"
+              >
+                Mark all as read
+              </button>
+            )}
+          </div>
+
+          {!available ? (
+            <p className="px-4 py-5 text-sm text-muted">Notifications aren't available right now.</p>
+          ) : items.length === 0 ? (
+            <p className="px-4 py-5 text-sm text-muted">No notifications yet.</p>
+          ) : (
+            <div className="max-h-96 overflow-y-auto">
+              {[
+                ["New", items.filter((item) => !item.readAt)],
+                ["Earlier", items.filter((item) => item.readAt)],
+              ]
+                .filter(([, group]) => group.length > 0)
+                .map(([title, group]) => (
+                  <section key={title} aria-label={title}>
+                    <h4 className="bg-surface-2 px-4 py-1.5 text-xs font-medium text-muted">{title}</h4>
+                    <ul className="divide-y divide-line">
+                      {group.map((notification) => (
+                        <li key={notification.id}>
+                          <button
+                            type="button"
+                            onClick={() => openNotification(notification)}
+                            className="flex w-full items-start gap-3 px-4 py-3 text-left text-sm hover:bg-surface-2"
+                          >
+                            <span
+                              aria-hidden="true"
+                              className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
+                                notification.readAt ? "bg-transparent" : "bg-accent"
+                              }`}
+                            />
+                            <span className="min-w-0">
+                              <span className={`block ${notification.readAt ? "text-muted" : ""}`}>
+                                <span className="block font-medium">{notification.subject}</span>
+                        <span className="block">{notification.body}</span>
+                              </span>
+                              <span className="mt-0.5 block text-xs text-muted">
+                                {timeAgo(notification.createdAt)}
+                              </span>
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default NotificationBell

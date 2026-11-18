@@ -35,3 +35,24 @@ export const requireRole = (...roles) => (req, res, next) => {
 };
 
 export const AC_OR_ADMIN = ['ac_member', 'admin'];
+
+// Department Head and Annual Review Committee: read-only access to completed
+// observations only (requirements §3, §4.6). Not linked to a teacher profile.
+export const VIEW_ONLY_ROLES = ['dept_head', 'annual_review'];
+export const isViewOnly = (user) => VIEW_ONLY_ROLES.includes(user?.role);
+
+/** Keep view-only accounts out of a whole router (e.g. sign-ups, teachers). */
+export function denyViewOnly(req, res, next) {
+  if (isViewOnly(req.user)) {
+    return next(new HttpError(403, 'forbidden', 'This account has view-only access to completed observations'));
+  }
+  return next();
+}
+
+/** Let view-only accounts read (GET) but never write. */
+export function readOnlyForViewOnly(req, res, next) {
+  if (isViewOnly(req.user) && req.method !== 'GET') {
+    return next(new HttpError(403, 'forbidden', 'This account has view-only access'));
+  }
+  return next();
+}
