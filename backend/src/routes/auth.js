@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { rateLimit } from 'express-rate-limit';
 import { query } from '../db/pool.js';
-import { authenticate, requireRole, signToken } from '../middleware/auth.js';
+import { authenticate, requireRole, signToken, VIEW_ONLY_ROLES } from '../middleware/auth.js';
 import { HttpError } from '../middleware/errors.js';
 import { validate } from '../middleware/validate.js';
 
@@ -58,14 +58,18 @@ router.get('/me', authenticate, async (req, res) => {
 const registerBody = z.object({
   email: z.string().email().max(254),
   password: z.string().min(12).max(200),
-  role: z.enum(['faculty', 'ac_member', 'admin']),
+  role: z.enum(['faculty', 'ac_member', 'admin', 'dept_head', 'annual_review']),
   teacherId: z.number().int().positive().nullable().optional(),
 });
 
 // POST /api/auth/register  (admin only) -> create a login account
 router.post('/register', authenticate, requireRole('admin'), validate(registerBody), async (req, res) => {
   const { email, password, role, teacherId = null } = req.valid.body;
-  if (role !== 'admin' && !teacherId) {
+  if (VIEW_ONLY_ROLES.includes(role)) {
+    if (teacherId) {
+      throw new HttpError(400, 'validation_error', 'View-only accounts (dept_head, annual_review) are not linked to a teacher profile');
+    }
+  } else if (role !== 'admin' && !teacherId) {
     throw new HttpError(400, 'validation_error', 'teacherId is required for faculty and ac_member accounts');
   }
   const passwordHash = await bcrypt.hash(password, 12);
