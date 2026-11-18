@@ -18,6 +18,7 @@ const toOption = (r) => ({
   offeredToTeacherId: r.offered_to_teacher_id,
   confirmedTeacherId: r.confirmed_teacher_id,
   isConfirmed: r.is_confirmed,
+  releasedAt: r.released_at ?? null,
 });
 
 const toOffer = (r) => ({
@@ -262,6 +263,7 @@ router.post('/:id/confirm', validate(idParams, 'params'), async (req, res) => {
       startTime,
       endTime,
       client,
+      { exceptSectionId: assessment.section_id },
     );
     if (observeeConflict) {
       throw new HttpError(

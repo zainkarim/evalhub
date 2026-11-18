@@ -166,7 +166,7 @@ const CLOSING_OBSERVATION_STATUSES = ['postponed', 'not_completed'];
 
 // mockServer.js: currentStatusOf. `observations` is every observation row
 // that belongs to this one assessment (any order).
-function currentStatusOf(assessment, observations) {
+function currentStatusOf(assessment, observations, cancellationCount = 0) {
   if (!assessment) return { currentStatus: 'none', currentDate: null, attempts: 0 };
 
   if (assessment.status === 'completed') {
@@ -192,10 +192,94 @@ function currentStatusOf(assessment, observations) {
 
   if (assessment.status === 'postponed') {
     const closed = observations.filter((o) => CLOSING_OBSERVATION_STATUSES.includes(o.status)).length;
-    return { currentStatus: 'postponed', currentDate: null, attempts: Math.max(closed, 1) };
+    // Cancellations (migration 007) are attempts too -- same count as signUp.attempts.
+    return { currentStatus: 'postponed', currentDate: null, attempts: Math.max(closed + cancellationCount, 1) };
   }
 
   return { currentStatus: 'selecting_observer', currentDate: null, attempts: 0 };
+}
+
+// The frontend's ATTEMPT_EVENT (lib/format.js) is keyed by the mock's event
+// names. An observation that closed as 'not_completed' is its
+// 'did_not_happen' ("Did not happen -- postponed"); 'postponed' is the same in
+// both. Without this the page would show the raw status text.
+const ATTEMPT_TYPE_BY_STATUS = { not_completed: 'did_not_happen' };
+
+// #96 (follow-up to #91/#71): signUp.attempts, backed by real data instead of
+// the frontend mock's full event log, which has no backend equivalent. Two
+// real sources exist for "an attempt on this sign-up closed without
+// completing": cancellation_attempts (migration 007 -- AC postpones the whole
+// assessment, with who/when/why) and individual observations whose own
+// status is 'postponed' or 'not_completed'. The latter currently has no
+// write path anywhere in the API (nothing sets an observation to either
+// status today), so in practice this list is built entirely from
+// cancellation_attempts, but the observation side is included for when that
+// gap closes. attemptNo is assigned by chronological order across both
+// sources combined, matching the mock's "closing events increment the
+// attempt counter" behavior.
+function attemptsFor(cancellationRows, closingObservations, teachersById = new Map()) {
+  // Since #134 a postponement also closes the attempt it interrupted, and its
+  // cancellation row points at that observation (observation_id). That is one
+  // event, so it is listed once: the cancellation's who/why plus the closed
+  // attempt's observer and date.
+  const observationsById = new Map(closingObservations.map((o) => [o.id, o]));
+  const linked = new Set(cancellationRows.map((row) => row.observation_id).filter(Boolean));
+  const observerOf = (o) => {
+    const obs = o ? teachersById.get(o.observer_id) : null;
+    return obs
+      ? {
+        id: obs.id,
+        firstName: obs.first_name,
+        lastName: obs.last_name,
+        email: obs.email,
+        rank: obs.rank,
+        department: obs.department,
+      }
+      : null;
+  };
+
+  const fromCancellations = cancellationRows.map((row) => ({
+    id: `cancellation-${row.id}`,
+    type: 'postponed',
+    at: row.requested_at,
+    reason: row.reason,
+    notes: row.notes ?? null,
+    by: {
+      name: row.requester_first_name
+        ? `${row.requester_first_name} ${row.requester_last_name}`
+        : row.requester_email ?? 'Unknown',
+      role: row.requester_role ?? null,
+    },
+    observer: observerOf(observationsById.get(row.observation_id)),
+    date: observationsById.get(row.observation_id)?.scheduled_date ?? null,
+    count: null,
+  }));
+
+  // No actor/timestamp is recorded for an observation closing today (no
+  // closed_at or closed_by column) -- updated_at is the closest available
+  // approximation. Nobody is recorded as having closed it, so `by` has a null
+  // name and role (AttemptHistory.jsx reads entry.by.name, so the object has
+  // to exist) rather than guessing. The observer
+  // is known, though: it comes from the observation itself.
+  const fromObservations = closingObservations.filter((o) => !linked.has(o.id)).map((o) => {
+    return {
+      id: `observation-${o.id}`,
+      type: ATTEMPT_TYPE_BY_STATUS[o.status] ?? o.status,
+      at: o.updated_at,
+      // Not o.ac_notes: those are committee-only notes, and this response is
+      // also served to the professor on their own profile.
+      reason: null,
+      notes: null,
+      by: { name: null, role: null },
+      observer: observerOf(o),
+      date: o.scheduled_date,
+      count: null,
+    };
+  });
+
+  return [...fromCancellations, ...fromObservations]
+    .sort((a, b) => new Date(a.at) - new Date(b.at))
+    .map((entry, i) => ({ attemptNo: i + 1, ...entry }));
 }
 
 // Shared by both endpoints: resolve the report term from an optional termId,
@@ -303,6 +387,15 @@ router.get(
         [assessmentIds],
       )
       : { rows: [] };
+    const { rows: cancellationCountRows } = assessmentIds.length
+      ? await query(
+        `SELECT assessment_id, count(*)::int AS n FROM cancellation_attempts
+          WHERE assessment_id = ANY($1) AND observation_id IS NULL
+          GROUP BY assessment_id`,
+        [assessmentIds],
+      )
+      : { rows: [] };
+    const cancellationsByAssessment = new Map(cancellationCountRows.map((r) => [r.assessment_id, r.n]));
     const obsByAssessment = new Map();
     for (const o of obsRows) {
       if (!obsByAssessment.has(o.assessment_id)) obsByAssessment.set(o.assessment_id, []);
@@ -318,7 +411,11 @@ router.get(
       const lastShown = history.filter((h) => h.start_date <= term.end_date).at(-1);
       const due = computeDue(t.rank, last ? { season: last.season, year: last.year } : null, term);
       const signUp = signUpByTeacher.get(t.id) ?? null;
-      const status = currentStatusOf(signUp, signUp ? obsByAssessment.get(signUp.id) ?? [] : []);
+      const status = currentStatusOf(
+        signUp,
+        signUp ? obsByAssessment.get(signUp.id) ?? [] : [],
+        signUp ? cancellationsByAssessment.get(signUp.id) ?? 0 : 0,
+      );
 
       return {
         id: t.id,
@@ -593,13 +690,36 @@ router.get(
         ) / 100,
     };
 
-    // Survey completion cannot be measured until submission is implemented.
+    // Count observees with a completed observation this term, and how many of
+    // them sent the term survey. One survey covers all of a person's
+    // observations, so count people, not observations.
+    const { rows: surveyRows } = await query(
+      `SELECT COUNT(DISTINCT o.observee_id)::int AS expected,
+              COUNT(DISTINCT o.observee_id) FILTER (
+                WHERE EXISTS (
+                  SELECT 1
+                    FROM process_feedback pf
+                   WHERE pf.respondent_id = o.observee_id
+                     AND pf.term_id = a.due_term_id
+                     AND pf.observation_id IS NULL
+                )
+              )::int AS submitted
+         FROM observations o
+         JOIN assessments a ON a.id = o.assessment_id
+         JOIN teachers observee ON observee.id = o.observee_id
+        WHERE a.due_term_id = $1
+          AND o.status = 'completed'
+          AND observee.is_active = TRUE`,
+      [term.id],
+    );
+
+    const { expected, submitted } = surveyRows[0];
     const surveyCompletion = {
-      submitted: null,
-      expected: null,
-      ratePercent: null,
-      status: 'unavailable',
-      reason: 'Survey submission is not implemented yet (#103)',
+      submitted,
+      expected,
+      ratePercent: expected === 0
+        ? null
+        : Math.round((submitted / expected) * 10000) / 100,
     };
 
     const { rows: missingRows } = await query(
@@ -711,7 +831,35 @@ router.get(
     const { rows: signUpObservations } = signUp
       ? await query('SELECT * FROM observations WHERE assessment_id = $1 ORDER BY attempt_no', [signUp.id])
       : { rows: [] };
-    const status = currentStatusOf(signUp, signUpObservations);
+    const { rows: cancellationRows } = signUp
+      ? await query(
+        `SELECT ca.*, u.email AS requester_email, u.role AS requester_role,
+                t.first_name AS requester_first_name, t.last_name AS requester_last_name
+           FROM cancellation_attempts ca
+           LEFT JOIN users u ON u.id = ca.requested_by
+           LEFT JOIN teachers t ON t.id = u.teacher_id
+          WHERE ca.assessment_id = $1
+          ORDER BY ca.requested_at`,
+        [signUp.id],
+      )
+      : { rows: [] };
+    const closingObservers = [
+      ...new Set(
+        signUpObservations
+          .filter((o) => CLOSING_OBSERVATION_STATUSES.includes(o.status))
+          .map((o) => o.observer_id),
+      ),
+    ];
+    const { rows: observerRows } = closingObservers.length
+      ? await query('SELECT * FROM teachers WHERE id = ANY($1::int[])', [closingObservers])
+      : { rows: [] };
+    const observersById = new Map(observerRows.map((t) => [t.id, t]));
+    // Cancellations that closed an attempt are already counted with it.
+    const status = currentStatusOf(
+      signUp,
+      signUpObservations,
+      cancellationRows.filter((row) => !row.observation_id).length,
+    );
 
     const summary = {
       id: teacher.id,
@@ -857,17 +1005,18 @@ router.get(
           assessmentId: signUp.id,
           status: signUp.status,
           section: { id: signUp.section_id, sectionNumber: signUp.section_number },
-          // The mock's attempt log (list_generated / request_sent / declined /
-          // postponed / ...) has no real-schema equivalent yet -- there's no
-          // table that records that history, only cancellation_attempts (a
-          // narrower log of *cancellation* requests specifically, migration
-          // 007) and the observations themselves. The closest faithful port
-          // today is each attempt on this assessment that actually closed
-          // (postponed / not_completed). Known gap -- flagged in the PR
-          // description for a follow-up once there's a real event log.
-          attempts: signUpObservations
-            .filter((o) => CLOSING_OBSERVATION_STATUSES.includes(o.status))
-            .map((o) => ({ attemptNo: o.attempt_no, type: o.status, date: o.scheduled_date })),
+          // #96: backed by cancellation_attempts (migration 007 -- AC
+          // postpones the whole assessment, with who/when/why) plus any
+          // observation whose own status closed as postponed/not_completed.
+          // See attemptsFor() for the full rationale -- the mock's broader
+          // event log has no real-schema equivalent, so this is the closest
+          // faithful real-data version, not a reconstruction of every event
+          // type the mock tracks.
+          attempts: attemptsFor(
+            cancellationRows,
+            signUpObservations.filter((o) => CLOSING_OBSERVATION_STATUSES.includes(o.status)),
+            observersById,
+          ),
         }
         : null,
     });

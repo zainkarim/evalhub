@@ -29,7 +29,7 @@ function MobileNav({ items, counts, name, role, onSignOut }) {
   })
 
   useEffect(() => {
-    const desktop = window.matchMedia("(min-width: 1024px)")
+    const desktop = window.matchMedia("(min-width: 1280px)")
     const onChange = (event) => {
       if (event.matches) setOpenOn(null)
     }
@@ -49,7 +49,7 @@ function MobileNav({ items, counts, name, role, onSignOut }) {
   }, [open])
 
   return (
-    <div className="lg:hidden">
+    <div className="xl:hidden">
       <button
         ref={buttonRef}
         type="button"

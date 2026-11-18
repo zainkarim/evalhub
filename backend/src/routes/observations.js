@@ -4,6 +4,7 @@ import { pool, query } from '../db/pool.js';
 import { AC_OR_ADMIN, isViewOnly } from '../middleware/auth.js';
 import { HttpError, notFound } from '../middleware/errors.js';
 import { idParams, pagination, paged, validate } from '../middleware/validate.js';
+import { postponeSignUp } from '../lib/scheduling.js';
 
 const router = Router();
 
@@ -407,6 +408,49 @@ router.post('/:id/sign-off', validate(idParams, 'params'), async (req, res) => {
   }
 
   res.json(toObservation(updated));
+});
+
+// POST /api/observations/:id/postpone   (observer, observee, or AC/admin)
+// #134: a scheduled observation that can't happen on its date (illness, a
+// conflict). The attempt is kept and marked postponed, its date is released,
+// and the sign-up can be rescheduled in the same semester. Nothing is deleted.
+const postponeBody = z.object({ reason: z.string().trim().min(1).max(2000) });
+
+router.post('/:id/postpone', validate(idParams, 'params'), validate(postponeBody), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      'SELECT * FROM observations WHERE id = $1 FOR UPDATE',
+      [req.valid.params.id],
+    );
+    const observation = rows[0];
+    if (!observation) throw notFound('Observation');
+    const { isViewOnly: viewOnly } = requireParty(req, observation);
+    if (viewOnly) throw new HttpError(403, 'forbidden', 'View-only access');
+    if (observation.status !== 'approved') {
+      throw new HttpError(409, 'conflict', 'Only a scheduled observation can be postponed');
+    }
+
+    const { rows: assessments } = await client.query(
+      'SELECT * FROM assessments WHERE id = $1 FOR UPDATE',
+      [observation.assessment_id],
+    );
+    await postponeSignUp(client, assessments[0], {
+      userId: req.user.id,
+      reason: 'other',
+      notes: req.valid.body.reason,
+    });
+
+    const { rows: updated } = await client.query('SELECT * FROM observations WHERE id = $1', [observation.id]);
+    await client.query('COMMIT');
+    res.json(toObservation(updated[0]));
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 });
 
 export default router;

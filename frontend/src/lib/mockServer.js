@@ -15,7 +15,7 @@ import { computeDue, defaultReportTerm } from "./dueStatus"
 import { courseLabel, formatRank, normalizeStatus } from "./format"
 import { APP_SETTINGS, buildSeed, DEMO_PASSWORD, VIEW_ONLY_USERS } from "./mockData"
 
-const STORE_KEY = "evalhub.mock.state.v4"
+const STORE_KEY = "evalhub.mock.state.v5"
 const HOUR = 60 * 60 * 1000
 const MIN_DATES = 4
 const MAX_DATES = 8
@@ -28,10 +28,12 @@ function load() {
   if (state) return state
   try {
     const saved = JSON.parse(localStorage.getItem(STORE_KEY) ?? "null")
-    if (saved?.version === 4) {
+    if (saved?.version === 5) {
       state = saved
       state.notifications ??= []
       state.nextId ??= {}
+      state.surveyResponses ??= []
+      state.nextId.survey ??= 1
 
       if (!state.criteria || !state.observationResponses) {
         const seed = buildSeed()
@@ -1986,6 +1988,59 @@ route("POST", "/notifications/list-reminder", ({ user, body }) => {
   }
   save()
   return { sent, skipped }
+})
+
+// --------------------------------------------- process feedback survey ----
+// Same rules as backend/src/routes/surveys.js: one survey per teacher per
+// term, open until the term's feedback deadline.
+
+function currentSurveyTerm() {
+  return [...load().terms]
+    .filter((item) => item.startDate <= today())
+    .sort((a, b) => b.startDate.localeCompare(a.startDate))[0]
+}
+
+const surveyOpen = (term) => !term.feedbackDeadline || today() <= term.feedbackDeadline
+
+const hasSubmittedSurvey = (teacherId, termId) =>
+  load().surveyResponses.some((row) => row.teacherId === teacherId && row.termId === termId)
+
+route("GET", "/surveys/status", ({ user }) => {
+  const teacherId = requireTeacher(user)
+  const term = currentSurveyTerm()
+  if (!term) return { submitted: false, available: false }
+  return {
+    submitted: hasSubmittedSurvey(teacherId, term.id),
+    available: surveyOpen(term),
+    termId: term.id,
+  }
+})
+
+route("POST", "/surveys", ({ user, body }) => {
+  const teacherId = requireTeacher(user)
+  const s = load()
+  const term = currentSurveyTerm()
+  if (!term) throw fail(400, "validation_error", "There is no active term for this survey.")
+  if (hasSubmittedSurvey(teacherId, term.id)) {
+    throw fail(409, "conflict", "You have already submitted this survey for this term.")
+  }
+  if (!surveyOpen(term)) throw fail(409, "conflict", "The feedback survey deadline has passed.")
+  if (!["1", "2", "3", "4", "5"].includes(String(body?.rating))) {
+    throw fail(400, "validation_error", "Invalid request")
+  }
+
+  const response = {
+    id: s.nextId.survey++,
+    teacherId,
+    termId: term.id,
+    rating: Number(body.rating),
+    feedback: body.feedback ?? "",
+    suggestions: body.suggestions ?? "",
+    submittedAt: nowISO(),
+  }
+  s.surveyResponses.push(response)
+  save()
+  return response
 })
 
 // ---------------------------------------------------------------- entry ----

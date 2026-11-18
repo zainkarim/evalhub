@@ -30,7 +30,7 @@ Base URL (dev): `http://localhost:3000/api` · JSON in/out · **camelCase** fiel
 | `DELETE /teachers/:id` | AC/admin | **soft delete** (`isActive=false`), returns 204 |
 
 ```jsonc
-{ "id": 3, "firstName": "Professor", "lastName": "C", "email": "professor.c@example.edu",
+{ "id": 3, "firstName": "Sofia", "lastName": "Alvarez", "email": "professor.c@example.edu",
   "school": "ECS", "rank": "assistant_professor",  // rank: assistant_professor | associate_professor | full_professor
   "isActive": true, "createdAt": "2026-09-18T12:00:00.000Z", "updatedAt": "2026-09-18T12:00:00.000Z" }
 ```

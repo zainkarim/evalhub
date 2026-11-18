@@ -20,11 +20,11 @@ Demo accounts (password `ChangeMe-Dev-123!` for all; the first three exist in
 
 | Account | Who | Use it to |
 |---|---|---|
-| `faculty@example.edu` | Professor C (faculty) | sign up, pick one observer + dates, sign off |
-| `ac@example.edu` | Professor B (Assessment Committee) | see the cycle and sign-ups, click Start Observer Selection once, notify professors, resolve alerts |
+| `faculty@example.edu` | Sofia Alvarez (faculty) | sign up, pick one observer + dates, sign off |
+| `ac@example.edu` | David Okafor (Assessment Committee) | see the cycle and sign-ups, click Start Observer Selection once, notify professors, resolve alerts |
 | `admin@example.edu` | Administrator | committee view, no teaching profile |
-| `professor.h@example.edu` | Professor H (mock only) | confirm one of the offered dates, or decline |
-| `professor.e@example.edu` | Professor E (mock only) | see a 5-of-6 candidate list |
+| `professor.h@example.edu` | Daniel Brooks (mock only) | confirm one of the offered dates, or decline |
+| `professor.e@example.edu` | Aisha Rahman (mock only) | see a 5-of-6 candidate list |
 | `professor.d@example.edu`, `professor.f@example.edu` | mock only | sign off the seeded, already-held observation |
 
 To use the real API, copy `.env.example` to `.env.local` and set `VITE_API_URL`
