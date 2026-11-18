@@ -451,6 +451,191 @@ router.get(
 
     const active = data.filter((r) => r.isActive);
     const count = (test) => active.filter(test).length;
+    const teachersById = new Map(teachers.map((t) => [t.id, t]));
+    // A deadline passes at the end of its day in the school's time zone, not at
+    // 00:00 UTC (which is 6 PM the evening before in Central time).
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+    // What counts as observer load: observations that are active or finished, on
+    // sign-ups that are still in play. A postponed or cancelled sign-up keeps its
+    // old observation rows (/cancel only changes the assessment), so filtering on
+    // the observation status alone would still count them. Mirrors
+    // lib/observerCapacity.js, which counts proposed/approved/completed.
+    const loadObservationStatuses = ['proposed', 'approved', 'completed'];
+    const nonLoadAssessmentStatuses = ['postponed', 'cancelled', 'not_eligible'];
+
+    // #72 (Prethel's half): Observer Utilization Rate + Average Observations
+    // per Observer. Pool = teachers in this cycle's observer pool per §4.2
+    // ("a professor who signs up to be observed... is automatically added to
+    // that cycle's pool of potential observers") -- the same non-cancelled/
+    // non-not_eligible sign-up set used elsewhere for participation. Usage =
+    // distinct observers actually assigned to a non-postponed observation
+    // this term; postponed attempts are excluded from load everywhere else
+    // in this file (see the observerLoad comment on the profile route below),
+    // so they're excluded here too for consistency.
+    const observerPoolIds = new Set(
+      signUpRows
+        .filter((a) => !['cancelled', 'not_eligible'].includes(a.status)
+          && !a.excluded_from_kpis
+          && teachersById.get(a.teacher_id)?.is_active)
+        .map((a) => a.teacher_id),
+    );
+    const { rows: termObservations } = await query(
+      `SELECT o.id, o.observer_id, o.scheduled_date, o.created_at
+         FROM observations o
+         JOIN assessments a ON a.id = o.assessment_id
+        WHERE a.due_term_id = $1
+          AND o.status = ANY($2::text[])
+          AND a.status <> ALL($3::text[])`,
+      [term.id, loadObservationStatuses, nonLoadAssessmentStatuses],
+    );
+    const observersUsed = new Set(termObservations.map((o) => o.observer_id));
+    // Only observers who are in the pool count towards utilization, otherwise
+    // three outside observers against two sign-ups would read 150%.
+    const observersUsedInPool = [...observersUsed].filter((id) => observerPoolIds.has(id)).length;
+    const observerUtilization = {
+      activeObservers: observersUsedInPool,
+      poolSize: observerPoolIds.size,
+      ratePercent: observerPoolIds.size === 0
+        ? null
+        : Math.round((observersUsedInPool / observerPoolIds.size) * 10000) / 100,
+      outsidePool: observersUsed.size - observersUsedInPool,
+    };
+    const averageObservationsPerObserver = {
+      totalObservations: termObservations.length,
+      activeObservers: observersUsed.size,
+      average: observersUsed.size === 0
+        ? null
+        : Math.round((termObservations.length / observersUsed.size) * 100) / 100,
+    };
+
+    // Course-Level Match Accuracy: re-check every non-postponed observation
+    // this term against the SAME rule eligible_observers.sql uses (department
+    // match + taught that course level within the lookback window) -- this
+    // validates that whoever ended up assigned (the algorithm, or an AC
+    // manual override) actually satisfied the matching rule, not just that
+    // the algorithm's output looked right at generation time.
+    const { rows: lookbackSettingRows } = await query(
+      "SELECT value FROM app_settings WHERE key = 'observer_lookback_years'",
+    );
+    const matchLookbackYears = Number(lookbackSettingRows[0]?.value ?? 2);
+    const { rows: matchRows } = await query(
+      `WITH term_obs AS (
+         SELECT o.id, o.observer_id, o.scheduled_date, o.created_at,
+                ot.department AS observer_department,
+                c.subject AS target_subject, c.course_level AS target_level
+           FROM observations o
+           JOIN assessments a ON a.id = o.assessment_id
+           JOIN course_sections cs ON cs.id = a.section_id
+           JOIN courses c ON c.id = cs.course_id
+           JOIN teachers ot ON ot.id = o.observer_id
+          WHERE a.due_term_id = $1
+            AND o.status = ANY($3::text[])
+            AND a.status <> ALL($4::text[])
+       )
+       SELECT
+         COUNT(*)::int AS total,
+         COUNT(*) FILTER (
+           WHERE term_obs.observer_department = term_obs.target_subject
+             AND EXISTS (
+               SELECT 1 FROM course_sections cs2
+               JOIN courses c2 ON c2.id = cs2.course_id
+               JOIN terms tm2 ON tm2.id = cs2.term_id
+               WHERE cs2.teacher_id = term_obs.observer_id
+                 AND c2.subject = term_obs.target_subject
+                 AND c2.course_level = term_obs.target_level
+                 AND tm2.start_date <= COALESCE(term_obs.scheduled_date, term_obs.created_at::date)
+                 AND tm2.end_date >= (COALESCE(term_obs.scheduled_date, term_obs.created_at::date) - make_interval(years => $2::int))
+             )
+         )::int AS matching
+       FROM term_obs`,
+      [term.id, matchLookbackYears, loadObservationStatuses, nonLoadAssessmentStatuses],
+    );
+    const courseLevelMatchAccuracy = {
+      matching: matchRows[0].matching,
+      total: matchRows[0].total,
+      ratePercent: matchRows[0].total === 0
+        ? null
+        : Math.round((matchRows[0].matching / matchRows[0].total) * 10000) / 100,
+    };
+
+    // List Sufficiency Rate + Unmatched Faculty Report both come straight off
+    // candidate_lists (migration 002's pool_size/list_size columns were added
+    // specifically to drive these two KPIs -- see that migration's comment).
+    const { rows: listSizeSettingRows } = await query(
+      "SELECT value FROM app_settings WHERE key = 'candidate_list_size'",
+    );
+    const candidateListSize = Number(listSizeSettingRows[0]?.value ?? 5);
+    const signUpByAssessment = new Map(signUpRows.map((a) => [a.id, a]));
+    const { rows: latestListRows } = await query(
+      `SELECT DISTINCT ON (cl.assessment_id)
+              cl.assessment_id, cl.pool_size, cl.list_size, cl.generated_at, a.teacher_id
+         FROM candidate_lists cl
+         JOIN assessments a ON a.id = cl.assessment_id
+        WHERE a.due_term_id = $1
+        ORDER BY cl.assessment_id, cl.generated_at DESC, cl.id DESC`,
+      [term.id],
+    );
+    // Closed sign-ups (cancelled, ruled not eligible or removed from the KPIs, or
+    // an inactive professor) are not part of either list KPI.
+    // signUpRows already leaves out the 'not_eligible' status.
+    const candidateListRows = latestListRows.filter((l) => {
+      const a = signUpByAssessment.get(l.assessment_id);
+      return a && a.status !== 'cancelled' && !a.excluded_from_kpis
+        && teachersById.get(l.teacher_id)?.is_active;
+    });
+    const sufficientLists = candidateListRows.filter((l) => l.list_size >= candidateListSize).length;
+    const listSufficiency = {
+      sufficient: sufficientLists,
+      generated: candidateListRows.length,
+      ratePercent: candidateListRows.length === 0
+        ? null
+        : Math.round((sufficientLists / candidateListRows.length) * 10000) / 100,
+    };
+    // Only sign-ups still waiting for an observer: the same rule as the Cycle page
+    // alerts (GET /assessments/alerts), so an empty pool clears once the sign-up is
+    // scheduled or postponed. The course comes from the sign-up itself, not from
+    // the one sign-up the report keeps per professor.
+    const unmatchedFaculty = candidateListRows
+      .filter((l) => l.pool_size === 0
+        && ['signed_up', 'candidates_generated'].includes(signUpByAssessment.get(l.assessment_id).status))
+      .map((l) => {
+        const t = teachersById.get(l.teacher_id);
+        const signUp = signUpByAssessment.get(l.assessment_id);
+        return {
+          assessmentId: l.assessment_id,
+          teacherId: l.teacher_id,
+          name: t ? `${t.first_name} ${t.last_name}` : null,
+          course: signUp ? courseLabel(signUp.subject, signUp.course_number) : null,
+          section: signUp ? signUp.section_number : null,
+          generatedAt: l.generated_at,
+        };
+      });
+
+    // Outstanding Observation Report: sign-ups still open past this term's
+    // observation-period deadline -- the operational "these are stuck" list,
+    // distinct from the rank-based faculty-overdue count above (that's about
+    // whether a professor is due again by the frequency rule; this is about
+    // whether a specific sign-up already in progress missed its own deadline).
+    // Same fallback as the observation scheduling check in assessments.js: a term
+    // with no observation deadline set ends on its end date.
+    const observationDeadline = term.observation_deadline ?? term.end_date;
+    const outstandingObservations = observationDeadline && observationDeadline < todayStr
+      ? signUpRows
+        .filter((a) => !['completed', 'cancelled', 'not_eligible'].includes(a.status)
+          && !a.excluded_from_kpis
+          && teachersById.get(a.teacher_id)?.is_active)
+        .map((a) => {
+          const t = teachersById.get(a.teacher_id);
+          return {
+            assessmentId: a.id,
+            teacherId: a.teacher_id,
+            name: t ? `${t.first_name} ${t.last_name}` : null,
+            course: courseLabel(a.subject, a.course_number),
+            section: a.section_number,
+            status: a.status,
+          };
+        })
+      : [];
 
     const isDue = (r) =>
       r.dueStatus === 'due' || r.dueStatus === 'never_observed';
@@ -469,8 +654,16 @@ router.get(
       ]),
     );
 
+    // A professor whose only sign-ups this term were cancelled as not eligible or
+    // left-department is not expected to take part, so they leave the denominator
+    // as well as the numerator.
+    const excludedOnlyTeacherIds = new Set(
+      [...new Set(signUpRows.map((a) => a.teacher_id))].filter((id) =>
+        signUpRows.filter((a) => a.teacher_id === id).every((a) => a.excluded_from_kpis)),
+    );
     const participationEligible = active.filter((r) =>
-      ['due', 'never_observed', 'overdue'].includes(r.dueStatus),
+      ['due', 'never_observed', 'overdue'].includes(r.dueStatus)
+      && !excludedOnlyTeacherIds.has(r.id),
     );
 
     // Use all term sign-ups, rather than the single display sign-up per teacher.
@@ -553,6 +746,12 @@ router.get(
 
     res.json({
       term: termBrief(term),
+      observerUtilization,
+      averageObservationsPerObserver,
+      courseLevelMatchAccuracy,
+      listSufficiency,
+      unmatchedFaculty,
+      outstandingObservations,
       assessmentParticipation,
       surveyCompletion,
       evaluationEligibilityAccuracy: {

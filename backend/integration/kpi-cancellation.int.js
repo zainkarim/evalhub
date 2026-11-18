@@ -6,15 +6,15 @@ let ctx;
 before(async () => { ctx = await startIntegration(); });
 after(async () => { await ctx?.close(); });
 
-async function check(label, participating, missing) {
+async function check(label, participating, missing, eligible = 10) {
   const res = await ctx.api('GET', '/teachers/report?termId=10', {
     as: USERS.ac,
   });
   assert.equal(res.status, 200);
   assert.deepEqual(res.body.assessmentParticipation, {
     participating,
-    eligible: 10,
-    ratePercent: participating * 10,
+    eligible,
+    ratePercent: participating === 0 ? 0 : Math.round((participating / eligible) * 10000) / 100,
   });
   assert.equal(res.body.counts.missingObservations, missing);
   console.log(`${label}: participating=${participating}, missing=${missing}`);
@@ -43,7 +43,8 @@ test('KPI exclusions use cancellation reasons from the real endpoint', async () 
   await check('Ordinary postponement still counts', 1, 1);
 
   await cancel(1, 'not_eligible');
-  await check('Ineligible sign-up excluded despite postponed status', 0, 0);
+  // Their only sign-up is excluded, so they leave the denominator as well.
+  await check('Ineligible sign-up excluded despite postponed status', 0, 0, 9);
 
   // Another qualifying sign-up for the same professor must still count.
   const [section] = await ctx.sql(
@@ -59,5 +60,5 @@ test('KPI exclusions use cancellation reasons from the real endpoint', async () 
   await check('Another qualifying sign-up still counts', 1, 1);
 
   await cancel(signup.body.id, 'left_department');
-  await check('Left-department sign-up excluded despite postponed status', 0, 0);
+  await check('Left-department sign-up excluded despite postponed status', 0, 0, 9);
 });

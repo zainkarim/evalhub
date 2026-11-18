@@ -787,8 +787,25 @@ router.post(
       ? Number(candidates[0].pool_size)
       : 0;
 
-    // 7. If nobody qualifies, do not create a candidate list.
+    // 7. If nobody qualifies there is nobody to put on a list, but the empty result
+    // is still recorded as a 0/0 list so the unmatched-faculty and list-sufficiency
+    // KPIs (and the committee's pool alert) can see it. The assessment status does
+    // not move on, and a second click does not add a second empty list.
     if (poolSize === 0) {
+      const { rows: latestRows } = await query(
+        `SELECT pool_size FROM candidate_lists
+          WHERE assessment_id = $1 ORDER BY generated_at DESC, id DESC LIMIT 1`,
+        [assessmentId],
+      );
+      if (!latestRows[0] || latestRows[0].pool_size !== 0) {
+        await query(
+          `INSERT INTO candidate_lists
+            (assessment_id, target_level, target_school, pool_size, list_size, generated_by)
+           VALUES ($1, $2, $3, 0, 0, $4)`,
+          [assessmentId, section.course_level, section.subject, req.user.id],
+        );
+      }
+
       res.json({
         assessment: toAssessment(assessment),
         matchingInputs: {
