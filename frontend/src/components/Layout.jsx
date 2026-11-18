@@ -13,20 +13,27 @@ import { PageSkeleton } from "./RouteFallback"
 import RouteErrorBoundary from "./RouteErrorBoundary"
 import UserMenu from "./UserMenu"
 import { resetStagger } from "./ui"
-import { displayName, hasTeacherProfile, isAC, roleLabel } from "../lib/roles"
+import { displayName, hasTeacherProfile, isAC, isViewOnly, roleLabel } from "../lib/roles"
 
 // Faculty and committee members see different navigation. `badge` names the
-// live counter shown next to the link.
+// live counter shown next to the link. `menuOnly` links stay out of the inline
+// row (it is full at 1280px for the committee) and show in the menu button's
+// panel and the account menu instead.
 const links = [
   { to: "/dashboard", label: "Dashboard" },
   { to: "/professors", label: "Professors", committeeOnly: true },
   { to: "/courses", label: "Courses" },
   { to: "/observations", label: "Observations", badge: "requests" },
+  { to: "/requests", label: "My Requests", profileOnly: true, menuOnly: true },
   { to: "/cycle", label: "Cycle", committeeOnly: true, badge: "alerts" },
   { to: "/notifications", label: "Notifications", profileOnly: true, badge: "unread" },
+  { to: "/feedback-survey", label: "Feedback Survey", profileOnly: true },
   { to: "/evaluation-criteria", label: "Evaluation Criteria", committeeOnly: true },
   { to: "/my-profile", label: "My Profile", profileOnly: true },
 ]
+
+// Department Head / Annual Review Committee see one page only (#126).
+const viewOnlyLinks = [{ to: "/records", label: "Completed observations" }]
 
 // Header and page content share one container, so their edges line up.
 const CONTAINER = "mx-auto w-full max-w-7xl px-4 sm:px-6"
@@ -84,9 +91,11 @@ function Layout() {
 
   // Same two filters as always: committee-only links and links that need a teacher profile.
   // "My Profile" points at the person's own professor edit page.
-  const visibleLinks = links
-    .filter((link) => committee || !link.committeeOnly)
-    .filter((link) => !link.profileOnly || hasTeacherProfile(user))
+  const visibleLinks = isViewOnly(user)
+    ? viewOnlyLinks
+    : links
+        .filter((link) => committee || !link.committeeOnly)
+        .filter((link) => !link.profileOnly || hasTeacherProfile(user))
     .map((link) =>
       link.to === "/my-profile" ? { ...link, to: `/professors/${user.teacherId}/edit` } : link,
     )
@@ -129,12 +138,18 @@ function Layout() {
             onSignOut={signOut}
           />
           <BrandMark to="/" />
-          <MainNav items={visibleLinks} counts={counts} />
+          <MainNav items={visibleLinks.filter((link) => !link.menuOnly)} counts={counts} />
 
           <div className="ml-auto flex items-center gap-1 sm:gap-2">
-            <NotificationBell />
+            {!isViewOnly(user) && <NotificationBell />}
             <ThemeToggle />
-            <UserMenu name={name} role={roleLabel(user)} initials={initials} onSignOut={signOut} />
+            <UserMenu
+              name={name}
+              role={roleLabel(user)}
+              initials={initials}
+              links={visibleLinks.filter((link) => link.menuOnly)}
+              onSignOut={signOut}
+            />
           </div>
         </div>
       </header>

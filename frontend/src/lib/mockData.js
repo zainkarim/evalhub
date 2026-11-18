@@ -136,6 +136,13 @@ const sections = [
   }),
 )
 
+// View-only demo logins (#126), also seeded by the backend. Exported so a
+// saved mock state from before they existed can pick them up.
+export const VIEW_ONLY_USERS = [
+  { id: 100, email: "depthead@example.edu", role: "dept_head", teacherId: null },
+  { id: 101, email: "review@example.edu", role: "annual_review", teacherId: null },
+]
+
 // Demo logins. The first three match `npm run seed` in the backend; the rest
 // are mock-only so a reviewer can also sign in as an observer.
 const users = [
@@ -148,6 +155,7 @@ const users = [
     role: "faculty",
     teacherId,
   })),
+  ...VIEW_ONLY_USERS,
 ]
 
 const DAY = 24 * 60 * 60 * 1000
@@ -443,6 +451,8 @@ export function buildSeed(now = new Date()) {
     notifications: [],
     criteria,
     observationResponses,
+    // Process feedback survey answers (#73).
+    surveyResponses: [],
     nextId: {
       criterion: criteria.length + 1,
       response: observationResponses.length + 1,
@@ -452,6 +462,7 @@ export function buildSeed(now = new Date()) {
       observation: 10,
       log: attemptLog.length + 1,
       notification: 1,
+      survey: 1,
     },
   }
 }

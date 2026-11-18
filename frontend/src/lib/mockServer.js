@@ -13,7 +13,7 @@
 
 import { computeDue, defaultReportTerm } from "./dueStatus"
 import { courseLabel, formatRank, normalizeStatus } from "./format"
-import { APP_SETTINGS, buildSeed, DEMO_PASSWORD } from "./mockData"
+import { APP_SETTINGS, buildSeed, DEMO_PASSWORD, VIEW_ONLY_USERS } from "./mockData"
 
 const STORE_KEY = "evalhub.mock.state.v5"
 const HOUR = 60 * 60 * 1000
@@ -32,6 +32,8 @@ function load() {
       state = saved
       state.notifications ??= []
       state.nextId ??= {}
+      state.surveyResponses ??= []
+      state.nextId.survey ??= 1
 
       if (!state.criteria || !state.observationResponses) {
         const seed = buildSeed()
@@ -43,6 +45,11 @@ function load() {
 
       state.nextId.notification ??=
         Math.max(0, ...state.notifications.map((item) => item.id)) + 1
+
+      // Saved states from before #126 lack the view-only demo accounts.
+      for (const account of VIEW_ONLY_USERS) {
+        if (!state.users.some((u) => u.email === account.email)) state.users.push({ ...account })
+      }
 
       // Migrate saved criteria to the uniform 1–5 rating scale.
       for (const criterion of state.criteria) {
@@ -145,6 +152,11 @@ function lookbackCutoff() {
 }
 const nowISO = () => new Date().toISOString()
 const isAC = (user) => user.role === "ac_member" || user.role === "admin"
+// Department Head / Annual Review Committee (#126): same allow-list as backend/src/app.js.
+const isViewOnly = (user) => user?.role === "dept_head" || user?.role === "annual_review"
+const viewOnlyAllowed = (method, pathname) =>
+  pathname.startsWith("/auth/") ||
+  (method === "GET" && /^\/(terms|criteria|observations)(\/|$)/.test(pathname))
 
 const byId = (list, id) => list.find((item) => item.id === Number(id))
 
@@ -645,6 +657,11 @@ function createObservation(assessment, fields) {
 function getObservationFor(user, id) {
   const observation = byId(load().observations, id)
   if (!observation) throw fail(404, "not_found", "Observation not found")
+  // View-only roles see completed records only; anything else is "not found".
+  if (isViewOnly(user)) {
+    if (observation.status !== "completed") throw fail(404, "not_found", "Observation not found")
+    return { observation, isParty: false }
+  }
   const isParty =
     user.teacherId && [observation.observerId, observation.observeeId].includes(user.teacherId)
   if (!isParty && !isAC(user)) {
@@ -1705,6 +1722,7 @@ route("GET", "/observations/(\\d+)/responses", ({ user, match }) => {
   const { observation } = getObservationFor(user, match[1])
   const canView =
     isAC(user) ||
+    isViewOnly(user) ||
     user.teacherId === observation.observerId ||
     (user.teacherId === observation.observeeId && Boolean(observation.observerSignedOffAt))
   if (!canView) {
@@ -1792,7 +1810,11 @@ route("GET", "/observations", ({ user, params }) => {
   const s = load()
   const status = params.get("status")
   const rows = s.observations
-    .filter((o) => isAC(user) || [o.observerId, o.observeeId].includes(user.teacherId))
+    .filter((o) =>
+      isViewOnly(user)
+        ? o.status === "completed"
+        : isAC(user) || [o.observerId, o.observeeId].includes(user.teacherId),
+    )
     .filter((o) => !status || o.status === status)
     .sort((a, b) => b.id - a.id)
   return { data: rows.map(observationView) }
@@ -1968,6 +1990,59 @@ route("POST", "/notifications/list-reminder", ({ user, body }) => {
   return { sent, skipped }
 })
 
+// --------------------------------------------- process feedback survey ----
+// Same rules as backend/src/routes/surveys.js: one survey per teacher per
+// term, open until the term's feedback deadline.
+
+function currentSurveyTerm() {
+  return [...load().terms]
+    .filter((item) => item.startDate <= today())
+    .sort((a, b) => b.startDate.localeCompare(a.startDate))[0]
+}
+
+const surveyOpen = (term) => !term.feedbackDeadline || today() <= term.feedbackDeadline
+
+const hasSubmittedSurvey = (teacherId, termId) =>
+  load().surveyResponses.some((row) => row.teacherId === teacherId && row.termId === termId)
+
+route("GET", "/surveys/status", ({ user }) => {
+  const teacherId = requireTeacher(user)
+  const term = currentSurveyTerm()
+  if (!term) return { submitted: false, available: false }
+  return {
+    submitted: hasSubmittedSurvey(teacherId, term.id),
+    available: surveyOpen(term),
+    termId: term.id,
+  }
+})
+
+route("POST", "/surveys", ({ user, body }) => {
+  const teacherId = requireTeacher(user)
+  const s = load()
+  const term = currentSurveyTerm()
+  if (!term) throw fail(400, "validation_error", "There is no active term for this survey.")
+  if (hasSubmittedSurvey(teacherId, term.id)) {
+    throw fail(409, "conflict", "You have already submitted this survey for this term.")
+  }
+  if (!surveyOpen(term)) throw fail(409, "conflict", "The feedback survey deadline has passed.")
+  if (!["1", "2", "3", "4", "5"].includes(String(body?.rating))) {
+    throw fail(400, "validation_error", "Invalid request")
+  }
+
+  const response = {
+    id: s.nextId.survey++,
+    teacherId,
+    termId: term.id,
+    rating: Number(body.rating),
+    feedback: body.feedback ?? "",
+    suggestions: body.suggestions ?? "",
+    submittedAt: nowISO(),
+  }
+  s.surveyResponses.push(response)
+  save()
+  return response
+})
+
 // ---------------------------------------------------------------- entry ----
 
 export async function mockRequest(path, { method = "GET", body, token } = {}) {
@@ -1983,6 +2058,9 @@ export async function mockRequest(path, { method = "GET", body, token } = {}) {
     const account = token ? userFromToken(token) : null
     if (!account) throw fail(401, "unauthorized", "Your session ended. Sign in again.")
     user = { id: account.id, role: account.role, teacherId: account.teacherId, email: account.email }
+    if (isViewOnly(user) && !viewOnlyAllowed(method, pathname)) {
+      throw fail(403, "forbidden", "This account has view-only access to completed observations")
+    }
   }
 
   for (const candidate of routes) {

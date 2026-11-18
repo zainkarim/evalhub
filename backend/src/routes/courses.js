@@ -9,7 +9,7 @@ import { sectionFields, toSection } from './sections.js';
 
 const router = Router();
 
-const toCourse = (r) => ({
+export const toCourse = (r) => ({
   id: r.id,
   subject: r.subject,
   school: r.school,

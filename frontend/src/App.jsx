@@ -7,7 +7,7 @@ import RouteErrorBoundary from "./components/RouteErrorBoundary"
 import { EmptyState } from "./components/ui"
 import { AuthProvider } from "./context/AuthContext"
 import { useAuth } from "./context/auth-context"
-import { AC_ROLES, isAC, hasTeacherProfile } from "./lib/roles"
+import { AC_ROLES, isAC, hasTeacherProfile, isViewOnly } from "./lib/roles"
 import { ScreenFallback } from "./components/RouteFallback"
 
 // Every page is its own chunk, downloaded when the route is first visited (the
@@ -15,6 +15,7 @@ import { ScreenFallback } from "./components/RouteFallback"
 // guards are exactly as before.
 const AssessmentDetail = lazy(() => import("./pages/AssessmentDetail"))
 const CourseDetail = lazy(() => import("./pages/CourseDetail"))
+const CompletedRecords = lazy(() => import("./pages/CompletedRecords"))
 const Courses = lazy(() => import("./pages/Courses"))
 const Cycle = lazy(() => import("./pages/Cycle"))
 const EvaluationCriteria = lazy(() => import("./pages/EvaluationCriteria"))
@@ -28,6 +29,8 @@ const Observations = lazy(() => import("./pages/Observations"))
 const ProfessorDetail = lazy(() => import("./pages/ProfessorDetail"))
 const ProfessorManagement = lazy(() => import("./pages/ProfessorManagement"))
 const Professors = lazy(() => import("./pages/Professors"))
+const RequestTracking = lazy(() => import("./pages/RequestTracking"))
+const FeedbackSurvey = lazy(() => import("./pages/FeedbackSurvey"))
 
 // Committee-only pages: anyone else gets a plain "limited to the committee"
 // message instead of the page (the navigation link is hidden for them too).
@@ -55,10 +58,46 @@ function ProfessorSelfEditRoute({ children }) {
   )
 }
 
-// Each role lands on the page it works from: the committee on the Cycle page.
+// Pages about the person's own observations (e.g. My Requests) need a teacher
+// profile; an account without one (admin) gets a message instead.
+function TeacherProfileRoute({ children }) {
+  const { user } = useAuth()
+  if (hasTeacherProfile(user)) return children
+  return (
+    <EmptyState
+      icon={Lock}
+      titleAs="h1"
+      title="This page is for professors."
+      text="Your account has no professor profile, so it has no observation requests."
+    />
+  )
+}
+
+// Each role lands on the page it works from: the committee on the Cycle page,
+// view-only reviewers on the completed-records list.
 function Home() {
   const { user } = useAuth()
+  if (isViewOnly(user)) return <Navigate to="/records" replace />
   return <Navigate to={isAC(user) ? "/cycle" : "/observations"} replace />
+}
+
+// Department Head / Annual Review Committee accounts only ever see completed
+// records (#126). Any other page sends them back to the list; the backend
+// refuses those calls anyway.
+function ViewOnlyGate({ children }) {
+  const { user } = useAuth()
+  const location = useLocation()
+  if (isViewOnly(user) && !location.pathname.startsWith("/records")) {
+    return <Navigate to="/records" replace />
+  }
+  return children
+}
+
+// The completed-records list is for the view-only roles and the committee.
+function RecordsListRoute({ children }) {
+  const { user } = useAuth()
+  if (isViewOnly(user) || isAC(user)) return children
+  return <Navigate to="/observations" replace />
 }
 
 // Dev-only UI kit gallery. The guard makes the import dead code in a production
@@ -100,7 +139,9 @@ function App() {
           <Route
             element={
               <ProtectedRoute>
-                <Layout />
+                <ViewOnlyGate>
+                  <Layout />
+                </ViewOnlyGate>
               </ProtectedRoute>
             }
           >
@@ -144,8 +185,24 @@ function App() {
             <Route path="/courses/:id" element={<CourseDetail />} />
             <Route path="/dashboard" element={<FacultyDashboard />} />
             <Route path="/observations" element={<Observations />} />
+            <Route
+              path="/requests"
+              element={
+                <TeacherProfileRoute>
+                  <RequestTracking />
+                </TeacherProfileRoute>
+              }
+            />
             <Route path="/observation-signup" element={<ObservationSignup />} />
             <Route path="/assessments/:id" element={<AssessmentDetail />} />
+            <Route
+              path="/records"
+              element={
+                <RecordsListRoute>
+                  <CompletedRecords />
+                </RecordsListRoute>
+              }
+            />
             <Route path="/records/:id" element={<ObservationRecord />} />
             <Route
               path="/cycle"
@@ -157,6 +214,7 @@ function App() {
             />
 <Route path="/review" element={<Navigate to="/cycle" replace />} />
             <Route path="/notifications" element={<Notifications />} />
+            <Route path="/feedback-survey" element={<FeedbackSurvey />} />
             <Route
               path="/evaluation-criteria"
               element={
