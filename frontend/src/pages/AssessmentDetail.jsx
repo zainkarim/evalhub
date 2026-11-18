@@ -32,7 +32,28 @@ import { nextStep } from "../lib/workflow"
 function AssessmentDetail() {
   const { id } = useParams()
   const { user } = useAuth()
-  const call = useCallback(() => api.getAssessment(id), [id])
+  const call = useCallback(async () => {
+  const assessment = await api.getAssessment(id)
+    if (assessment.section) return assessment
+    // The real backend's GET /assessments/:id is flat (teacherId, courseCode, sectionCode).
+    // Rebuild the nested fields this page reads so it renders instead of crashing.
+  const [, subject, courseNumber] = /^([A-Z]+)(\d+)$/.exec(assessment.courseCode ?? "") ?? []
+  const teacher = assessment.teacher ?? (await api.getProfessor(assessment.teacherId).catch(() => null))
+    return {
+      ...assessment,
+      teacher,
+      section: {
+        id: assessment.sectionId,
+        sectionNumber: assessment.sectionCode?.split(".")[1] ?? "—",
+        course: subject ? { subject, courseNumber } : null,
+        term: null,
+      },
+      // Workflow lists the detail endpoint doesn't return yet (#74); empty instead of undefined.
+      timeOptions: assessment.timeOptions ?? [],
+      offers: assessment.offers ?? [],
+      candidates: assessment.candidates ?? [],
+    }
+  }, [id])
   const { data: assessment, error, loading, reload } = useApi(call)
 
   const committee = isAC(user)
@@ -60,7 +81,7 @@ function AssessmentDetail() {
         subtitle={
           assessment && (
             <>
-              {assessment.section.course.title}
+              {assessment.section.course?.title}
               {committeeView && (
                 <span className="mt-1 block">
                   Professor:{" "}
@@ -72,7 +93,7 @@ function AssessmentDetail() {
                   </Link>
                   <span>
                     {" "}
-                    · {formatRank(assessment.teacher.rank)} · {assessment.teacher.school}
+                    · {formatRank(assessment.teacher?.rank)} · {assessment.teacher?.school ?? "—"}
                   </span>
                 </span>
               )}
