@@ -18,6 +18,7 @@ const toObservation = (r) => ({
   scheduledDate: r.scheduled_date,
   observerSignedOffAt: r.observer_signed_off_at,
   observeeSignedOffAt: r.observee_signed_off_at,
+  observeeComment: r.observee_comment ?? null,
 });
 
 const toResponse = (r) => ({
@@ -105,6 +106,8 @@ const toObservationListItem = (r) => {
       : null,
     observerSignedOffAt: r.observer_signed_off_at,
     observeeSignedOffAt: r.observee_signed_off_at,
+    // #95: the observee's optional comment, written when they sign off.
+    observeeComment: r.observee_comment ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -200,6 +203,9 @@ const submitBody = z.object({
     criterionId: z.number().int().positive(),
     score: z.number().int().positive(),
   })).min(1).max(50),
+  // #95: the observer's written notes for the whole form. Optional: leave it
+  // out to keep the saved notes; send "" (or only spaces) to clear them.
+  notes: z.string().max(5000).nullable().optional(),
 });
 
 // POST /api/observations/:id/responses   (the observer on this observation, only)
@@ -250,7 +256,24 @@ router.post(
       }
     }
 
-    res.status(201).json({ data: inserted.map(toResponse) });
+    // #95: save the notes with the scores. `undefined` = not sent, keep the
+    // saved notes; an empty or blank string clears them.
+    let notes = observation.observer_notes ?? null;
+    if (req.valid.body.notes !== undefined) {
+      notes = req.valid.body.notes?.trim() || null;
+      try {
+        await query('UPDATE observations SET observer_notes = $2 WHERE id = $1', [observation.id, notes]);
+      } catch (err) {
+        // The observer signed off between the check above and this write
+        // (migration 016's trigger): same answer as the check.
+        if (err.message?.includes('observer notes are final')) {
+          throw new HttpError(409, 'conflict', 'You have already signed off on this observation; responses are final');
+        }
+        throw err;
+      }
+    }
+
+    res.status(201).json({ data: inserted.map(toResponse), notes });
   },
 );
 
@@ -284,11 +307,18 @@ router.get('/:id/responses', validate(idParams, 'params'), async (req, res) => {
 
   res.json({
     data: rows.map((r) => ({ ...toResponse(r), criterionName: r.criterion_name, maxScore: r.max_score })),
+    // #95: same visibility as the scores (the gate above).
+    notes: observation.observer_notes ?? null,
   });
 });
 
-// POST /api/observations/:id/sign-off
-router.post('/:id/sign-off', validate(idParams, 'params'), async (req, res) => {
+// POST /api/observations/:id/sign-off   { comment? }
+// #95: the observee may add a comment ("Your perspective") when they sign; it
+// is stored with the record. The observer's written part is `notes` on
+// /responses, so a comment from the observer is ignored.
+const signOffBody = z.object({ comment: z.string().max(2000).optional() }).optional().default({});
+
+router.post('/:id/sign-off', validate(idParams, 'params'), validate(signOffBody), async (req, res) => {
   const client = await pool.connect();
   let updated;
 
@@ -377,11 +407,16 @@ router.post('/:id/sign-off', validate(idParams, 'params'), async (req, res) => {
       }
     }
 
-    const column = isObserver ? 'observer_signed_off_at' : 'observee_signed_off_at';
-    const { rows: signedRows } = await client.query(
-      `UPDATE observations SET ${column} = now() WHERE id = $1 RETURNING *`,
-      [observation.id],
-    );
+    const { rows: signedRows } = isObserver
+      ? await client.query(
+        'UPDATE observations SET observer_signed_off_at = now() WHERE id = $1 RETURNING *',
+        [observation.id],
+      )
+      : await client.query(
+        `UPDATE observations SET observee_signed_off_at = now(), observee_comment = $2
+         WHERE id = $1 RETURNING *`,
+        [observation.id, req.valid.body.comment?.trim() || null],
+      );
     updated = signedRows[0];
 
     if (updated.observer_signed_off_at && updated.observee_signed_off_at) {

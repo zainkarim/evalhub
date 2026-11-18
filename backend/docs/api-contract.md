@@ -96,7 +96,8 @@ Base URL (dev): `http://localhost:3000/api` · JSON in/out · **camelCase** fiel
 | 🗓 | `POST /assessments/:id/candidates` | owner / AC | surface ~5 eligible observers; see `db/queries/eligible_observers.sql` |
 | 🗓 | `POST /assessments/:id/observations` `{ observerId, candidateListId? }` | owner / AC | record the chosen observer → `proposed` (AC step-in sets `isAcStepin`, omits `candidateListId`) |
 | 🗓 | `POST /observations/:id/review` `{ decision: "approved"\|"rejected", notes? }` | AC | human-in-the-loop gate |
-| 🗓 | `POST /observations/:id/sign-off` | observer or observee | both required before `completed` |
+| 🗓 | `POST /observations/:id/sign-off` `{ comment? }` | observer or observee | both required before `completed`; #95: the observee's optional `comment` (max 2000) is stored in `observations.observee_comment` and returned as `observeeComment` |
+| ✅ | `POST /observations/:id/responses` `{ responses: [{ criterionId, score }], notes? }` / `GET /observations/:id/responses` → `{ data, notes }` | observer (writes, until they sign off); reads: observer, AC/admin, observee after the observer signs, view-only on completed | #95: `notes` is the observer's written notes (max 5000; `""` clears, omitted keeps), stored in `observations.observer_notes`; final after the observer's sign-off (API 409 + DB trigger, migration 016) |
 | 🗓 | `POST /observations/:id/feedback` `{ rating, comments? }` | participants | process feedback |
 | 🗓 | `GET/POST/PATCH /criteria` | AC | evaluation criteria, weights, scoring |
 

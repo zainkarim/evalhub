@@ -259,6 +259,7 @@ function ObservationRecord() {
                           value={comment}
                           onChange={(event) => setComment(event.target.value)}
                           rows={3}
+                          maxLength={2000}
                           disabled={!dateArrived}
                           className="mt-2"
                           placeholder="Add context or your own view of the observation."
