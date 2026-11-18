@@ -115,9 +115,10 @@ export const api = {
   updateCriterion: (id, body) => request(`/criteria/${id}`, { method: "PATCH", body }),
   deleteCriterion: (id) => request(`/criteria/${id}`, { method: "DELETE" }),
   // ---- observation form answers (#33; backend: routes/observations.js on main)
-  // `notes` is a proposed addition; main stores only the scores.
+  // `notes` (#95): the observer's written notes, stored with the scores. Send a
+  // string to save it ("" clears it); leave it out to keep what's saved.
   submitResponses: (id, responses, notes) =>
-    post(`/observations/${id}/responses`, notes ? { responses, notes } : { responses }),
+    post(`/observations/${id}/responses`, typeof notes === "string" ? { responses, notes } : { responses }),
   getResponses: (id) => request(`/observations/${id}/responses`),
   // ---- auth
   // POST /auth/login -> { token, user }

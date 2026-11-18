@@ -1669,7 +1669,7 @@ route("DELETE", "/criteria/(\\d+)", ({ user, match }) => {
 })
 
 // -- observation form answers (#33). Mirrors main's /observations/:id/responses.
-// `notes` is a proposed addition (main has no column for it yet).
+// `notes` (#95) mirrors observations.observer_notes (migration 016).
 route("POST", "/observations/(\\d+)/responses", ({ user, match, body }) => {
   const s = load()
   const observation = byId(s.observations, match[1])
@@ -1709,10 +1709,13 @@ route("POST", "/observations/(\\d+)/responses", ({ user, match, body }) => {
     }
     saved.push(row)
   }
-  if (typeof body?.notes === "string") observation.observerNotes = body.notes.trim() || null
+  if (typeof body?.notes === "string") {
+    if (body.notes.length > 5000) throw fail(400, "validation_error", "Notes can be at most 5000 characters.")
+    observation.observerNotes = body.notes.trim() || null
+  }
   touch(observation)
   save()
-  return { data: saved }
+  return { data: saved, notes: observation.observerNotes ?? null }
 })
 
 // The observer can always see their own answers. The observee can see
@@ -1864,7 +1867,11 @@ route("POST", "/observations/(\\d+)/sign-off", ({ user, match, body }) => {
       )
     }
   }
+  if (isObservee && typeof body?.comment === "string" && body.comment.length > 2000) {
+    throw fail(400, "validation_error", "Your comment can be at most 2000 characters.")
+  }
   observation[field] = nowISO()
+  // #95: stored as observations.observee_comment (migration 016).
   if (isObservee && body?.comment?.trim()) observation.observeeComment = body.comment.trim()
   if (observation.observerSignedOffAt && observation.observeeSignedOffAt) {
     observation.status = "completed"

@@ -245,6 +245,7 @@ function ObservationFeedback({ observationId, criteria: given, preview = false, 
           setSavedAt(null)
         }}
         rows={5}
+        maxLength={5000}
         disabled={preview || busy}
         className="mt-2"
       />

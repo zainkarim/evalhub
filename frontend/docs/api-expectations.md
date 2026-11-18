@@ -84,9 +84,9 @@ frontend on the real backend (local Docker Postgres + `npm run seed`).
 | mock | `POST /assessments/:id/postpone` `{ reason }` | AC/admin | **reason required**; logs the attempt; replaces `…/cancel` |
 | exists | `GET /observations` (`?status=`) | faculty → own given/received; AC/admin → all | `{ data: ObservationView[] }` |
 | extend | `GET /observations/:id` | observer, observee, AC/admin | record page (adds `attempts`) |
-| exists | `POST /observations/:id/sign-off` `{ comment? }` | observer or observee | `comment` is the observee's perspective |
+| exists | `POST /observations/:id/sign-off` `{ comment? }` | observer or observee | `comment` is the observee's perspective (#95: stored in `observations.observee_comment`, max 2000 characters, returned as `observeeComment` on the observation; final once they sign) |
 | mock | `POST /observations/:id/postpone` `{ reason }` | observer, observee, AC/admin | scheduled attempt didn't happen; replaces reschedule / "it didn't happen" |
-| exists | `GET /observations/:id/responses`, `POST /observations/:id/responses` | observer (own, before sign-off), observee after the observer signs off, AC/admin | the observer form loads and saves ratings. `notes` is not stored yet (#95), so notes only persist on the mock |
+| exists | `GET /observations/:id/responses`, `POST /observations/:id/responses` | observer (own, before sign-off), observee after the observer signs off, AC/admin | the observer form loads and saves ratings and the observer's `notes` (#95: `observations.observer_notes`, max 5000 characters, `""` clears, omitted keeps; the GET returns `{ data, notes }` with the same visibility as the scores; final once the observer signs off) |
 | exists | `GET /criteria`, `POST /criteria`, `PATCH /criteria/:id`, `DELETE /criteria/:id` | AC/admin (read: any) | Evaluation Criteria page: add, edit, take off the form |
 | exists | `POST /assessments/:id/time-options/:optionId/finalize` | owner, AC/admin | on main (#78); declines the other observers' offers on the same option. Not called by the frontend yet |
 

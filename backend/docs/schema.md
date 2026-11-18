@@ -81,6 +81,7 @@ erDiagram
 | Both observer and observee sign off (9/11 summary) | CHECK: `completed` requires both sign-off timestamps |
 | Retry in ~3–4 weeks, then AC / postponement (9/11 summary) | `observations.attempt_no`, `retry_after`; window in `app_settings` |
 | Observation form is a DOCX, not for analysis (Q&A 19) | `observations.form_file_ref` (pointer only) |
+| Observer writes notes in the in-app form; observee may comment when signing; each final once its author signs (#95) | `observations.observer_notes` (≤ 5000 chars), `observations.observee_comment` (≤ 2000 chars); migration 016, with a trigger that blocks changes after sign-off |
 | Evaluation criteria AC-configurable (9/11 summary) | `evaluation_criteria` |
 | Process feedback form (Q&A 19) | `process_feedback` |
 
