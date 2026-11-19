@@ -6,6 +6,7 @@ import { lockInDate } from '../lib/scheduling.js';
 import { HttpError, notFound } from '../middleware/errors.js';
 import { idParams, validate } from '../middleware/validate.js';
 import { getObserverCapacity } from '../lib/observerCapacity.js';
+import { incomingRequestsFor } from './assessments.js';
 
 const router = Router();
 
@@ -36,6 +37,14 @@ const toOffer = (r) => ({
 // who locks a date in, via POST /api/assessments/:id/time-options/:optionId/finalize,
 // which is what used to happen here directly under the old one-observer model.
 const respondBody = z.object({ status: z.enum(['accepted', 'declined']) });
+// GET /api/time-options/incoming   (any professor)
+// The observer's inbox: requests other professors sent them, open ones first.
+// An account with no teacher profile has none.
+router.get('/incoming', async (req, res) => {
+  if (!req.user.teacherId) return res.json({ data: [] });
+  res.json({ data: await incomingRequestsFor(req.user.teacherId) });
+});
+
 router.post(
   '/offers/:id/respond',
   validate(idParams, 'params'),

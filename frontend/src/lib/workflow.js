@@ -50,7 +50,7 @@ export function nextStep(assessment) {
       return waitingCopy(signupDeadline)
     case "candidates_generated":
       if (offer) {
-        return `Waiting for ${fullName(offer.observer)} to confirm a date (${timeLeft(offer.expiresAt)})`
+        return `Waiting for ${fullName(offer.observer)} to confirm a date${offer.expiresAt ? ` (${timeLeft(offer.expiresAt)})` : ""}`
       }
       if (alert === "no_eligible_observers") {
         return "No eligible observers — the committee will assign one"

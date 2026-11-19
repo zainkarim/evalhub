@@ -127,8 +127,10 @@ function RequestPanel({ assessment, onChanged }) {
             <StatusBadge status={offer.status} map={OFFER_STATUS} />
           </p>
           <p className="mt-1 text-muted">
-            They confirm one of the dates below. If there is no reply, the request expires in{" "}
-            {timeLeft(offer.expiresAt).replace(" left", "")} and you can ask someone else.
+            They confirm one of the dates below.
+            {offer.expiresAt
+              ? ` If there is no reply, the request expires in ${timeLeft(offer.expiresAt).replace(" left", "")} and you can ask someone else.`
+              : " If they can't make any of them, they decline and you can ask someone else."}
           </p>
           <ul className="mt-3 list-disc pl-5">
             {offer.options.map((option) => (

@@ -53,7 +53,7 @@ function ObserverSummary({ assessment, showCandidates = true }) {
               <span className="mt-1 block">
                 <StatusBadge status={latest.status} map={OFFER_STATUS} />
               </span>
-              {latest.status === "pending" && (
+              {latest.status === "pending" && latest.expiresAt && (
                 <span className="block text-xs text-muted">{timeLeft(latest.expiresAt)}</span>
               )}
             </>

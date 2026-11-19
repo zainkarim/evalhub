@@ -175,6 +175,62 @@ function buildOffers(offerRows, optionRows, people, attemptNo) {
   });
 }
 
+// GET /api/time-options/incoming (routes/timeOptions.js): the requests other
+// professors sent to this observer, in the same shape as one entry of an
+// assessment's `offers` (buildOffers), plus who asked and for which class.
+// Open requests first, then newest first.
+export async function incomingRequestsFor(teacherId) {
+  const { rows: offerRows } = await query(
+    `SELECT f.*, t.assessment_id, h.action, h.reason, h.created_at AS action_at
+       FROM time_option_offers f
+       JOIN assessment_time_options t ON t.id = f.option_id
+       LEFT JOIN LATERAL (
+         SELECT action, reason, created_at FROM time_option_offer_actions
+          WHERE offer_id = f.id ORDER BY id DESC LIMIT 1
+       ) h ON TRUE
+      WHERE f.teacher_id = $1
+      ORDER BY f.id`,
+    [teacherId],
+  );
+  if (offerRows.length === 0) return [];
+
+  const assessmentIds = [...new Set(offerRows.map((r) => r.assessment_id))];
+  const [{ rows: optionRows }, { rows: assessmentRows }, { rows: attemptRows }, { rows: meRows }] = await Promise.all([
+    query('SELECT * FROM assessment_time_options WHERE assessment_id = ANY($1::int[])', [assessmentIds]),
+    query('SELECT * FROM assessments WHERE id = ANY($1::int[])', [assessmentIds]),
+    query(
+      `SELECT DISTINCT ON (assessment_id) assessment_id, attempt_no, status
+         FROM observations WHERE assessment_id = ANY($1::int[])
+        ORDER BY assessment_id, attempt_no DESC, id DESC`,
+      [assessmentIds],
+    ),
+    query('SELECT * FROM teachers WHERE id = $1', [teacherId]),
+  ]);
+  const views = new Map((await withNestedViews(assessmentRows.map(toAssessment))).map((v) => [v.id, v]));
+  const people = new Map(meRows.map((r) => [r.id, toTeacherBrief(r)]));
+  // Same rule as the detail view: a scheduled or finished attempt is current,
+  // otherwise the next one.
+  const attemptOf = (id) => {
+    const latest = attemptRows.find((r) => r.assessment_id === id);
+    if (!latest) return 1;
+    return ['approved', 'completed'].includes(latest.status) ? latest.attempt_no : latest.attempt_no + 1;
+  };
+
+  return assessmentIds
+    .map((id) => {
+      const view = views.get(id);
+      const [offer] = buildOffers(
+        offerRows.filter((r) => r.assessment_id === id),
+        optionRows.filter((r) => r.assessment_id === id),
+        people,
+        attemptOf(id),
+      );
+      return { ...offer, observee: view.teacher, section: view.section, assessmentStatus: view.status };
+    })
+    .sort((a, b) => Number(b.status === 'pending') - Number(a.status === 'pending')
+      || b.sentAt.localeCompare(a.sentAt));
+}
+
 async function withDetailExtras(view) {
   const [
     { rows: listRows },
