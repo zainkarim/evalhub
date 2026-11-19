@@ -3,7 +3,7 @@ import { api } from "./api"
 export async function loadObservationActivity(teacherId) {
   const [assessments, incoming, observations] = await Promise.all([
     api.myAssessments(),
-        // GET /time-options/incoming isn't on the real backend yet (#74); treat 404 as no requests.
+        // An older backend without GET /time-options/incoming answers 404: treat it as no requests.
     api.incomingRequests().catch((err) => {
       if (err.status === 404) return { data: [] }
       throw err
