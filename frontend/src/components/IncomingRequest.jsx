@@ -62,7 +62,7 @@ function IncomingRequest({ request, onChanged }) {
             <p className="text-muted">{formatMeeting(request.section)}</p>
             <p className="mt-1 text-xs text-muted">
               Sent {formatDateTime(request.sentAt)}
-              {pending ? ` · expires in ${timeLeft(request.expiresAt).replace(" left", "")}` : ""}
+              {pending && request.expiresAt ? ` · expires in ${timeLeft(request.expiresAt).replace(" left", "")}` : ""}
             </p>
           </div>
           <StatusBadge status={request.status} map={OFFER_STATUS} />
